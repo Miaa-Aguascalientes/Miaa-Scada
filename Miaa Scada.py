@@ -7,84 +7,36 @@ from sqlalchemy import create_engine
 import psycopg2
 import json
 import urllib.parse
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# 1. CONFIGURACIÓN ESTRUCTURAL (Sin márgenes para ocupar toda la pantalla)
-st.set_page_config(
-    page_title="MIAA - SCADA DASHBOARD",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+# 1. CONFIGURACIÓN DE PÁGINA
+st.set_page_config(page_title="MIAA - Control de Pozos", layout="wide", initial_sidebar_state="collapsed")
 
-# 2. ESTILO CSS PARA CALCAR TU IMAGEN (Fondo oscuro, sidebar simulado y Popups)
+# 2. ESTILO CSS PARA PANEL IZQUIERDO Y ESTÉTICA DARK
 st.markdown("""
     <style>
-        /* Fondo total negro */
-        .stApp {
-            background-color: #000000 !important;
-        }
+        .stApp { background-color: #000000 !important; color: white; }
+        [data-testid="stHeader"] { background: rgba(0,0,0,0); }
         
-        /* Ocultar elementos innecesarios de Streamlit */
-        #MainMenu {visibility: hidden;}
-        header {visibility: hidden;}
-        footer {visibility: hidden;}
-
-        /* Contenedor de la barra de navegación lateral izquierda (Simulación) */
-        .nav-sidebar {
-            background-color: #0b1a29;
-            height: 100vh;
-            width: 70px;
-            position: fixed;
-            left: 0;
-            top: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-top: 20px;
-            border-right: 1px solid #00d4ff33;
-            z-index: 100;
-        }
-
-        /* Título superior estilo MIAA */
+        /* Contenedor principal para mover el panel a la izquierda */
+        .main-container { display: flex; flex-direction: row-reverse; }
+        
+        /* Título superior */
         .header-miaa {
-            background: linear-gradient(180deg, #0b1a29 0%, #000000 100%);
-            padding: 15px;
-            text-align: center;
-            border-bottom: 2px solid #00d4ff;
-            margin-left: 70px;
+            text-align: center; padding: 10px; border-bottom: 2px solid #00d4ff;
+            background: #0b1a29; margin-bottom: 10px;
         }
         
-        .header-miaa h1 {
-            color: #00d4ff;
-            font-size: 1.5rem;
-            letter-spacing: 3px;
-            margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        /* Estilo del Mapa */
-        .map-container {
-            margin-left: 70px;
-        }
-        
-        iframe {
-            border: none !important;
-        }
+        /* Estilo de la tabla y métricas */
+        .stTable { background-color: #111111; border-radius: 10px; }
+        [data-testid="stMetric"] { background-color: #111111; border: 1px solid #333; border-radius: 8px; }
     </style>
-    
-    <div class="nav-sidebar">
-        <div style="color: #00d4ff; font-size: 24px; margin-bottom: 30px;">Ⓜ️</div>
-        <div style="color: #444; font-size: 20px; margin-bottom: 25px;">📊</div>
-        <div style="color: #00d4ff; font-size: 20px; margin-bottom: 25px;">📍</div>
-        <div style="color: #444; font-size: 20px; margin-bottom: 25px;">⚙️</div>
-    </div>
-    
     <div class="header-miaa">
-        <h1>SISTEMA DE MONITOREO ESTRATÉGICO - MIAA</h1>
+        <h2 style="color: #00d4ff; margin:0; letter-spacing: 2px;">SISTEMA DE MONITOREO DE POZOS - MIAA</h2>
     </div>
 """, unsafe_allow_html=True)
 
-# 3. DICCIONARIO DE POZOS (Tus datos exactos)
+# 3. DICCIONARIO DE CONFIGURACIÓN
 mapa_pozos_dict = {
     "P005A": {
         "coord": (21.89147, -102.23195), 
@@ -106,23 +58,26 @@ mapa_pozos_dict = {
     }
 }
 
-# 4. FUNCIONES DE CARGA (Sin cambios, pero necesarias para el código completo)
+# 4. FUNCIONES DE DATOS
 @st.cache_resource
-def get_engine():
-    c = st.secrets["mysql"]
-    p = urllib.parse.quote_plus(c["password"])
-    return create_engine(f"mysql+mysqlconnector://{c['user']}:{p}@{c['host']}/{c['database']}")
+def get_mysql_engine():
+    try:
+        c = st.secrets["mysql"]
+        pwd = urllib.parse.quote_plus(c["password"])
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}", pool_pre_ping=True)
+    except: return None
 
 def cargar_datos_scada():
+    engine = get_mysql_engine()
+    if not engine: return {}
+    all_tags = []
+    for p in mapa_pozos_dict.values():
+        for k, v in p.items():
+            if isinstance(v, list): all_tags.extend(v)
+            elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): all_tags.append(v)
+    
     try:
-        engine = get_engine()
-        tags = []
-        for p in mapa_pozos_dict.values():
-            for k, v in p.items():
-                if isinstance(v, list): tags.extend(v)
-                elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): tags.append(v)
-        
-        tags_str = "', '".join(list(set(tags)))
+        tags_str = "', '".join(list(set(all_tags)))
         query = f"""
             SELECT r.NAME, h.VALUE, h.FECHA FROM vfitagnumhistory h
             JOIN VfiTagRef r ON h.GATEID = r.GATEID
@@ -135,81 +90,89 @@ def cargar_datos_scada():
 
 # --- PROCESAMIENTO ---
 data_scada = cargar_datos_scada()
+ahora = datetime.now()
 
-# --- MAPA ---
-st.markdown('<div class="map-container">', unsafe_allow_html=True)
+# --- LAYOUT: PANEL A LA IZQUIERDA ---
+col_info, col_map = st.columns([1, 3])
 
-m = folium.Map(location=[21.8900, -102.2500], zoom_start=13, tiles="CartoDB dark_matter", zoom_control=False)
-Fullscreen().add_to(m)
-
-for id_p, info in mapa_pozos_dict.items():
-    val_bba, f_act = data_scada.get(info['corriente_bba'], (0, "N/A"))
-    q_val = data_scada.get(info['caudal'], (0,0))[0]
-    p_val = data_scada.get(info['presion'], (0,0))[0]
-    s_val = data_scada.get(info['sumergencia'], (0,0))[0]
-    tq_val = data_scada.get(info['nivel_tanque'], (0,0))[0] if info['nivel_tanque'] != "0" else 0
+with col_info:
+    st.markdown("### 📊 Estado de Pozos")
+    resumen_data = []
     
-    # Lógica de Color Neón
-    color_neon = "#00ff00" if val_bba == 1 else "#ff0000"
-    status_label = "OPERATIVO" if val_bba == 1 else "FUERA DE SERVICIO"
-
-    # HTML DEL POPUP CALCADO A TU IMAGEN
-    html_popup = f"""
-    <div style="background: rgba(10, 25, 41, 0.95); color: white; padding: 15px; border-radius: 12px; 
-                width: 290px; border: 1px solid {color_neon}; box-shadow: 0 0 20px {color_neon}44; 
-                font-family: 'Segoe UI', Arial, sans-serif;">
+    # Pre-cálculo para el mapa y panel
+    for id_p, info in mapa_pozos_dict.items():
+        # 1. Obtener datos base
+        bba_val, f_act = data_scada.get(info['corriente_bba'], (None, None))
+        v_l1 = data_scada.get(info['voltajes_l'][0], (None, None))
         
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #00d4ff44; padding-bottom: 8px; margin-bottom: 12px;">
-            <span style="font-size: 18px; font-weight: bold; color: #00d4ff;">{id_p}</span>
-            <span style="background: {color_neon}; color: black; padding: 2px 10px; border-radius: 4px; font-size: 10px; font-weight: 900;">{status_label}</span>
-        </div>
+        # 2. Lógica de Colores
+        color_hex = "#808080"  # Gris por defecto (Sin telemetría)
+        icon_color = "gray"
+        status_label = "SIN TELEMETRÍA"
+        emoji = "⚪"
 
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <div style="flex: 1; background: rgba(255,255,255,0.03); padding: 8px; border-radius: 6px; text-align: center; border: 0.5px solid #333;">
-                <div style="font-size: 9px; color: #888; margin-bottom: 4px;">CAUDAL ACTUAL</div>
-                <div style="font-size: 18px; color: #00d4ff; font-weight: bold;">{q_val:.1f} <small style="font-size: 10px;">L/s</small></div>
-            </div>
-            <div style="flex: 1; background: rgba(255,255,255,0.03); padding: 8px; border-radius: 6px; text-align: center; border: 0.5px solid #333;">
-                <div style="font-size: 9px; color: #888; margin-bottom: 4px;">PRESIÓN RED</div>
-                <div style="font-size: 18px; color: #00ff00; font-weight: bold;">{p_val:.2f} <small style="font-size: 10px;">kg</small></div>
-            </div>
-        </div>
+        if bba_val is not None:
+            # Verificar si es obsoleto (Voltaje L1 sin datos > 4 horas)
+            if v_l1[1] and (ahora - v_l1[1]).total_seconds() > 14400: # 4 horas
+                color_hex = "#FFFF00" # Amarillo
+                icon_color = "orange"
+                status_label = "OBSOLETO (+4h)"
+                emoji = "🟡"
+            elif bba_val == 1:
+                color_hex = "#00FF00" # Verde
+                icon_color = "green"
+                status_label = "ENCENDIDO"
+                emoji = "🟢"
+            else:
+                color_hex = "#FF0000" # Rojo
+                icon_color = "red"
+                status_label = "APAGADO"
+                emoji = "🔴"
 
-        <div style="margin-bottom: 12px;">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #aaa; margin-bottom: 4px;">
-                <span>NIVEL SUMERGENCIA</span><span>{s_val:.1f}m</span>
-            </div>
-            <div style="width: 100%; height: 6px; background: #111; border-radius: 3px; overflow: hidden; border: 1px solid #333;">
-                <div style="width: {min(s_val*1.5, 100)}%; height: 100%; background: linear-gradient(90deg, #005f73, #00d4ff);"></div>
-            </div>
-        </div>
+        # Guardar para el mapa
+        info['color_final'] = color_hex
+        info['icon_color'] = icon_color
+        info['status_label'] = status_label
+        
+        resumen_data.append({
+            " ": emoji,
+            "ID": id_p,
+            "Estado": status_label,
+            "Q (L/s)": f"{data_scada.get(info['caudal'], (0,0))[0]:.1f}"
+        })
 
-        <div style="margin-bottom: 12px;">
-            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #aaa; margin-bottom: 4px;">
-                <span>NIVEL TANQUE RESERVA</span><span>{tq_val:.1f}%</span>
-            </div>
-            <div style="width: 100%; height: 6px; background: #111; border-radius: 3px; overflow: hidden; border: 1px solid #333;">
-                <div style="width: {tq_val}%; height: 100%; background: linear-gradient(90deg, #9b2226, #ae2012);"></div>
-            </div>
-        </div>
+    st.table(pd.DataFrame(resumen_data))
+    st.caption("🟢 Encendido | 🔴 Apagado | 🟡 Obsoleto | ⚪ Sin Telemetría")
 
-        <div style="font-size: 9px; color: #444; text-align: right; margin-top: 10px; font-style: italic;">
-            Sincronización: {f_act}
-        </div>
-    </div>
-    """
-    
-    # Marcador en el mapa con estilo de punto de control
-    folium.CircleMarker(
-        location=info['coord'],
-        radius=8,
-        color=color_neon,
-        fill=True,
-        fill_color=color_neon,
-        fill_opacity=0.7,
-        popup=folium.Popup(folium.IFrame(html_popup, width=320, height=295), max_width=330),
-        tooltip=f"Pozo {id_p}"
-    ).add_to(m)
+with col_map:
+    m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
+    Fullscreen().add_to(m)
 
-folium_static(m, width=1450, height=800)
-st.markdown('</div>', unsafe_allow_html=True)
+    for id_p, info in mapa_pozos_dict.items():
+        q_val = data_scada.get(info['caudal'], (0,0))[0]
+        p_val = data_scada.get(info['presion'], (0,0))[0]
+        s_val = data_scada.get(info['sumergencia'], (0,0))[0]
+        f_act = data_scada.get(info['corriente_bba'], (0, "N/A"))[1]
+
+        # POPUP ESTILO HMI
+        html_popup = f"""
+        <div style="background: #0b1a29; color: white; padding: 12px; border-radius: 10px; width: 260px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px;">
+                <b style="color: #00d4ff;">{id_p}</b>
+                <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 1px 5px; border-radius: 3px; font-weight: bold;">{info['status_label']}</span>
+            </div>
+            <div style="font-size: 12px; margin-bottom: 5px;">💧 Caudal: <b>{q_val:.2f} L/s</b></div>
+            <div style="font-size: 12px; margin-bottom: 5px;">🚀 Presión: <b>{p_val:.2f} kg</b></div>
+            <div style="font-size: 12px; margin-bottom: 10px;">📉 Sumergencia: <b>{s_val:.1f} m</b></div>
+            <div style="font-size: 9px; color: #666; text-align: right;">Sinc: {f_act}</div>
+        </div>
+        """
+
+        folium.Marker(
+            location=info['coord'],
+            icon=folium.Icon(color=info['icon_color'], icon='tint', prefix='fa'),
+            popup=folium.Popup(folium.IFrame(html_popup, width=280, height=180), max_width=300),
+            tooltip=f"{id_p}: {info['status_label']}"
+        ).add_to(m)
+
+    folium_static(m, width=1000, height=700)

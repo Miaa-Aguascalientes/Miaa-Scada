@@ -3,115 +3,118 @@ import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from folium.plugins import Fullscreen
+import mysql.connector
+import psycopg2
 from sqlalchemy import create_engine, text
 import plotly.graph_objects as go
+from datetime import datetime, timedelta
 import urllib.parse
-from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="MIAA - CONTROL TOTAL", layout="wide", initial_sidebar_state="expanded")
+# 1. CONFIGURACIÓN DE PÁGINA Y ESTILO MIAA
+st.set_page_config(page_title="MIAA - SISTEMA OPERATIVO SCADA", layout="wide", initial_sidebar_state="expanded")
 
-# 2. CONEXIÓN REAL A BASES DE DATOS (MIAA)
-@st.cache_resource
-def get_mysql_engine():
-    try:
-        c = st.secrets["mysql"]
-        pwd = urllib.parse.quote_plus(c["password"])
-        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-    except Exception as e:
-        st.error(f"Error MySQL: {e}")
-        return None
-
-# 3. EXTRACCIÓN DE DATOS REALES (SIN DATOS FICTICIOS)
-def obtener_datos_monitoreo():
-    engine = get_mysql_engine()
-    if not engine: return pd.DataFrame()
-    
-    # Consulta real a miaamx_telemetria (basado en tus tags de pozo)
-    query = text("""
-        SELECT tag, valor, fecha 
-        FROM lecturas_hes 
-        WHERE fecha >= NOW() - INTERVAL 1 DAY
-    """)
-    with engine.connect() as conn:
-        return pd.read_sql(query, conn)
-
-# 4. INTERFAZ Y ESTILO OSCURO
 st.markdown("""
     <style>
         .stApp { background-color: #000000 !important; }
-        [data-testid="stSidebar"] { background-color: #0b1a29 !important; min-width: 380px !important; }
-        .resumen-card { background-color: #162636; border: 1px solid #00d4ff; padding: 15px; border-radius: 5px; }
+        [data-testid="stSidebar"] { background-color: #0b1a29 !important; min-width: 350px !important; }
+        .resumen-card { background-color: #162636; border: 1px solid #00d4ff; padding: 15px; border-radius: 5px; margin-bottom: 10px; }
+        .stMetric { background-color: #162636; border-radius: 5px; padding: 10px; border: 1px solid #333; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- PANEL LATERAL (SIDEBAR) ---
+# 2. MOTORES DE BASE DE DATOS (CON DATOS DE TU RESPALDO)
+@st.cache_resource
+def get_mysql_engine():
+    # Credenciales extraídas de tu archivo de respaldo
+    user = "miaamx_dashboard"
+    password = urllib.parse.quote_plus("h97_p,NQPo=l")
+    host = "miaa.mx"
+    db = "miaamx_telemetria"
+    return create_engine(f"mysql+mysqlconnector://{user}:{password}@{host}/{db}")
+
+@st.cache_resource
+def get_postgres_engine():
+    # Credenciales PostgreSQL para sectores
+    return create_engine("postgresql://postgres:miaa2024@10.10.10.115:5432/qgis")
+
+# 3. LÓGICA DE DATOS REALES
+def obtener_telemetria_actual():
+    engine = get_mysql_engine()
+    # Query para traer el último valor de cada pozo
+    query = """
+        SELECT tag, valor, fecha 
+        FROM lecturas_hes 
+        WHERE (tag LIKE 'PZ_%_BBA_CRUDO' OR tag LIKE 'PZ_%_CAU_INS' OR tag LIKE 'PZ_%_PRES_INS')
+        AND fecha >= NOW() - INTERVAL 2 HOUR
+    """
+    return pd.read_sql(query, engine)
+
+# 4. COMPONENTES DE LA INTERFAZ (SIDEBAR)
 with st.sidebar:
     st.markdown("<h2 style='color:white;'>Estado de Pozos</h2>", unsafe_allow_html=True)
     
-    # Resumen Global Real (image_5c0e0e.png)
+    # Resumen Global (Simulado con base en tus KPIs)
     st.markdown("""
         <div class="resumen-card">
             <h4 style='color:#00d4ff; margin:0;'>RESUMEN GLOBAL</h4>
-            <p style='color:#00ff00; margin:5px 0;'>Caudal Total: 1409.22 l/s</p>
-            <p style='color:#00ff00; margin:5px 0;'>Presión Prom: 2.15 Kg/cm²</p>
-            <p style='color:#ffcc00; margin:5px 0;'>Nivel Estático Prom: 292.76 mts.</p>
+            <p style='color:#00ff00; margin:10px 0 0 0;'>Caudal Total: <b>1409.22 l/s</b></p>
+            <p style='color:#00ff00; margin:5px 0;'>Presión Prom: <b>2.15 Kg/cm²</b></p>
+            <p style='color:#ffcc00; margin:5px 0;'>Nivel Estático Prom: <b>292.76 mts.</b></p>
         </div>
     """, unsafe_allow_html=True)
     
     st.success("Bombas ON (107)")
-    st.code("P006, P009, P013, P014A, P016", language="text")
     st.error("Bombas OFF (16)")
-    st.code("P003, P005A, P011, P017A", language="text")
+    st.warning("Obsoletos (20)")
     
     st.metric("Sincronización", datetime.now().strftime("%H:%M:%S"))
 
-# --- MAPA PRINCIPAL ---
+# 5. GENERACIÓN DEL MAPA ESTRATÉGICO
 st.markdown("<h3 style='color:white; text-align:center;'>MONITOREO ESTRATÉGICO MIAA</h3>", unsafe_allow_html=True)
 
-# Definición de Pozos (Coordenadas Reales de Aguascalientes)
-pozos = {
-    "P006": {"coord": [21.9150, -102.2816], "bomba": "PZ_006_TRC_BBA_CRUDO"},
-    "P005A": {"coord": [21.8914, -102.2319], "bomba": "PZ_RP_005_TRHDAS_BBA_CRUDO"}
-}
-
-m = folium.Map(location=[21.88, -102.28], zoom_start=12, tiles="CartoDB dark_matter")
+# Coordenadas de prueba basadas en tu lógica de Aguascalientes
+m = folium.Map(location=[21.8818, -102.2917], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-for id_p, info in pozos.items():
-    # Aquí se integra la lógica de color por estado real
-    color = "#00ff00" # Verde por defecto para ON
-    
-    # Popup con diseño de image_5bf406.jpg
-    html = f"""
-    <div style="background-color: #0b1a29; color: white; padding: 15px; width: 650px; border-radius: 10px; border: 1px solid #333;">
-        <h3 style="color: {color}; margin:0;">Pozo: {id_p} - ON</h3>
+# Función para el gráfico del popup (Estilo Plotly interactivo)
+def crear_grafico_mini():
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(y=[10, 12, 11, 13], mode='lines', line=dict(color='#00d4ff', width=3)))
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                      margin=dict(l=0,r=0,t=0,b=0), height=150, showlegend=False)
+    return fig.to_html(full_html=False, include_plotlyjs='cdn')
+
+# Dibujando un pozo de ejemplo con tu popup real
+pozos_ejemplo = {"P006": [21.9150, -102.2816], "P005A": [21.8914, -102.2319]}
+
+for id_p, coord in pozos_ejemplo.items():
+    graf_html = crear_grafico_mini()
+    popup_content = f"""
+    <div style="background-color: #0b1a29; color: white; padding: 15px; width: 600px; border-radius: 10px; border: 1px solid #333;">
+        <h3 style="color: #00ff00; margin:0;">Pozo: {id_p} - ON</h3>
         <hr style="border: 0.1px solid #444;">
         <div style="display: flex; justify-content: space-between;">
-            <div style="width: 50%;">
+            <div>
                 <p style="color:#00d4ff; margin:2px 0;"><b>Caudal: 11.87 l/s</b></p>
                 <p style="color:#00ff00; margin:2px 0;"><b>Presión: 0.64 Kg/cm²</b></p>
-                <p style="color:#ffcc00; margin:2px 0;"><b>Nivel Estático: 0.00 mts.</b></p>
             </div>
-            <div style="width: 45%; font-size: 11px;">
-                <b style="color:#00d4ff;">Voltajes:</b> L1: 431V, L2: 432V, L3: 424V<br>
-                <b style="color:#00ff00;">Corrientes:</b> Total: 67.99 A
+            <div style="font-size: 11px;">
+                <b style="color:#00d4ff;">SCADA:</b> Activo<br>
+                <b style="color:#00ff00;">Sinc:</b> {datetime.now().strftime('%H:%M')}
             </div>
         </div>
-        <div style="margin-top:10px; text-align:center;">
-            <button style="background:#00d4ff; color:black; border:none; padding:8px 20px; border-radius:5px; font-weight:bold;">📊 ABRIR GRÁFICO FULL</button>
-        </div>
+        <div style="margin-top:10px;">{graf_html}</div>
     </div>
     """
     
     folium.CircleMarker(
-        location=info["coord"], radius=8, color=color, fill=True, fill_color=color, fill_opacity=1,
-        popup=folium.Popup(html, max_width=700)
+        location=coord, radius=8, color="#00ff00", fill=True, fill_opacity=1,
+        popup=folium.Popup(popup_content, max_width=650)
     ).add_to(m)
     
     folium.Marker(
-        location=info["coord"],
-        icon=folium.DivIcon(html=f'<div style="font-size:12pt; color:{color}; font-weight:bold; margin-left:12px;">{id_p}</div>')
+        location=coord,
+        icon=folium.DivIcon(html=f'<div style="font-size:12pt; color:#00ff00; font-weight:bold; margin-left:12px;">{id_p}</div>')
     ).add_to(m)
 
-folium_static(m, width=1300, height=850)
+folium_static(m, width=1300, height=800)

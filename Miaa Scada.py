@@ -8,166 +8,142 @@ import psycopg2
 import json
 import urllib.parse
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(
-    page_title="MIAA - SCADA & Sectores",
-    page_icon="https://www.miaa.mx/favicon.ico",
-    layout="wide"
-)
+# 1. CONFIGURACIÓN
+st.set_page_config(page_title="MIAA - SCADA Completo", page_icon="https://www.miaa.mx/favicon.ico", layout="wide")
 
-# Estilo visual MIAA (Negro y Azul)
+# Estilo MIAA
 st.markdown("""
     <style>
         .stApp { background-color: #000000 !important; color: white; }
-        section[data-testid="stSidebar"] { background-color: #111111 !important; }
-        .titulo-superior {
-            text-align: center; color: white; font-size: 1.6rem;
-            font-weight: bold; margin-bottom: 20px;
-        }
-        [data-testid="stMetric"] {
-            background-color: #111111; border: 1px solid #333;
-            border-radius: 10px; padding: 10px !important;
-        }
-        [data-testid="stMetricValue"] { color: #00d4ff !important; font-size: 1.6rem !important; }
-        iframe { border: 2px solid #444 !important; border-radius: 8px; }
+        [data-testid="stMetric"] { background-color: #111111; border: 1px solid #333; border-radius: 10px; padding: 10px !important; }
+        [data-testid="stMetricValue"] { color: #00d4ff !important; font-size: 1.5rem !important; }
+        .titulo-superior { text-align: center; color: white; font-size: 1.6rem; font-weight: bold; margin-bottom: 20px; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. MOTORES DE CONEXIÓN
+# 2. TU DICCIONARIO DE CONFIGURACIÓN
+mapa_pozos_dict = {
+    "P002": {
+        "coord": (21.88229, -102.31542), "corriente": "PZ_002_TRC_BBA_CRUDO", "caudal": "PZ_002_TRC_CAU_INS", 
+        "corrientes_l": ["PZ_002_TRC_CORR_L1", "PZ_002_TRC_CORR_L2", "PZ_002_TRC_CORR_L3"], 
+        "presion": "PZ_002_TRC_PRES_INS", 
+        "voltajes_l": ["PZ_002_TRC_VOL_L1_L2", "PZ_002_TRC_VOL_L2_L3", "PZ_002_TRC_VOL_L1_L3"], 
+        "nivel_estatico": "PZ_002_TRC_NIV_EST", "sumergencia": "PZ_002_TRC_SUMERG", "nivel_tanque": "0", 
+    },
+    "P003": {
+        "coord": (21.88603, -102.26653), "corriente": "PZ_003_BBA_CRUDO", "caudal": "PZ_003_CAU_INS", 
+        "corrientes_l": ["PZ_003_CORR_L1", "PZ_003_CORR_L2", "PZ_003_CORR_L3"], 
+        "presion": "PZ_003_PRES_INS", 
+        "voltajes_l": ["PZ_003_VOL_L1_L2", "PZ_003_VOL_L2_L3", "PZ_003_VOL_L1_L3"], 
+        "nivel_estatico": "PZ_003_NIV_EST", "sumergencia": "PZ_003_SUMERG", "nivel_tanque": "PZ_159_NIV_TQ", 
+    }
+}
+
+# 3. CONEXIONES
 @st.cache_resource
 def get_mysql_engine():
     try:
         c = st.secrets["mysql"]
         pwd = urllib.parse.quote_plus(c["password"])
-        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}", pool_pre_ping=True)
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except Exception as e:
-        st.error(f"Error MySQL: {e}")
-        return None
+        st.error(f"Error MySQL: {e}"); return None
 
 @st.cache_resource
 def get_postgres_conn():
-    try:
-        return psycopg2.connect(**st.secrets["postgres"])
-    except Exception as e:
-        st.error(f"Error Postgres: {e}")
-        return None
+    try: return psycopg2.connect(**st.secrets["postgres"])
+    except Exception as e: st.error(f"Error Postgres: {e}"); return None
 
-# 3. CARGA DE DATOS
-@st.cache_data(ttl=600)
-def cargar_sectores_pg():
-    conn = get_postgres_conn()
-    if not conn: return pd.DataFrame()
-    try:
-        # Solo polígonos desde Postgres
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) AS geojson_data FROM "Sectorizacion"."Sectores_hidr"'
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df
-    except: return pd.DataFrame()
-
-def cargar_scada_realtime():
-    """
-    Obtiene los últimos datos de la tabla vfitagnumhistory
-    """
+# 4. CARGA DE DATOS OPTIMIZADA
+def cargar_datos_scada():
     engine = get_mysql_engine()
-    if not engine: return pd.DataFrame()
+    if not engine: return {}
+
+    # Extraer todos los tags únicos del diccionario para una sola consulta
+    all_tags = []
+    for info in mapa_pozos_dict.values():
+        for key, val in info.items():
+            if isinstance(val, list): all_tags.extend(val)
+            elif isinstance(val, str) and val != "0": all_tags.append(val)
+    
+    all_tags = list(set(all_tags)) # Eliminar duplicados
     
     try:
-        # 1. Obtener los GATEID de los pozos (Filtramos por prefijo PZ_ como ejemplo)
-        query_ref = "SELECT GATEID, NAME FROM VfiTagRef WHERE NAME LIKE 'PZ_%'" 
-        df_ref = pd.read_sql(query_ref, engine)
-        
-        if df_ref.empty: return pd.DataFrame()
-
-        # 2. Obtener el ÚLTIMO valor registrado para cada GATEID en vfitagnumhistory
-        # Usamos una subconsulta para traer solo el registro más reciente por ID
-        gateids = tuple(df_ref['GATEID'].tolist())
-        query_data = f"""
-            SELECT h.GATEID, h.VALUE, h.FECHA 
+        # Consulta masiva para obtener el último valor de cada tag
+        query = f"""
+            SELECT r.NAME, h.VALUE 
             FROM vfitagnumhistory h
-            INNER JOIN (
-                SELECT GATEID, MAX(FECHA) as MaxFecha
-                FROM vfitagnumhistory
-                WHERE GATEID IN {gateids}
-                GROUP BY GATEID
-            ) sub ON h.GATEID = sub.GATEID AND h.FECHA = sub.MaxFecha
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID
+            WHERE r.NAME IN ({str(all_tags)[1:-1]})
+            AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)
         """
-        df_vals = pd.read_sql(query_data, engine)
-        
-        # Unimos nombres con valores
-        return pd.merge(df_ref, df_vals, on='GATEID')
+        df = pd.read_sql(query, engine)
+        return dict(zip(df['NAME'], df['VALUE']))
     except Exception as e:
-        st.error(f"Error en SCADA: {e}")
-        return pd.DataFrame()
+        st.error(f"Error al traer tags: {e}"); return {}
 
-# 4. MAPEO DE UBICACIONES (Asegúrate de que los nombres coincidan con VfiTagRef)
-MAPEO_POZOS = {
-    'PZ_001': {'lat': 21.8818, 'lon': -102.2917, 'nombre': 'Pozo 01'},
-    'PZ_002': {'lat': 21.8920, 'lon': -102.3010, 'nombre': 'Pozo 02'},
-    # Añadir aquí las coordenadas del resto de los pozos
-}
+@st.cache_data(ttl=600)
+def cargar_sectores():
+    conn = get_postgres_conn()
+    if not conn: return []
+    query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df.to_dict('records')
 
-# --- INTERFAZ ---
-st.markdown('<div class="titulo-superior">MONITOREO SCADA - SECTORES Y POZOS MIAA</div>', unsafe_allow_html=True)
+# --- LÓGICA DE INTERFAZ ---
+st.markdown('<div class="titulo-superior">MONITOREO TÉCNICO DE POZOS - MIAA</div>', unsafe_allow_html=True)
 
-df_sec = cargar_sectores_pg()
-df_scada = cargar_scada_realtime()
+dict_valores = cargar_datos_scada()
+sectores = cargar_sectores()
 
-# Procesar para el mapa
-datos_mapa = []
-if not df_scada.empty:
-    for _, row in df_scada.iterrows():
-        if row['NAME'] in MAPEO_POZOS:
-            pos = MAPEO_POZOS[row['NAME']]
-            datos_mapa.append({
-                **pos,
-                'tag': row['NAME'],
-                'valor': row['VALUE'],
-                'fecha': row['FECHA']
-            })
+# Mapa
+m = folium.Map(location=[21.8818, -102.2917], zoom_start=12, tiles="CartoDB dark_matter")
+Fullscreen().add_to(m)
 
-# MÉTRICAS
-m1, m2, m3 = st.columns(3)
-m1.metric("Tags Monitoreados", len(df_scada))
-m2.metric("Pozos Localizados", len(datos_mapa))
-m3.metric("Última Lectura", df_scada['FECHA'].max() if not df_scada.empty else "---")
+# Dibujar Sectores
+for s in sectores:
+    folium.GeoJson(json.loads(s['geo']),
+        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+        tooltip=f"Sector: {s['sector']}").add_to(m)
 
-# MAPA Y LISTA
-c1, c2 = st.columns([3, 1])
-
-with c1:
-    m = folium.Map(location=[21.8818, -102.2917], zoom_start=12, tiles="CartoDB dark_matter")
-    Fullscreen().add_to(m)
+# Dibujar Pozos con Popups Detallados
+for id_pozo, info in mapa_pozos_dict.items():
+    p_val = dict_valores.get(info['presion'], 0)
+    c_val = dict_valores.get(info['caudal'], 0)
     
-    # Dibujar Sectores (Postgres)
-    if not df_sec.empty:
-        for _, row in df_sec.iterrows():
-            folium.GeoJson(
-                json.loads(row['geojson_data']),
-                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-                tooltip=f"Sector: {row['sector']}"
-            ).add_to(m)
+    # Construcción del HTML para el Popup (estilo técnico)
+    html_popup = f"""
+    <div style="font-family: Arial; width: 200px;">
+        <h4 style="margin:0; color:#0056b3;">{id_pozo}</h4>
+        <hr style="margin:5px 0;">
+        <b>Caudal:</b> {c_val:.2f} L/s<br>
+        <b>Presión:</b> {p_val:.2f} kg/cm²<br>
+        <b>Sumergencia:</b> {dict_valores.get(info['sumergencia'], 0):.2f} m<br>
+        <hr style="margin:5px 0;">
+        <small>Corriente: {dict_valores.get(info['corriente'], 0):.1f} A</small>
+    </div>
+    """
+    
+    color = "green" if c_val > 0 else "red"
+    folium.Marker(
+        location=info['coord'],
+        icon=folium.Icon(color=color, icon='tint', prefix='fa'),
+        popup=folium.Popup(html_popup, max_width=250),
+        tooltip=f"{id_pozo}: {p_val:.1f} kg/cm²"
+    ).add_to(m)
 
-    # Dibujar Pozos (SCADA MySQL)
-    for p in datos_mapa:
-        color = "green" if p['valor'] > 0 else "red"
-        folium.CircleMarker(
-            location=[p['lat'], p['lon']],
-            radius=8, color=color, fill=True, fill_opacity=0.7,
-            tooltip=f"{p['nombre']} ({p['tag']}): {p['valor']} | {p['fecha']}"
-        ).add_to(m)
+folium_static(m, width=1300, height=600)
 
-    folium_static(m, width=950, height=600)
-
-with c2:
-    st.write("### Listado SCADA")
-    if datos_mapa:
-        df_view = pd.DataFrame(datos_mapa)[['nombre', 'valor', 'fecha']]
-        st.dataframe(df_view, hide_index=True, use_container_width=True)
-    else:
-        st.warning("No hay pozos mapeados. Revisa el diccionario MAPEO_POZOS.")
-
-# Detalle de la tabla vfitagnumhistory
-st.divider()
-st.subheader("Datos Crudos de Telemetría")
-st.dataframe(df_scada, use_container_width=True)
+# Tabla de Resumen Técnica
+st.subheader("Estado de Variables Críticas")
+resumen = []
+for id_p, info in mapa_pozos_dict.items():
+    resumen.append({
+        "Pozo": id_p,
+        "Caudal (L/s)": dict_valores.get(info['caudal'], 0),
+        "Presión (kg/cm²)": dict_valores.get(info['presion'], 0),
+        "Sumergencia (m)": dict_valores.get(info['sumergencia'], 0),
+        "Nivel Estático": dict_valores.get(info['nivel_estatico'], 0)
+    })
+st.dataframe(pd.DataFrame(resumen), use_container_width=True, hide_index=True)

@@ -12,7 +12,7 @@ import time
 
 # 1. CONFIGURACIÓN
 st.set_page_config(
-    page_title="MIAA - Tablero de Consumos",
+    page_title="MIAA - Sistema Scada",
     page_icon="https://www.miaa.mx/favicon.ico", 
     layout="wide"  
 )
@@ -314,7 +314,7 @@ else:
     lat_centro, lon_centro, zoom_inicial = 21.8853, -102.2916, 12
 
 # DASHBOARD
-st.markdown('<div class="titulo-superior">Medidores inteligentes - Tablero de consumos</div>', unsafe_allow_html=True)
+st.markdown('<div class="titulo-superior">Sistema Scada - Aguascalientes</div>', unsafe_allow_html=True)
 
 # Indicadores
 m1, m2, m3, m4 = st.columns(4)

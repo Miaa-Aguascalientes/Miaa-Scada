@@ -6,24 +6,39 @@ from folium.plugins import Fullscreen
 from sqlalchemy import create_engine
 import plotly.graph_objects as go
 import urllib.parse
-from datetime import datetime, timedelta  # IMPORTACIÓN CRÍTICA CORREGIDA
+from datetime import datetime, timedelta # IMPORTACIÓN CORREGIDA PARA EVITAR NAMEERROR
 
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILO MIAA
-st.set_page_config(page_title="MIAA - SCADA", layout="wide", initial_sidebar_state="collapsed")
+# 1. CONFIGURACIÓN DE PÁGINA (PANTALLA COMPLETA)
+st.set_page_config(page_title="MIAA - SCADA", layout="wide", initial_sidebar_state="expanded")
 
+# 2. ESTILO CSS PARA PANEL LATERAL OSCURO Y MAPA FULL
 st.markdown("""
     <style>
+        /* Fondo general negro */
         .stApp { background-color: #000000 !important; }
-        [data-testid="stHeader"] { background: rgba(0,0,0,0); }
-        .css-1d391kg { background-color: #0b1a29; } /* Sidebar color */
-        .resumen-card {
-            background-color: #0b1a29; border: 1px solid #00d4ff;
-            padding: 10px; border-radius: 5px; margin-bottom: 10px;
+        
+        /* Estilo del Panel Lateral (Sidebar) */
+        [data-testid="stSidebar"] {
+            background-color: #0b1a29 !important;
+            min-width: 350px !important;
         }
+        
+        /* Tarjetas del Panel Lateral */
+        .card-sidebar {
+            background-color: #162636;
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        
+        /* Quitar espacios blancos innecesarios */
+        .block-container { padding: 0rem !important; }
+        iframe { background-color: #000 !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. DICCIONARIO DE CONFIGURACIÓN (MAPEO DE POZOS)
+# 3. DICCIONARIO DE CONFIGURACIÓN (BOMBA ACTUALIZADO)
 mapa_pozos_dict = {
     "P006": {
         "coord": (21.91504, -102.281668), 
@@ -32,14 +47,13 @@ mapa_pozos_dict = {
         "presion": "PZ_006_TRC_PRES_INS", 
         "sumergencia": "PZ_006_TRC_SUMERG", 
         "nivel_estatico": "PZ_006_TRC_NIV_EST",
-        "nivel_tanque": "RB_241_NIV_TQ_R", 
         "voltajes": ["PZ_006_TRC_VOL_L1_L2", "PZ_006_TRC_VOL_L2_L3", "PZ_006_TRC_VOL_L1_L3"],
         "amperajes": ["PZ_006_TRC_CORR_L1", "PZ_006_TRC_CORR_L2", "PZ_006_TRC_CORR_L3"]
     }
 }
 
-# 3. GENERACIÓN DE GRÁFICO PARA POPUP (ESTILO image_6a83a3.png)
-def generar_grafico_popup():
+# 4. FUNCIONES DE APOYO (GRÁFICO POPUP)
+def generar_grafico_html():
     fechas = [datetime.now() - timedelta(hours=i) for i in range(24)]
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=fechas, y=[11.8]*24, name="Caudal", line=dict(color='#00d4ff', width=2)))
@@ -49,70 +63,91 @@ def generar_grafico_popup():
         margin=dict(l=0, r=0, t=0, b=0), height=200, showlegend=False,
         xaxis=dict(showgrid=True, gridcolor='#333'), yaxis=dict(showgrid=True, gridcolor='#333')
     )
-    return fig.to_html(full_html=False, include_plotlyjs='cdn')
+    return fig.to_html(full_html=False, include_plotlyjs='cdn', config={'displayModeBar': False})
 
-# 4. INTERFAZ: PANEL LATERAL Y MAPA
-col_sid, col_map = st.columns([1, 4])
-
-with col_sid:
-    st.markdown("<h3 style='color:white;'>Estado de Pozos</h3>", unsafe_allow_html=True)
-    st.markdown("""
-        <div class="resumen-card">
+# --- PANEL LATERAL (SIDEBAR) ---
+with st.sidebar:
+    st.markdown("<h2 style='color:white;'>Estado de Pozos</h2>", unsafe_allow_html=True)
+    
+    # Resumen Global
+    st.markdown(f"""
+        <div class="card-sidebar">
             <h4 style='color:#00d4ff; margin:0;'>RESUMEN GLOBAL</h4>
-            <p style='color:#00ff00; margin:5px 0;'>Caudal Total: 1409.22 l/s</p>
-            <p style='color:#00ff00; margin:5px 0;'>Presión Prom: 2.15 Kg/cm²</p>
-            <p style='color:#ffcc00; margin:5px 0;'>Nivel Estático Prom: 292.76 mts.</p>
+            <p style='color:#00ff00; margin:10px 0 0 0;'>Caudal Total: <b>1409.22 l/s</b></p>
+            <p style='color:#00ff00; margin:5px 0;'>Presión Prom: <b>2.15 Kg/cm²</b></p>
+            <p style='color:#ffcc00; margin:5px 0;'>Nivel Estático Prom: <b>292.76 mts.</b></p>
+            <p style='color:#00d4ff; margin:5px 0;'>Consumo Macros (Mes): <b>540.59 m³</b></p>
         </div>
     """, unsafe_allow_html=True)
     
-    # Listas de Bombas (Ejemplo visual image_5c0e0e.png)
+    # Listado de Pozos
     st.success("Bombas ON (107)")
-    st.code("P006\nP009\nP013")
+    st.code("P006\nP009\nP013\nP014A\nP016", language="text")
+    
     st.error("Bombas OFF (16)")
-    st.code("P003\nP005A")
+    st.code("P003\nP005A\nP011\nP017A\nP020A", language="text")
+    
+    st.warning("Obsoletos (20)")
+    st.code("P002\nP004\nP008\nP012", language="text")
 
-with col_map:
-    m = folium.Map(location=[21.88, -102.28], zoom_start=12, tiles="CartoDB dark_matter")
-    Fullscreen().add_to(m)
+    # Métrica de Sincronización (CORREGIDA)
+    st.metric("Sincronización", datetime.now().strftime("%H:%M:%S"))
 
-    for id_p, info in mapa_pozos_dict.items():
-        estado = "ON" # Esto vendría de tu lógica de DB
-        color = "#00ff00" if estado == "ON" else "#ff0000"
-        graf_html = generar_grafico_popup()
-        
-        # HTML DEL POPUP EXCLUSIVO (image_6a83a3.png)
-        popup_html = f"""
-        <div style="background-color: #0b1a29; color: white; padding: 15px; width: 700px; border-radius: 10px; font-family: sans-serif; border: 1px solid #333;">
-            <h2 style="color: #00ff00; margin: 0 0 10px 0;">Pozo: {id_p} - {estado}</h2>
-            <div style="display: flex; justify-content: space-between;">
-                <div>
-                    <p style="color:#00d4ff; margin:2px 0;"><b>Caudal: 11.87 l/s</b> <small style="color:#00ff00;">--- 18/03/2026</small></p>
-                    <p style="color:#00ff00; margin:2px 0;"><b>Presión: 0.64 Kg/cm²</b> <small style="color:#00ff00;">--- 18/03/2026</small></p>
-                    <p style="color:#ffcc00; margin:2px 0;"><b>Nivel Estático: 0.00 mts.</b> <small style="color:#ff0066;">--- 16/02/2026</small></p>
-                </div>
-                <div style="font-size: 11px;">
-                    <b style="color:#00d4ff;">Voltajes (V):</b><br>L1-L2: 431V | L2-L3: 432V<br>
-                    <b style="color:#00ff00;">Corrientes (A):</b><br>Total: 67.99 A
-                </div>
+# --- ÁREA PRINCIPAL (MAPA) ---
+st.markdown("<h3 style='color:white; text-align:center; padding:10px;'>MONITOREO ESTRATÉGICO MIAA</h3>", unsafe_allow_html=True)
+
+# Creamos el mapa con Folium
+m = folium.Map(location=[21.88, -102.28], zoom_start=12, tiles="CartoDB dark_matter", control_scale=True)
+Fullscreen().add_to(m)
+
+for id_p, info in mapa_pozos_dict.items():
+    estado_bba = "ON" # Ejemplo
+    dot_color = "#00ff00"
+    graf_html = generar_grafico_html()
+    
+    # Popup exacto según la imagenimage_5bf406.jpg
+    popup_content = f"""
+    <div style="background-color: #0b1a29; color: white; padding: 15px; width: 700px; border-radius: 8px; font-family: sans-serif;">
+        <h3 style="color: #00ff00; margin:0;">Pozo: {id_p} - {estado_bba}</h3>
+        <hr style="border: 0.1px solid #333;">
+        <div style="display: flex; justify-content: space-between;">
+            <div style="width: 48%;">
+                <p style="margin:4px 0;"><b style="color:#00d4ff;">Caudal: 11.87 l/s</b> <span style="color:#00ff00; font-size:10px;">--- 18/03/2026 11:50</span></p>
+                <p style="margin:4px 0;"><b style="color:#00ff00;">Presión: 0.64 Kg/cm²</b> <span style="color:#00ff00; font-size:10px;">--- 18/03/2026 11:50</span></p>
+                <p style="margin:4px 0;"><b style="color:#ffcc00;">Nivel Estático: 0.00 mts.</b> <span style="color:#ff0066; font-size:10px;">--- 16/02/2026 08:27</span></p>
             </div>
-            <div style="margin-top:10px; background:#000; border:1px solid #333;">{graf_html}</div>
-            <div style="text-align:center; margin-top:10px;">
-                <button style="background:#00d4ff; color:black; border:none; padding:8px 20px; border-radius:5px; font-weight:bold;">📊 ABRIR GRÁFICO FULL</button>
+            <div style="width: 48%; font-size:12px;">
+                <b style="color:#00d4ff;">Voltajes (V):</b> L1-L2: 431V | L2-L3: 432V<br>
+                <b style="color:#00ff00;">Corrientes (A):</b> Total Avg: 67.99A
             </div>
         </div>
-        """
-        
-        folium.CircleMarker(
-            location=info['coord'], radius=7, color=color, fill=True, fill_color=color, fill_opacity=1,
-            popup=folium.Popup(popup_html, max_width=750)
-        ).add_to(m)
-        
-        folium.Marker(
-            location=info['coord'],
-            icon=folium.DivIcon(html=f'<div style="font-size:12pt; color:{color}; font-weight:bold; margin-left:10px;">{id_p}</div>')
-        ).add_to(m)
+        <div style="margin-top:10px; border:1px solid #333;">{graf_html}</div>
+        <div style="text-align:center; margin-top:10px;">
+            <button style="background:#00d4ff; color:black; border:none; padding:8px 20px; border-radius:4px; font-weight:bold;">📊 ABRIR GRÁFICO FULL</button>
+        </div>
+    </div>
+    """
+    
+    # Dibujar el punto
+    folium.CircleMarker(
+        location=info['coord'],
+        radius=8,
+        color=dot_color,
+        fill=True,
+        fill_color=dot_color,
+        fill_opacity=1,
+        popup=folium.Popup(popup_content, max_width=750)
+    ).add_to(m)
+    
+    # Dibujar la etiqueta del pozo al lado
+    folium.Marker(
+        location=info['coord'],
+        icon=folium.DivIcon(
+            icon_size=(150,36),
+            icon_anchor=(-10, 18),
+            html=f'<div style="font-size: 13pt; color: {dot_color}; font-weight: bold;">{id_p}</div>',
+        )
+    ).add_to(m)
 
-    folium_static(m, width=1200, height=750)
-
-# Sincronización (Corrigiendo el error de la captura)
-st.sidebar.metric("Sincronización", datetime.now().strftime("%H:%M:%S"))
+# Renderizado final del mapa
+folium_static(m, width=1300, height=850)

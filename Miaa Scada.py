@@ -3,118 +3,143 @@ import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from folium.plugins import Fullscreen
-import mysql.connector
-import psycopg2
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
 import urllib.parse
+from datetime import datetime, timedelta
 
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILO MIAA
-st.set_page_config(page_title="MIAA - SISTEMA OPERATIVO SCADA", layout="wide", initial_sidebar_state="expanded")
+# 1. CONFIGURACIÓN DE PÁGINA
+st.set_page_config(page_title="MIAA - SCADA", layout="wide", initial_sidebar_state="collapsed")
 
+# 2. ESTILO CSS PARA INTERFAZ TOTALMENTE OSCURA
 st.markdown("""
     <style>
         .stApp { background-color: #000000 !important; }
-        [data-testid="stSidebar"] { background-color: #0b1a29 !important; min-width: 350px !important; }
-        .resumen-card { background-color: #162636; border: 1px solid #00d4ff; padding: 15px; border-radius: 5px; margin-bottom: 10px; }
-        .stMetric { background-color: #162636; border-radius: 5px; padding: 10px; border: 1px solid #333; }
+        [data-testid="stHeader"] { background: rgba(0,0,0,0); }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. MOTORES DE BASE DE DATOS (CON DATOS DE TU RESPALDO)
+# 3. DICCIONARIO DE CONFIGURACIÓN (CON VARIABLE 'BOMBA')
+mapa_pozos_dict = {
+    "P006": {
+        "coord": (21.91504, -102.281668), 
+        "bomba": "PZ_006_TRC_BBA_CRUDO", 
+        "caudal": "PZ_006_TRC_CAU_INS", 
+        "presion": "PZ_006_TRC_PRES_INS", 
+        "sumergencia": "PZ_006_TRC_SUMERG", 
+        "nivel_estatico": "PZ_006_TRC_NIV_EST",
+        "nivel_tanque": "RB_241_NIV_TQ_R", 
+        "voltajes": ["PZ_006_TRC_VOL_L1_L2", "PZ_006_TRC_VOL_L2_L3", "PZ_006_TRC_VOL_L1_L3"],
+        "amperajes": ["PZ_006_TRC_CORR_L1", "PZ_006_TRC_CORR_L2", "PZ_006_TRC_CORR_L3"]
+    },
+    "P005A": {
+        "coord": (21.89147, -102.23195), 
+        "bomba": "PZ_RP_005_TRHDAS_BBA_CRUDO", 
+        "caudal": "PZ_RP_005_TRHDAS_CAU_INS", 
+        "presion": "PZ_RP_005_TRHDAS_PRES_INS", 
+        "sumergencia": "PZ_RP_005_TRHDAS_SUMERG", 
+        "nivel_estatico": "PZ_RP_005_TRHDAS_NIV_EST", 
+        "nivel_tanque": "RB_241_NIV_TQ_R", 
+        "voltajes": ["PZ_RP_005_TRHDAS_VOL_L1_L2", "PZ_RP_005_TRHDAS_VOL_L2_L3", "PZ_RP_005_TRHDAS_VOL_L1_L3"],
+        "amperajes": ["PZ_RP_005_TRHDAS_CORR_L1", "PZ_RP_005_TRHDAS_CORR_L2", "PZ_RP_005_TRHDAS_CORR_L3"]
+    }
+}
+
+# 4. CONEXIÓN Y CARGA DE DATOS
 @st.cache_resource
 def get_mysql_engine():
-    # Credenciales extraídas de tu archivo de respaldo
-    user = "miaamx_dashboard"
-    password = urllib.parse.quote_plus("h97_p,NQPo=l")
-    host = "miaa.mx"
-    db = "miaamx_telemetria"
-    return create_engine(f"mysql+mysqlconnector://{user}:{password}@{host}/{db}")
+    c = st.secrets["mysql"]
+    pwd = urllib.parse.quote_plus(c["password"])
+    return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
 
-@st.cache_resource
-def get_postgres_engine():
-    # Credenciales PostgreSQL para sectores
-    return create_engine("postgresql://postgres:miaa2024@10.10.10.115:5432/qgis")
-
-# 3. LÓGICA DE DATOS REALES
-def obtener_telemetria_actual():
-    engine = get_mysql_engine()
-    # Query para traer el último valor de cada pozo
-    query = """
-        SELECT tag, valor, fecha 
-        FROM lecturas_hes 
-        WHERE (tag LIKE 'PZ_%_BBA_CRUDO' OR tag LIKE 'PZ_%_CAU_INS' OR tag LIKE 'PZ_%_PRES_INS')
-        AND fecha >= NOW() - INTERVAL 2 HOUR
-    """
-    return pd.read_sql(query, engine)
-
-# 4. COMPONENTES DE LA INTERFAZ (SIDEBAR)
-with st.sidebar:
-    st.markdown("<h2 style='color:white;'>Estado de Pozos</h2>", unsafe_allow_html=True)
-    
-    # Resumen Global (Simulado con base en tus KPIs)
-    st.markdown("""
-        <div class="resumen-card">
-            <h4 style='color:#00d4ff; margin:0;'>RESUMEN GLOBAL</h4>
-            <p style='color:#00ff00; margin:10px 0 0 0;'>Caudal Total: <b>1409.22 l/s</b></p>
-            <p style='color:#00ff00; margin:5px 0;'>Presión Prom: <b>2.15 Kg/cm²</b></p>
-            <p style='color:#ffcc00; margin:5px 0;'>Nivel Estático Prom: <b>292.76 mts.</b></p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    st.success("Bombas ON (107)")
-    st.error("Bombas OFF (16)")
-    st.warning("Obsoletos (20)")
-    
-    st.metric("Sincronización", datetime.now().strftime("%H:%M:%S"))
-
-# 5. GENERACIÓN DEL MAPA ESTRATÉGICO
-st.markdown("<h3 style='color:white; text-align:center;'>MONITOREO ESTRATÉGICO MIAA</h3>", unsafe_allow_html=True)
-
-# Coordenadas de prueba basadas en tu lógica de Aguascalientes
-m = folium.Map(location=[21.8818, -102.2917], zoom_start=12, tiles="CartoDB dark_matter")
-Fullscreen().add_to(m)
-
-# Función para el gráfico del popup (Estilo Plotly interactivo)
-def crear_grafico_mini():
+def generar_grafico_popup():
+    # Simulación del gráfico de la imagen
+    fechas = [datetime.now() - timedelta(hours=i) for i in range(168)]
     fig = go.Figure()
-    fig.add_trace(go.Scatter(y=[10, 12, 11, 13], mode='lines', line=dict(color='#00d4ff', width=3)))
-    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
-                      margin=dict(l=0,r=0,t=0,b=0), height=150, showlegend=False)
+    fig.add_trace(go.Scatter(x=fechas, y=[12]*168, name="Caudal", line=dict(color='#00d4ff', width=2)))
+    fig.add_trace(go.Scatter(x=fechas, y=[0.6]*168, name="Presión", line=dict(color='#00ff00', width=2)))
+    
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=0, r=0, t=0, b=0), showlegend=False, height=250,
+        xaxis=dict(showgrid=True, gridcolor='#222', tickfont=dict(color='white')),
+        yaxis=dict(showgrid=True, gridcolor='#222', tickfont=dict(color='white'))
+    )
     return fig.to_html(full_html=False, include_plotlyjs='cdn')
 
-# Dibujando un pozo de ejemplo con tu popup real
-pozos_ejemplo = {"P006": [21.9150, -102.2816], "P005A": [21.8914, -102.2319]}
+# --- RENDERIZADO DEL MAPA ---
+st.markdown("<h2 style='color:white; text-align:center;'>MONITOREO ESTRATÉGICO MIAA</h2>", unsafe_allow_html=True)
 
-for id_p, coord in pozos_ejemplo.items():
-    graf_html = crear_grafico_mini()
-    popup_content = f"""
-    <div style="background-color: #0b1a29; color: white; padding: 15px; width: 600px; border-radius: 10px; border: 1px solid #333;">
-        <h3 style="color: #00ff00; margin:0;">Pozo: {id_p} - ON</h3>
-        <hr style="border: 0.1px solid #444;">
+m = folium.Map(location=[21.88, -102.28], zoom_start=12, tiles="CartoDB dark_matter")
+Fullscreen().add_to(m)
+
+for id_p, info in mapa_pozos_dict.items():
+    # Aquí deberías obtener el valor real de la base de datos para info['bomba']
+    estado_bba = "ON" # Ejemplo
+    dot_color = "#00ff00" if estado_bba == "ON" else "#ff0000"
+    
+    grafico_html = generar_grafico_popup()
+    
+    # HTML FIEL A LA IMAGENimage_5bf406.jpg
+    html_content = f"""
+    <div style="background-color: #0b1a29; color: white; padding: 15px; width: 720px; border-radius: 8px; font-family: sans-serif;">
+        <h3 style="color: #00ff00; margin-top: 0;">Pozo: {id_p} - {estado_bba}</h3>
+        <hr style="border: 0.1px solid #333;">
+        
         <div style="display: flex; justify-content: space-between;">
-            <div>
-                <p style="color:#00d4ff; margin:2px 0;"><b>Caudal: 11.87 l/s</b></p>
-                <p style="color:#00ff00; margin:2px 0;"><b>Presión: 0.64 Kg/cm²</b></p>
+            <div style="width: 48%;">
+                <p style="margin: 4px 0;"><b style="color: #00d4ff; font-size: 16px;">Caudal: 11.87 l/s</b> <span style="color: #00ff00; font-size: 10px;">---------- 18/03/2026 11:50</span></p>
+                <p style="margin: 4px 0;"><b style="color: #00ff00; font-size: 16px;">Presión: 0.64 Kg/cm²</b> <span style="color: #00ff00; font-size: 10px;">---------- 18/03/2026 11:50</span></p>
+                <p style="margin: 4px 0;"><b style="color: #ffcc00; font-size: 16px;">Nivel Estático: 0.00 mts.</b> <span style="color: #ff0066; font-size: 10px;">---------- 16/02/2026 08:27</span></p>
+                <p style="margin: 4px 0;"><b style="color: #ff6666; font-size: 16px;">Sumergencia: 227.76 mts.</b> <span style="color: #ff0066; font-size: 10px;">---------- 16/02/2026 08:27</span></p>
+                <p style="margin: 4px 0;"><b style="color: #ff9933; font-size: 16px;">Nivel Tanque Adj: 0.00 mts.</b> <span style="color: #888; font-size: 10px;">------</span></p>
             </div>
-            <div style="font-size: 11px;">
-                <b style="color:#00d4ff;">SCADA:</b> Activo<br>
-                <b style="color:#00ff00;">Sinc:</b> {datetime.now().strftime('%H:%M')}
+            <div style="width: 48%;">
+                <p style="margin: 0; color: #00d4ff;"><b>Voltajes (V):</b></p>
+                <div style="font-size: 12px; padding-left: 10px;">
+                    L1-L2: 431 Volts <span style="color: #00ff00; font-size: 9px;">------------------------ 18/03/2026 11:50</span><br>
+                    L2-L3: 432 Volts <span style="color: #00ff00; font-size: 9px;">------------------------ 18/03/2026 11:50</span><br>
+                    L1-L3: 424 Volts <span style="color: #00ff00; font-size: 9px;">------------------------ 18/03/2026 11:50</span>
+                </div>
+                <p style="margin: 8px 0 0 0; color: #00ff00;"><b>Corrientes (A):</b></p>
+                <div style="font-size: 12px; padding-left: 10px;">
+                    Total (Avg): <b>67.99 A</b><br>
+                    L1: 0.00 Amp <span style="color: #888; font-size: 9px;">--------------------------------------------</span><br>
+                    L2: 0.00 Amp <span style="color: #888; font-size: 9px;">--------------------------------------------</span><br>
+                    L3: 67.99 Amp <span style="color: #00ff00; font-size: 9px;">------------------------ 18/03/2026 11:41</span>
+                </div>
             </div>
         </div>
-        <div style="margin-top:10px;">{graf_html}</div>
+        
+        <div style="margin-top: 15px; border: 1px solid #333; background: #000;">
+            {grafico_html}
+        </div>
+        
+        <div style="text-align: center; margin-top: 10px;">
+            <button style="background: #00d4ff; color: black; border: none; padding: 8px 25px; border-radius: 4px; font-weight: bold; cursor: pointer;">📊 ABRIR GRÁFICO FULL</button>
+        </div>
     </div>
     """
-    
+
+    # PUNTO EN EL MAPA (ROJO O VERDE)
     folium.CircleMarker(
-        location=coord, radius=8, color="#00ff00", fill=True, fill_opacity=1,
-        popup=folium.Popup(popup_content, max_width=650)
+        location=info['coord'],
+        radius=7,
+        color=dot_color,
+        fill=True,
+        fill_color=dot_color,
+        fill_opacity=1,
+        popup=folium.Popup(html_content, max_width=750)
     ).add_to(m)
     
+    # ETIQUETA CON EL NÚMERO DEL POZO AL LADO
     folium.Marker(
-        location=coord,
-        icon=folium.DivIcon(html=f'<div style="font-size:12pt; color:#00ff00; font-weight:bold; margin-left:12px;">{id_p}</div>')
+        location=info['coord'],
+        icon=folium.DivIcon(
+            icon_size=(150,36),
+            icon_anchor=(-10, 18),
+            html=f'<div style="font-size: 13pt; color: {dot_color}; font-weight: bold; text-shadow: 1px 1px #000;">{id_p}</div>',
+        )
     ).add_to(m)
 
-folium_static(m, width=1300, height=800)
+folium_static(m, width=1200, height=750)

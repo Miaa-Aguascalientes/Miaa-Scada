@@ -3,150 +3,147 @@ import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from folium.plugins import Fullscreen
+from sqlalchemy import create_engine
 import psycopg2
-import json
+import urllib.parse
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
-    page_title="MIAA - Monitoreo de Pozos",
+    page_title="MIAA - Monitoreo SCADA y Pozos",
     page_icon="https://www.miaa.mx/favicon.ico",
     layout="wide"
 )
 
-# 2. ESTILO CSS PERSONALIZADO (Fiel a tu diseño actual)
+# 2. ESTILO CSS (Fiel a MIAA: Negro y Azul)
 st.markdown("""
     <style>
         .stApp { background-color: #000000 !important; color: white; }
         section[data-testid="stSidebar"] { background-color: #111111 !important; }
         .titulo-superior {
-            text-align: center;
-            color: white;
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-bottom: 20px;
+            text-align: center; color: white; font-size: 1.5rem;
+            font-weight: bold; margin-bottom: 20px;
         }
         [data-testid="stMetric"] {
-            background-color: #111111;
-            border: 1px solid #333;
-            border-radius: 10px;
-            padding: 10px !important;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            background-color: #111111; border: 1px solid #333;
+            border-radius: 10px; padding: 10px !important;
+            display: flex; flex-direction: column; align-items: center;
         }
         [data-testid="stMetricValue"] { font-size: 1.8rem !important; color: #00d4ff !important; }
         iframe { border: 2px solid #444 !important; border-radius: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. CONEXIÓN Y DATOS
+# 3. CONEXIONES A BASES DE DATOS
+@st.cache_resource
+def get_mysql_engine():
+    try:
+        creds = st.secrets["mysql"]
+        pwd = urllib.parse.quote_plus(creds["password"])
+        conn_str = f"mysql+mysqlconnector://{creds['user']}:{pwd}@{creds['host']}/{creds['database']}"
+        return create_engine(conn_str)
+    except Exception as e:
+        st.error(f"Error MySQL: {e}")
+        return None
+
 @st.cache_resource
 def get_postgres_conn():
     try:
         return psycopg2.connect(**st.secrets["postgres"])
     except Exception as e:
-        st.error(f"Error en conexión: {e}")
+        st.error(f"Error Postgres: {e}")
         return None
 
-def cargar_datos_pozos():
-    conn = get_postgres_conn()
-    if not conn: return pd.DataFrame()
-    # Usando el esquema corregido según tu historial: Agua_potable."Pozos"
-    query = 'SELECT * FROM "Agua_potable"."Pozos"'
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+# 4. CARGA DE DATOS
+def cargar_datos_unificados():
+    engine_mysql = get_mysql_engine()
+    conn_pg = get_postgres_conn()
+    
+    if not engine_mysql or not conn_pg:
+        return pd.DataFrame()
 
-# 4. LÓGICA DE ICONOS (Mapeo de tu archivo original)
+    try:
+        # 1. Datos de SCADA (MySQL)
+        # Ajusta el nombre de la tabla según tu base 'miaamx_telemetria'
+        df_scada = pd.read_sql("SELECT * FROM historico_scada ORDER BY fecha DESC LIMIT 500", engine_mysql)
+        
+        # 2. Datos Geográficos (Postgres)
+        query_pg = 'SELECT * FROM "Agua_potable"."Pozos"'
+        df_pozos = pd.read_sql(query_pg, conn_pg)
+        
+        # 3. Cruce de datos (Si el nombre del pozo coincide en ambas)
+        # Si no hay columna para cruzar, los manejamos por separado
+        return df_scada, df_pozos
+    except Exception as e:
+        st.error(f"Error al unificar datos: {e}")
+        return pd.DataFrame(), pd.DataFrame()
+
 def obtener_icono_pozo(estado):
     estado = str(estado).upper()
-    # Mapeo extraído de tu lógica de Tkinter
     iconos = {
         "FUNCIONANDO": {"color": "green", "icon": "tint"},
         "FUERA DE SERVICIO": {"color": "red", "icon": "exclamation-triangle"},
-        "MANTENIMIENTO": {"color": "orange", "icon": "wrench"},
-        "DESCONECTADO": {"color": "gray", "icon": "plug"}
+        "MANTENIMIENTO": {"color": "orange", "icon": "wrench"}
     }
     return iconos.get(estado, {"color": "blue", "icon": "info-circle"})
 
-# --- INTERFAZ ---
-st.markdown('<div class="titulo-superior">SISTEMA DE MONITOREO - POZOS AGUASCALIENTES</div>', unsafe_allow_html=True)
+# --- INTERFAZ DASHBOARD ---
+st.markdown('<div class="titulo-superior">TELEMETRÍA SCADA - MONITOREO DE POZOS MIAA</div>', unsafe_allow_html=True)
 
-df_pozos = cargar_datos_pozos()
+df_scada, df_pozos = cargar_datos_unificados()
 
-# Sidebar con filtros
+# Sidebar
 with st.sidebar:
     st.image("https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/main/LogoMIAA-BpcVaQaq.svg", use_container_width=True)
-    st.header("Filtros de Red")
-    
-    if not df_pozos.empty:
-        # Filtro por estado del pozo
-        estados = sorted(df_pozos['estado'].dropna().unique())
-        estado_sel = st.multiselect("Estado del Pozo", options=estados, default=estados)
-        
-        # Filtro por zona/sector
-        zonas = sorted(df_pozos['sector'].dropna().unique()) if 'sector' in df_pozos.columns else []
-        zona_sel = st.multiselect("Sector Hidráulico", options=zonas)
-        
-        # Aplicar filtros
-        df_filtrado = df_pozos[df_pozos['estado'].isin(estado_sel)]
-        if zona_sel:
-            df_filtrado = df_filtrado[df_filtrado['sector'].isin(zona_sel)]
-    else:
-        df_filtrado = pd.DataFrame()
+    if st.button("♻️ Actualizar Telemetría"):
+        st.cache_resource.clear()
+        st.rerun()
 
-# 5. MÉTRICAS (Diseño centrado)
-m1, m2, m3 = st.columns(3)
-total_pozos = len(df_filtrado)
-activos = len(df_filtrado[df_filtrado['estado'] == 'FUNCIONANDO']) if not df_filtrado.empty else 0
-fuera = total_pozos - activos
+if df_pozos.empty:
+    st.warning("No se detectaron datos geográficos de pozos.")
+    st.stop()
 
-m1.metric("Total Pozos", total_pozos)
-m2.metric("En Operación", activos)
-m3.metric("Fuera de Servicio", fuera)
+# MÉTRICAS RÁPIDAS
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Pozos Totales", len(df_pozos))
+m2.metric("En Operación", len(df_pozos[df_pozos['estado'] == 'FUNCIONANDO']))
+if not df_scada.empty:
+    # Ejemplo: Último valor de presión registrado en SCADA
+    ultima_p = df_scada['presion'].iloc[0] if 'presion' in df_scada.columns else 0
+    m3.metric("Presión Promedio", f"{ultima_p} kg/cm²")
+m4.metric("Alertas Activas", len(df_pozos[df_pozos['estado'] != 'FUNCIONANDO']))
 
-# 6. MAPA PRINCIPAL
-col_mapa, col_info = st.columns([3, 1])
+# MAPA Y TABLA SCADA
+col_left, col_right = st.columns([2, 1])
 
-with col_mapa:
-    # Coordenadas iniciales (Aguascalientes)
+with col_left:
+    st.write("📍 **Ubicación y Estado en Tiempo Real**")
     m = folium.Map(location=[21.8853, -102.2916], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
     
-    if not df_filtrado.empty:
-        for _, row in df_filtrado.iterrows():
-            if pd.notnull(row['latitud']) and pd.notnull(row['longitud']):
-                estilo = obtener_icono_pozo(row['estado'])
-                
-                # Popup detallado
-                html_popup = f"""
-                <div style="font-family: sans-serif; font-size: 12px;">
-                    <b style="color:#00d4ff;">POZO: {row['nombre']}</b><br>
-                    <b>Estado:</b> {row['estado']}<br>
-                    <b>Caudal:</b> {row.get('caudal', 0)} L/s<br>
-                    <b>Presión:</b> {row.get('presion', 0)} kg/cm²
-                </div>
-                """
-                
-                folium.Marker(
-                    location=[row['latitud'], row['longitud']],
-                    popup=folium.Popup(html_popup, max_width=200),
-                    icon=folium.Icon(color=estilo['color'], icon=estilo['icon'], prefix='fa'),
-                    tooltip=f"Pozo: {row['nombre']}"
-                ).add_to(m)
+    for _, row in df_pozos.iterrows():
+        if pd.notnull(row['latitud']) and pd.notnull(row['longitud']):
+            estilo = obtener_icono_pozo(row['estado'])
+            folium.Marker(
+                location=[row['latitud'], row['longitud']],
+                icon=folium.Icon(color=estilo['color'], icon=estilo['icon'], prefix='fa'),
+                tooltip=f"Pozo: {row['nombre']} | Estado: {row['estado']}"
+            ).add_to(m)
     
-    folium_static(m, width=1000, height=600)
+    folium_static(m, width=850, height=550)
 
-with col_info:
-    st.write("📋 **Detalle de Alarmas**")
-    if not df_filtrado.empty:
-        # Mostrar solo los que necesitan atención
-        alarmas = df_filtrado[df_filtrado['estado'] != 'FUNCIONANDO'][['nombre', 'estado']]
-        st.dataframe(alarmas, hide_index=True, use_container_width=True)
+with col_right:
+    st.write("📊 **Últimas Lecturas SCADA**")
+    if not df_scada.empty:
+        # Mostramos los datos crudos del SCADA como pediste anteriormente
+        st.dataframe(
+            df_scada[['nombre_pozo', 'valor', 'fecha']].head(20), 
+            hide_index=True, 
+            use_container_width=True
+        )
     else:
-        st.info("No hay pozos que coincidan con el filtro.")
+        st.info("Esperando datos de miaamx_telemetria...")
 
-# 7. TABLA TOTAL (Al final, estilo Dashboard)
+# TABLA GENERAL
 st.divider()
-st.subheader("Registros de Telemetría en Tiempo Real")
-st.dataframe(df_filtrado, use_container_width=True)
+st.subheader("Inventario de Infraestructura (Postgres)")
+st.dataframe(df_pozos, use_container_width=True)

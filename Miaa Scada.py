@@ -154,9 +154,9 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t) for t in info['voltajes_l']]
     a = [d(t) for t in info['amperajes_l']]
 
-    # POPUP CON FECHAS INDIVIDUALES EN AMARILLO PARA TODOS LOS DATOS
+    # POPUP CON FECHAS AMARILLAS SIEMPRE A LA DERECHA DEL VALOR
     html_popup = f"""
-    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 360px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
@@ -164,54 +164,54 @@ for id_p, info in mapa_pozos_dict.items():
         
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px;">
+            <div style="display: flex; align-items: baseline; font-size: 12px; margin-bottom: 3px;">
                 <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                <span style="color: #FFFF00; font-size: 9px;">{f_q}</span>
+                <span style="color: #FFFF00; font-size: 9px; margin-left: auto;">{f_q}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+            <div style="display: flex; align-items: baseline; font-size: 12px;">
                 <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                <span style="color: #FFFF00; font-size: 9px;">{f_p}</span>
+                <span style="color: #FFFF00; font-size: 9px; margin-left: auto;">{f_p}</span>
             </div>
         </div>
         
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px;">
+            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
                 <span>Sumergencia: <b>{sumer:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 9px;">{f_s}</span>
+                <span style="color: #FFFF00; font-size: 9px; margin-left: auto;">{f_s}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px;">
+            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
                 <span>Dinámico: <b>{dinam:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 9px;">{f_d}</span>
+                <span style="color: #FFFF00; font-size: 9px; margin-left: auto;">{f_d}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+            <div style="display: flex; align-items: baseline; font-size: 11px;">
                 <span>Tanque: <b>{tanq:.1f} %</b></span>
-                <span style="color: #FFFF00; font-size: 9px;">{f_t}</span>
+                <span style="color: #FFFF00; font-size: 9px; margin-left: auto;">{f_t}</span>
             </div>
         </div>
         
         <div>
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-            <table style="width: 100%; font-size: 10px; text-align: center; border-collapse: collapse;">
-                <tr style="color: #00d4ff; border-bottom: 1px solid #333;">
-                    <th>Fase</th>
-                    <th>Voltaje</th>
-                    <th>Amperaje</th>
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
+                    <th style="padding: 4px;">Fase</th>
+                    <th style="padding: 4px;">Voltaje / Act.</th>
+                    <th style="padding: 4px;">Amp / Act.</th>
                 </tr>
                 <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 4px 0;">L1-L2</td>
-                    <td>{v[0][0]:.1f}V<br><small style="color:#FFFF00; font-size:8px;">{v[0][1]}</small></td>
-                    <td>{a[0][0]:.1f}A<br><small style="color:#FFFF00; font-size:8px;">{a[0][1]}</small></td>
+                    <td style="padding: 6px 4px;">L1-L2</td>
+                    <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
+                    <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
                 </tr>
                 <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 4px 0;">L2-L3</td>
-                    <td>{v[1][0]:.1f}V<br><small style="color:#FFFF00; font-size:8px;">{v[1][1]}</small></td>
-                    <td>{a[1][0]:.1f}A<br><small style="color:#FFFF00; font-size:8px;">{a[1][1]}</small></td>
+                    <td style="padding: 6px 4px;">L2-L3</td>
+                    <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
+                    <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
                 </tr>
                 <tr>
-                    <td style="padding: 4px 0;">L1-L3</td>
-                    <td>{v[2][0]:.1f}V<br><small style="color:#FFFF00; font-size:8px;">{v[2][1]}</small></td>
-                    <td>{a[2][0]:.1f}A<br><small style="color:#FFFF00; font-size:8px;">{a[2][1]}</small></td>
+                    <td style="padding: 6px 4px;">L1-L3</td>
+                    <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
+                    <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
                 </tr>
             </table>
         </div>
@@ -227,7 +227,7 @@ for id_p, info in mapa_pozos_dict.items():
         fill_opacity=1,
         weight=0,
         class_name="blink_me" if info['blink'] else "",
-        popup=folium.Popup(html_popup, max_width=400)
+        popup=folium.Popup(html_popup, max_width=450)
     ).add_to(m)
 
     folium.map.Marker(

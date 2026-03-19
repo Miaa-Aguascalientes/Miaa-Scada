@@ -112,16 +112,17 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Agua_potable"."Sectores_hidr"'
+        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
     except: return []
 
 # --- 5. PROCESAMIENTO ---
+sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
-sectores = cargar_sectores_poligonos()
+
 
 pozos_on, pozos_off = [], []
 total_q, total_p = 0.0, 0.0

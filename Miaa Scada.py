@@ -100,7 +100,6 @@ def cargar_sectores_poligonos():
 # --- 5. PROCESAMIENTO ---
 data_scada = cargar_datos_scada()
 sectores = cargar_sectores_poligonos()
-ahora = datetime.now()
 
 pozos_on, pozos_off = [], []
 total_q, total_p = 0.0, 0.0
@@ -151,11 +150,10 @@ for id_p, info in mapa_pozos_dict.items():
     sumer, f_s = d(info['sumergencia'])
     dinam, f_d = d(info['nivel_dinamico'])
     tanq, f_t = d(info['nivel_tanque'])
-    # Voltajes y Amperajes con sus fechas
     v = [d(t) for t in info['voltajes_l']]
     a = [d(t) for t in info['amperajes_l']]
 
-    # POPUP CON FECHAS A LA DERECHA DE TODOS LOS DATOS
+    # POPUP CON FECHAS EN AMARILLO A LA DERECHA
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 340px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -167,11 +165,11 @@ for id_p, info in mapa_pozos_dict.items():
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
             <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px;">
                 <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                <span style="color: #555; font-size: 9px;">{f_q}</span>
+                <span style="color: #FFFF00; font-size: 9px;">{f_q}</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 12px;">
                 <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                <span style="color: #555; font-size: 9px;">{f_p}</span>
+                <span style="color: #FFFF00; font-size: 9px;">{f_p}</span>
             </div>
         </div>
         
@@ -179,15 +177,15 @@ for id_p, info in mapa_pozos_dict.items():
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
             <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
                 <span>Sumergencia: <b>{sumer:.1f} m</b></span>
-                <span style="color: #555; font-size: 9px;">{f_s}</span>
+                <span style="color: #FFFF00; font-size: 9px;">{f_s}</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
                 <span>Dinámico: <b>{dinam:.1f} m</b></span>
-                <span style="color: #555; font-size: 9px;">{f_d}</span>
+                <span style="color: #FFFF00; font-size: 9px;">{f_d}</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 11px;">
                 <span>Tanque: <b>{tanq:.1f} %</b></span>
-                <span style="color: #555; font-size: 9px;">{f_t}</span>
+                <span style="color: #FFFF00; font-size: 9px;">{f_t}</span>
             </div>
         </div>
         
@@ -199,15 +197,15 @@ for id_p, info in mapa_pozos_dict.items():
                 </tr>
                 <tr>
                     <td>L1-L2</td><td>{v[0][0]:.1f}V</td><td>{a[0][0]:.1f}A</td>
-                    <td style="color: #555; font-size: 8px;">{v[0][1]}</td>
+                    <td style="color: #FFFF00; font-size: 8px;">{v[0][1]}</td>
                 </tr>
                 <tr>
                     <td>L2-L3</td><td>{v[1][0]:.1f}V</td><td>{a[1][0]:.1f}A</td>
-                    <td style="color: #555; font-size: 8px;">{v[1][1]}</td>
+                    <td style="color: #FFFF00; font-size: 8px;">{v[1][1]}</td>
                 </tr>
                 <tr>
                     <td>L1-L3</td><td>{v[2][0]:.1f}V</td><td>{a[2][0]:.1f}A</td>
-                    <td style="color: #555; font-size: 8px;">{v[2][1]}</td>
+                    <td style="color: #FFFF00; font-size: 8px;">{v[2][1]}</td>
                 </tr>
             </table>
         </div>

@@ -92,13 +92,14 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Forzamos el esquema Agua_potable y la transformación a 4326
+        # Forzamos esquema Agua_potable y validamos que traiga datos
         query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Agua_potable"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
     except Exception as e:
-        st.error(f"Error cargando sectores: {e}")
+        # Esto aparecerá en tu app si la tabla no existe o falla la conexión
+        st.sidebar.error(f"Error en Postgres: {e}")
         return []
 
 # --- 5. PROCESAMIENTO ---
@@ -134,25 +135,28 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # --- 7. MAPA ---
+# Si no hay sectores, avisamos
+if not sectores:
+    st.warning("⚠️ No se cargaron polígonos desde 'Agua_potable'.'Sectores_hidr'. Revisa la conexión a Postgres.")
+
 m = folium.Map(location=[21.8823, -102.2826], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# DIBUJAR SECTORES (Aseguramos que se añadan primero para quedar al fondo)
+# DIBUJAR SECTORES PRIMERO
 for s in sectores:
     try:
-        geo_data = json.loads(s['geo'])
+        geo_json_data = json.loads(s['geo'])
         folium.GeoJson(
-            geo_data,
-            name=f"Sector {s['sector']}",
+            geo_json_data,
             style_function=lambda x: {
                 'fillColor': '#00d4ff',
                 'color': '#00d4ff',
-                'weight': 1.5,
-                'fillOpacity': 0.15
+                'weight': 2,
+                'fillOpacity': 0.2
             },
             tooltip=f"Sector: {s['sector']}"
         ).add_to(m)
-    except:
+    except Exception as e:
         continue
 
 for id_p, info in mapa_pozos_dict.items():
@@ -169,6 +173,7 @@ for id_p, info in mapa_pozos_dict.items():
     v_vals = [get_data(t) for t in info['voltajes_l']]
     a_vals = [get_data(t) for t in info['amperajes_l']]
 
+    # POPUP CON FECHAS (Restaurado e íntegro)
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 340px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -213,22 +218,4 @@ for id_p, info in mapa_pozos_dict.items():
     folium.CircleMarker(
         location=info['coord'],
         radius=7,
-        color=info['color_final'],
-        fill=True,
-        fill_color=info['color_final'],
-        fill_opacity=1,
-        weight=0,
-        class_name="blink_me" if info['blink'] else "",
-        popup=folium.Popup(html_popup, max_width=350)
-    ).add_to(m)
-
-    folium.map.Marker(
-        location=info['coord'],
-        icon=folium.DivIcon(
-            icon_size=(150,36),
-            icon_anchor=(0,0),
-            html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 14px; top: -10px; white-space: nowrap; text-shadow: 1px 1px 2px black;">{id_p}</div>'
-        )
-    ).add_to(m)
-
-folium_static(m, width=1300, height=800)
+        color

@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 import psycopg2
 import json
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="MIAA - Control Maestro", layout="wide", initial_sidebar_state="collapsed")
@@ -18,8 +18,8 @@ st.markdown("""
         .stApp { background-color: #000000 !important; color: white; }
         [data-testid="stHeader"] { background: rgba(0,0,0,0); }
         .header-miaa {
-            text-align: center; padding: 10px; border-bottom: 2px solid #00d4ff;
-            background: #0b1a29; margin-bottom: 10px;
+            text-align: center; padding: 15px; border-bottom: 2px solid #00d4ff;
+            background: #0b1a29; margin-bottom: 20px;
         }
         .stTable { background-color: #111111; border-radius: 10px; }
     </style>
@@ -32,7 +32,7 @@ st.markdown("""
 mapa_pozos_dict = {
     "P005A": {
         "coord": (21.89147, -102.23195), 
-        "corriente_bba": "PZ_RP_005_TRHDAS_BBA_CRUDO", 
+        "bomba": "PZ_RP_005_TRHDAS_BBA_CRUDO", 
         "caudal": "PZ_RP_005_TRHDAS_CAU_INS", 
         "presion": "PZ_RP_005_TRHDAS_PRES_INS", 
         "sumergencia": "PZ_RP_005_TRHDAS_SUMERG", 
@@ -43,7 +43,7 @@ mapa_pozos_dict = {
     },
     "P006": {
         "coord": (21.91504, -102.281668), 
-        "corriente_bba": "PZ_006_TRC_BBA_CRUDO", 
+        "bomba": "PZ_006_TRC_BBA_CRUDO", 
         "caudal": "PZ_006_TRC_CAU_INS", 
         "presion": "PZ_006_TRC_PRES_INS", 
         "sumergencia": "PZ_006_TRC_SUMERG", 
@@ -100,35 +100,39 @@ def cargar_sectores_poligonos():
         return df.to_dict('records')
     except: return []
 
-# --- PROCESAMIENTO ---
+# --- 5. PROCESAMIENTO ---
 data_scada = cargar_datos_scada()
 sectores = cargar_sectores_poligonos()
 ahora = datetime.now()
 
-# --- INTERFAZ: PANEL IZQUIERDO Y MAPA ---
+# --- 6. INTERFAZ: PANEL IZQUIERDO Y MAPA ---
 col_info, col_map = st.columns([1, 3])
 
 with col_info:
     st.markdown("### 📊 Estado de Pozos")
     resumen_lista = []
     for id_p, info in mapa_pozos_dict.items():
-        val_bba, f_bba = data_scada.get(info['corriente_bba'], (None, None))
-        val_v1, f_v1 = data_scada.get(info['voltajes_l'][0], (None, None))
+        # Verificación del estado de la bomba
+        val_bba, f_bba = data_scada.get(info['bomba'], (None, None))
         
-        color_hex, icon_color, status_label, emoji = "#808080", "gray", "SIN TELEMETRÍA", "⚪"
+        # Colores por defecto (Gris si no hay datos)
+        color_hex, icon_color, status_label, emoji = "#808080", "gray", "SIN DATOS", "⚪"
 
         if val_bba is not None:
-            if f_v1 and (ahora - f_v1).total_seconds() > 14400: # 4 horas
+            # Validación de datos obsoletos (más de 4 horas)
+            if f_bba and (ahora - f_bba).total_seconds() > 14400:
                 color_hex, icon_color, status_label, emoji = "#FFFF00", "orange", "OBSOLETO (+4h)", "🟡"
             elif val_bba == 1:
-                color_hex, icon_color, status_label, emoji = "#00FF00", "green", "ENCENDIDO", "🟢"
+                color_hex, icon_color, status_label, emoji = "#28a745", "green", "ENCENDIDO", "🟢"
             else:
-                color_hex, icon_color, status_label, emoji = "#FF0000", "red", "APAGADO", "🔴"
+                color_hex, icon_color, status_label, emoji = "#dc3545", "red", "APAGADO", "🔴"
 
         info['color_final'] = color_hex
         info['icon_color'] = icon_color
         info['status_label'] = status_label
-        resumen_lista.append({" ": emoji, "ID": id_p, "Q (L/s)": f"{data_scada.get(info['caudal'], (0,0))[0]:.1f}"})
+        
+        caudal_val = data_scada.get(info['caudal'], (0,0))[0]
+        resumen_lista.append({" ": emoji, "ID": id_p, "Q (L/s)": f"{caudal_val:.1f}"})
 
     st.table(pd.DataFrame(resumen_lista))
 
@@ -136,21 +140,18 @@ with col_map:
     m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # --- DIBUJAR POLÍGONOS DE SECTORES (Postgres) ---
+    # --- DIBUJAR SECTORES ---
     for s in sectores:
         folium.GeoJson(
             json.loads(s['geo']),
             name=f"Sector: {s['sector']}",
             style_function=lambda x: {
-                'fillColor': '#00d4ff',
-                'color': '#00d4ff',
-                'weight': 1.5,
-                'fillOpacity': 0.1
+                'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1
             },
             tooltip=f"Sector: {s['sector']}"
         ).add_to(m)
 
-    # --- DIBUJAR MARCADORES DE POZOS ---
+    # --- DIBUJAR MARCADORES CON POPUP MEJORADO ---
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         q, f_q = d(info['caudal'])
@@ -161,51 +162,52 @@ with col_map:
         v = [d(t) for t in info['voltajes_l']]
         a = [d(t) for t in info['amperajes_l']]
 
+        # HTML del Popup con diseño de alta visibilidad
         html_popup = f"""
-        <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 320px; border: 1px solid {info['color_final']}; font-family: sans-serif; box-shadow: 0 0 10px {info['color_final']}55;">
-            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
-                <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
-                <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+        <div style="background-color: #121212; color: #ffffff; padding: 15px; border-radius: 12px; width: 330px; border: 2px solid {info['color_final']}; font-family: Arial, sans-serif;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 12px;">
+                <span style="color: #00d4ff; font-size: 18px; font-weight: bold;">POZO {id_p}</span>
+                <span style="font-size: 11px; background: {info['color_final']}; color: black; padding: 3px 10px; border-radius: 15px; font-weight: bold; text-transform: uppercase;">
+                    {info['status_label']}
+                </span>
             </div>
             
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 10px; color: #888;">HIDRÁULICA</div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                    <span>💧 Caudal: <b>{q:.2f} L/s</b></span><span style="font-size: 8px; color: #555;">{f_q}</span>
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: #00d4ff; font-weight: bold; margin-bottom: 4px;">HIDRÁULICA</div>
+                <div style="font-size: 15px; display: flex; justify-content: space-between;">
+                    <span>💧 Caudal:</span> <b>{q:.2f} L/s</b>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                    <span>🚀 Presión: <b>{p:.2f} kg</b></span><span style="font-size: 8px; color: #555;">{f_p}</span>
+                <div style="font-size: 15px; display: flex; justify-content: space-between;">
+                    <span>🚀 Presión:</span> <b>{p:.2f} kg/cm²</b>
                 </div>
             </div>
 
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-                <div style="font-size: 11px; display: flex; justify-content: space-between;">
-                    <span>Sumergencia: <b>{sumer:.1f} m</b></span><span style="font-size: 8px; color: #444;">{f_s}</span>
+            <div style="margin-bottom: 12px; background: #1a1a1a; padding: 8px; border-radius: 6px;">
+                <div style="font-size: 10px; color: #00d4ff; font-weight: bold; margin-bottom: 6px;">NIVELES</div>
+                <div style="font-size: 13px; margin-bottom: 4px;">Sumergencia: <b>{sumer:.1f} m</b></div>
+                <div style="width: 100%; height: 8px; background: #333; border-radius: 4px; margin-bottom: 8px; overflow: hidden;">
+                    <div style="width: {min(max(sumer, 0), 100)}%; height: 100%; background: #00d4ff; box-shadow: 0 0 5px #00d4ff;"></div>
                 </div>
-                <div style="width: 100%; height: 6px; background: #222; border-radius: 3px; margin-bottom: 5px;">
-                    <div style="width: {min(sumer*2, 100)}%; height: 100%; background: #00d4ff;"></div>
-                </div>
-                <div style="font-size: 11px;">Dinámico: <b>{dinam:.1f} m</b> <span style="font-size: 8px; color: #444;">({f_d})</span></div>
-                <div style="font-size: 11px;">Tanque: <b>{tanq:.1f} %</b> <span style="font-size: 8px; color: #444;">({f_t})</span></div>
+                <div style="font-size: 12px; color: #ccc;">Dinámico: <b>{dinam:.1f} m</b> | Tanque: <b>{tanq:.1f}%</b></div>
             </div>
 
-            <div>
-                <div style="font-size: 10px; color: #888; margin-bottom: 4px;">SISTEMA ELÉCTRICO</div>
-                <table style="width: 100%; font-size: 10px; text-align: center; border-collapse: collapse;">
-                    <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
-                    <tr><td>L1-L2</td><td>{v[0][0]:.1f}V</td><td>{a[0][0]:.1f}A</td></tr>
-                    <tr><td>L2-L3</td><td>{v[1][0]:.1f}V</td><td>{a[1][0]:.1f}A</td></tr>
-                    <tr><td>L1-L3</td><td>{v[2][0]:.1f}V</td><td>{a[2][0]:.1f}A</td></tr>
+            <div style="background: #000; padding: 8px; border-radius: 6px;">
+                <div style="font-size: 10px; color: #00d4ff; font-weight: bold; margin-bottom: 6px;">SISTEMA ELÉCTRICO</div>
+                <table style="width: 100%; font-size: 12px; text-align: center; border-collapse: collapse;">
+                    <tr style="border-bottom: 1px solid #333; color: #888;"><th>Fase</th><th>Voltaje</th><th>Amperaje</th></tr>
+                    <tr><td>L1-L2</td><td><b>{v[0][0]:.0f}V</b></td><td><b>{a[0][0]:.1f}A</b></td></tr>
+                    <tr><td>L2-L3</td><td><b>{v[1][0]:.0f}V</b></td><td><b>{a[1][0]:.1f}A</b></td></tr>
+                    <tr><td>L1-L3</td><td><b>{v[2][0]:.0f}V</b></td><td><b>{a[2][0]:.1f}A</b></td></tr>
                 </table>
             </div>
+            <div style="font-size: 8px; color: #555; margin-top: 8px; text-align: right;">Sincronizado: {f_q}</div>
         </div>
         """
 
         folium.Marker(
             location=info['coord'],
             icon=folium.Icon(color=info['icon_color'], icon='tint', prefix='fa'),
-            popup=folium.Popup(folium.IFrame(html_popup, width=340, height=360), max_width=350)
+            popup=folium.Popup(folium.IFrame(html_popup, width=350, height=420), max_width=400)
         ).add_to(m)
 
     folium_static(m, width=1050, height=750)

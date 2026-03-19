@@ -9,7 +9,7 @@ import json
 import urllib.parse
 from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA Y FAVICON
+# 1. CONFIGURACIÓN DE PÁGINA (Con el favicon oficial proporcionado)
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
     page_icon="https://www.miaa.mx/favicon.ico", 
@@ -17,13 +17,24 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS PROFESIONAL (Basado en tus referencias)
+# 2. ESTILO CSS (Logotipo y estética Dark Mode)
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
-        .sidebar-logo { display: flex; justify-content: center; padding: 10px 0 20px 0; }
-        .sidebar-logo img { max-width: 80%; height: auto; }
+        
+        /* Contenedor para el logotipo en el sidebar */
+        .sidebar-logo {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px 0px 20px 0px;
+        }
+        .sidebar-logo img {
+            max-width: 85%;
+            height: auto;
+        }
+
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
     </style>
@@ -55,7 +66,7 @@ mapa_pozos_dict = {
     }
 }
 
-# 4. FUNCIONES DE CARGA DE DATOS
+# 4. FUNCIONES DE CONEXIÓN Y CARGA (Basadas en Miaa Scada - respaldo.py)
 @st.cache_resource
 def get_mysql_engine():
     try:
@@ -117,9 +128,16 @@ for id_p, info in mapa_pozos_dict.items():
         info.update({'txt_status': 'APAGADO', 'color': 'red', 'color_hex': '#FF0000'})
         pozos_off.append(id_p)
 
-# --- 6. SIDEBAR CON IDENTIDAD VISUAL ---
+# --- 6. SIDEBAR CON LOGOTIPO MIAA ---
 with st.sidebar:
-    st.markdown('<div class="sidebar-logo"><img src="https://miaa.mx/wp-content/uploads/2023/10/Logo-MIAA-Horizontal-Blanco.png"></div>', unsafe_allow_html=True)
+    # URL del logotipo proporcionada
+    URL_LOGO_MIAA = "https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"
+    st.markdown(f"""
+        <div class="sidebar-logo">
+            <img src="{URL_LOGO_MIAA}">
+        </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("<h2 style='color:#00d4ff; text-align:center;'>Estado de Pozos</h2>", unsafe_allow_html=True)
     
     st.markdown(f"""
@@ -135,7 +153,7 @@ with st.sidebar:
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in pozos_off: st.write(f"🔴 {p}")
 
-# --- 7. MAPA PRINCIPAL ---
+# --- 7. MAPA PRINCIPAL (Capa CartoDB Dark por defecto) ---
 m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
 
 fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos", show=True)
@@ -156,13 +174,16 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t)[0] for t in info['voltajes_l']]
     a = [d(t)[0] for t in info['amperajes_l']]
 
+    # Popup con etiquetas OPERANDO / APAGADO y tablas de telemetría completa
     html_popup = f"""
     <div style="background:#111; color:white; padding:15px; border-radius:10px; width:300px; border:2px solid {info['color_hex']}; font-family:sans-serif;">
         <h4 style="margin:0; color:#00d4ff;">POZO {id_p}</h4>
         <hr style="border:0.5px solid #333;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-            <span>ESTADO:</span> <b style="color:{info['color_hex']};">{info['txt_status']}</b>
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+            <span>ESTADO BOMBA:</span> 
+            <b style="font-size:13px; color:{info['color_hex']}; background:#222; padding:3px 8px; border-radius:5px;">{info['txt_status']}</b>
         </div>
+        
         <div style="font-size:11px; color:#888;">HIDRÁULICA</div>
         <div style="display:flex; justify-content:space-between;"><span>💧 Caudal:</span> <b>{q:.2f} L/s</b></div>
         <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>🚀 Presión:</span> <b>{p:.2f} kg</b></div>
@@ -172,9 +193,9 @@ for id_p, info in mapa_pozos_dict.items():
         <div style="display:flex; justify-content:space-between;"><span>Dinámico:</span> <b>{dinam:.1f} m</b></div>
         <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Tanque:</span> <b>{tanq:.1f} %</b></div>
 
-        <div style="font-size:11px; color:#888;">SISTEMA ELÉCTRICO</div>
+        <div style="font-size:11px; color:#888; margin-top:5px;">SISTEMA ELÉCTRICO</div>
         <table style="width:100%; font-size:10px; text-align:center; border-collapse:collapse;">
-            <tr style="color:#00d4ff;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
+            <tr style="color:#00d4ff; border-bottom:1px solid #333;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
             <tr><td>L1-L2</td><td>{v[0]:.1f}V</td><td>{a[0]:.1f}A</td></tr>
             <tr><td>L2-L3</td><td>{v[1]:.1f}V</td><td>{a[1]:.1f}A</td></tr>
             <tr><td>L1-L3</td><td>{v[2]:.1f}V</td><td>{a[2]:.1f}A</td></tr>

@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS (Sidebar y parpadeo)
+# 2. ESTILO CSS (Sidebar, Animaciones y Tablas)
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
@@ -26,12 +26,14 @@ st.markdown("""
         .sidebar-logo img { max-width: 85%; height: auto; }
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
+        
+        /* Animación de parpadeo */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. DICCIONARIO DE CONFIGURACIÓN
+# 3. DICCIONARIO DE POZOS
 mapa_pozos_dict = {
     "P005A": {
         "coord": (21.89147, -102.23195), 
@@ -81,13 +83,7 @@ def cargar_datos_scada():
             elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): all_tags.append(v)
     try:
         tags_str = "', '".join(list(set(all_tags)))
-        query = f"""
-            SELECT r.NAME, h.VALUE, h.FECHA 
-            FROM vfitagnumhistory h
-            JOIN VfiTagRef r ON h.GATEID = r.GATEID
-            WHERE r.NAME IN ('{tags_str}')
-            AND h.HISTORYID IN (SELECT MAX(HISTORYID) FROM vfitagnumhistory GROUP BY GATEID)
-        """
+        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM vfitagnumhistory h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)"
         df = pd.read_sql(query, engine)
         return {row['NAME']: (row['VALUE'], row['FECHA']) for _, row in df.iterrows()}
     except: return {}
@@ -97,7 +93,6 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Recuperación de polígonos de sectores
         query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
@@ -107,34 +102,38 @@ def cargar_sectores_poligonos():
 # --- 5. PROCESAMIENTO ---
 data_scada = cargar_datos_scada()
 sectores = cargar_sectores_poligonos()
+ahora = datetime.now()
+
 pozos_on, pozos_off = [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
-    val_bba = data_scada.get(info['bomba'], (0, None))[0]
+    val_bba, f_bba = data_scada.get(info['bomba'], (0, None)) # Corregido NameError
     q_val = data_scada.get(info['caudal'], (0, 0))[0]
     p_val = data_scada.get(info['presion'], (0, 0))[0]
     
-    # Lógica de encendido: Si la bomba está en 1
     if val_bba == 1:
-        info.update({'status': 'OPERANDO', 'color': '#00FF00', 'blink': False})
+        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
         pozos_on.append(id_p)
         total_q += q_val
         total_p += p_val
     else:
-        info.update({'status': 'APAGADO', 'color': '#FF0000', 'blink': True})
+        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
         pozos_off.append(id_p)
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#00d4ff; text-align:center;'>Estado de Pozos</h2>", unsafe_allow_html=True)
+    
     st.markdown(f"""
     <div class="resumen-card">
-        <h4 style="color:#00d4ff;">RESUMEN GLOBAL</h4>
-        <p>Caudal: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
-        <p>Presión: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} kg</b></p>
+        <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
+        <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+        <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
     </div>
     """, unsafe_allow_html=True)
+
     st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
     for p in pozos_on: st.write(f"🟢 {p}")
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
@@ -144,27 +143,74 @@ with st.sidebar:
 m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# Dibujar sectores (Polígonos restaurados)
+m.get_root().header.add_child(folium.Element("""
+    <style>
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
+    </style>
+"""))
+
 for s in sectores:
-    folium.GeoJson(json.loads(s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.15}).add_to(m)
+    folium.GeoJson(json.loads(s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}).add_to(m)
 
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
-    # Popup con datos reales restaurados
-    html_popup = f"""
-    <div style="background:#050505; color:white; padding:12px; border-radius:8px; border:1px solid {info['color']}; width:280px;">
-        <b style="color:#00d4ff;">POZO {id_p}</b> [{info['status']}]<hr>
-        Caudal: <b>{d(info['caudal'])[0]:.2f} L/s</b><br>
-        Presión: <b>{d(info['presion'])[0]:.2f} kg</b><br>
-        Tanque: <b>{d(info['nivel_tanque'])[0]:.1f} %</b>
-    </div>"""
+    q, f_q = d(info['caudal'])
+    p, f_p = d(info['presion'])
+    sumer, f_s = d(info['sumergencia'])
+    dinam, f_d = d(info['nivel_dinamico'])
+    tanq, f_t = d(info['nivel_tanque'])
+    v = [d(t) for t in info['voltajes_l']]
+    a = [d(t) for t in info['amperajes_l']]
 
+    # POPUP RESTAURADO
+    html_popup = f"""
+    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 320px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+            <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+            <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+        </div>
+        <div style="margin-bottom: 10px;">
+            <div style="font-size: 10px; color: #888;">HIDRÁULICA</div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>💧 Caudal: <b>{q:.2f} L/s</b></span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>🚀 Presión: <b>{p:.2f} kg</b></span></div>
+        </div>
+        <div style="margin-bottom: 10px;">
+            <div style="font-size: 10px; color: #888;">NIVELES</div>
+            <div style="font-size: 11px;">Sumergencia: <b>{sumer:.1f} m</b></div>
+            <div style="font-size: 11px;">Dinámico: <b>{dinam:.1f} m</b></div>
+            <div style="font-size: 11px;">Tanque: <b>{tanq:.1f} %</b></div>
+        </div>
+        <table style="width: 100%; font-size: 10px; text-align: center; border-collapse: collapse;">
+            <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
+            <tr><td>L1-L2</td><td>{v[0][0]:.1f}V</td><td>{a[0][0]:.1f}A</td></tr>
+            <tr><td>L2-L3</td><td>{v[1][0]:.1f}V</td><td>{a[1][0]:.1f}A</td></tr>
+            <tr><td>L1-L3</td><td>{v[2][0]:.1f}V</td><td>{a[2][0]:.1f}A</td></tr>
+        </table>
+    </div>
+    """
+
+    # PUNTO CIRCULAR
     folium.CircleMarker(
-        location=info['coord'], radius=7, color=info['color'], fill=True, fill_color=info['color'],
+        location=info['coord'],
+        radius=6,
+        color=info['color_final'],
+        fill=True,
+        fill_color=info['color_final'],
+        fill_opacity=1,
+        weight=0,
         class_name="blink_me" if info['blink'] else "",
-        popup=folium.Popup(html_popup, max_width=300)
+        popup=folium.Popup(html_popup, max_width=350) # Popup vuelto a poner
     ).add_to(m)
-    
-    folium.map.Marker(location=info['coord'], icon=folium.DivIcon(html=f'<div style="font-size:12pt; color:{info["color"]}; font-weight:bold; margin-left:12px;">{id_p}</div>')).add_to(m)
+
+    # ETIQUETA ID
+    folium.map.Marker(
+        location=info['coord'],
+        icon=folium.DivIcon(
+            icon_size=(150,36),
+            icon_anchor=(0,0),
+            html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
+        )
+    ).add_to(m)
 
 folium_static(m, width=1300, height=800)

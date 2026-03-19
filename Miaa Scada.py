@@ -9,20 +9,27 @@ import json
 import urllib.parse
 from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="MIAA - Estado de Pozos", layout="wide", initial_sidebar_state="expanded")
+# 1. CONFIGURACIÓN DE PÁGINA Y FAVICON
+st.set_page_config(
+    page_title="MIAA - Estado de Pozos", 
+    page_icon="📊", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
-# 2. ESTILO CSS (Panel lateral y estética general)
+# 2. ESTILO CSS PROFESIONAL (Basado en tus referencias)
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
+        .sidebar-logo { display: flex; justify-content: center; padding: 10px 0 20px 0; }
+        .sidebar-logo img { max-width: 80%; height: auto; }
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. DICCIONARIO DE CONFIGURACIÓN
+# 3. DICCIONARIO DE POZOS COMPLETO (Sin recortes)
 mapa_pozos_dict = {
     "P005A": {
         "coord": (21.89147, -102.23195), 
@@ -48,7 +55,7 @@ mapa_pozos_dict = {
     }
 }
 
-# 4. FUNCIONES DE CARGA
+# 4. FUNCIONES DE CARGA DE DATOS
 @st.cache_resource
 def get_mysql_engine():
     try:
@@ -110,9 +117,11 @@ for id_p, info in mapa_pozos_dict.items():
         info.update({'txt_status': 'APAGADO', 'color': 'red', 'color_hex': '#FF0000'})
         pozos_off.append(id_p)
 
-# --- 6. SIDEBAR (Se mantiene igual) ---
+# --- 6. SIDEBAR CON IDENTIDAD VISUAL ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#00d4ff;'>📊 Estado de Pozos</h2>", unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-logo"><img src="https://miaa.mx/wp-content/uploads/2023/10/Logo-MIAA-Horizontal-Blanco.png"></div>', unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#00d4ff; text-align:center;'>Estado de Pozos</h2>", unsafe_allow_html=True)
+    
     st.markdown(f"""
     <div class="resumen-card">
         <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
@@ -126,7 +135,7 @@ with st.sidebar:
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in pozos_off: st.write(f"🔴 {p}")
 
-# --- 7. MAPA (Capa negra por defecto) ---
+# --- 7. MAPA PRINCIPAL ---
 m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
 
 fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos", show=True)
@@ -141,28 +150,41 @@ for s in sectores:
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     q, p = d(info['caudal'])[0], d(info['presion'])[0]
-    
-    # Popup con "OPERANDO" o "APAGADO"
+    sumer = d(info['sumergencia'])[0]
+    dinam = d(info['nivel_dinamico'])[0]
+    tanq = d(info['nivel_tanque'])[0]
+    v = [d(t)[0] for t in info['voltajes_l']]
+    a = [d(t)[0] for t in info['amperajes_l']]
+
     html_popup = f"""
-    <div style="background:#111; color:white; padding:15px; border-radius:10px; width:280px; border:2px solid {info['color_hex']}; font-family:sans-serif;">
+    <div style="background:#111; color:white; padding:15px; border-radius:10px; width:300px; border:2px solid {info['color_hex']}; font-family:sans-serif;">
         <h4 style="margin:0; color:#00d4ff;">POZO {id_p}</h4>
         <hr style="border:0.5px solid #333;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
-            <span>ESTADO BOMBA:</span> 
-            <b style="font-size:14px; color:{info['color_hex']}; background:#222; padding:4px 10px; border-radius:5px; letter-spacing:1px;">{info['txt_status']}</b>
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <span>ESTADO:</span> <b style="color:{info['color_hex']};">{info['txt_status']}</b>
         </div>
-        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-            <span>💧 CAUDAL:</span> <b>{q:.2f} L/s</b>
-        </div>
-        <div style="display:flex; justify-content:space-between;">
-            <span>🚀 PRESIÓN:</span> <b>{p:.2f} kg</b>
-        </div>
+        <div style="font-size:11px; color:#888;">HIDRÁULICA</div>
+        <div style="display:flex; justify-content:space-between;"><span>💧 Caudal:</span> <b>{q:.2f} L/s</b></div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>🚀 Presión:</span> <b>{p:.2f} kg</b></div>
+        
+        <div style="font-size:11px; color:#888;">NIVELES</div>
+        <div style="display:flex; justify-content:space-between;"><span>Sumergencia:</span> <b>{sumer:.1f} m</b></div>
+        <div style="display:flex; justify-content:space-between;"><span>Dinámico:</span> <b>{dinam:.1f} m</b></div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Tanque:</span> <b>{tanq:.1f} %</b></div>
+
+        <div style="font-size:11px; color:#888;">SISTEMA ELÉCTRICO</div>
+        <table style="width:100%; font-size:10px; text-align:center; border-collapse:collapse;">
+            <tr style="color:#00d4ff;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
+            <tr><td>L1-L2</td><td>{v[0]:.1f}V</td><td>{a[0]:.1f}A</td></tr>
+            <tr><td>L2-L3</td><td>{v[1]:.1f}V</td><td>{a[1]:.1f}A</td></tr>
+            <tr><td>L1-L3</td><td>{v[2]:.1f}V</td><td>{a[2]:.1f}A</td></tr>
+        </table>
     </div>
     """
     folium.Marker(
         location=info['coord'],
         icon=folium.Icon(color=info['color'], icon='tint', prefix='fa'),
-        popup=folium.Popup(html_popup, max_width=300)
+        popup=folium.Popup(html_popup, max_width=350)
     ).add_to(fg_pozos)
 
 fg_sectores.add_to(m)

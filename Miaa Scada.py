@@ -48,7 +48,7 @@ mapa_pozos_dict = {
     }
 }
 
-# 4. FUNCIONES DE CARGA (Basadas en Miaa Scada - respaldo.py)
+# 4. FUNCIONES DE CARGA
 @st.cache_resource
 def get_mysql_engine():
     try:
@@ -93,28 +93,22 @@ data_scada = cargar_datos_scada()
 sectores = cargar_sectores_poligonos()
 ahora = datetime.now()
 
-pozos_on, pozos_off, pozos_obs = [], [], []
+pozos_on, pozos_off = [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
-    # Extraer el valor real de la bomba (1 o 0)
     val_bba, f_bba = data_scada.get(info['bomba'], (0, None))
     q_val = data_scada.get(info['caudal'], (0, 0))[0]
     p_val = data_scada.get(info['presion'], (0, 0))[0]
     
-    # Guardamos el valor exacto para el popup
-    info['valor_bomba_binario'] = int(val_bba) if val_bba is not None else 0
-    
-    if f_bba and (ahora - f_bba).total_seconds() > 14400:
-        info.update({'status': 'OBSOLETO', 'color': 'orange'})
-        pozos_obs.append(id_p)
-    elif val_bba == 1:
-        info.update({'status': 'ENCENDIDO', 'color': 'green'})
+    # Lógica de color de marcador y clasificación
+    if val_bba == 1:
+        info.update({'status': 'ENCENDIDO', 'color': 'green', 'val_binario': 1, 'color_binario': '#00FF00'})
         pozos_on.append(id_p)
         total_q += q_val
         total_p += p_val
     else:
-        info.update({'status': 'APAGADO', 'color': 'red'})
+        info.update({'status': 'APAGADO', 'color': 'red', 'val_binario': 0, 'color_binario': '#FF0000'})
         pozos_off.append(id_p)
 
 # --- 6. SIDEBAR ---
@@ -133,17 +127,12 @@ with st.sidebar:
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in pozos_off: st.write(f"🔴 {p}")
 
-# --- 7. MAPA CON CAPA POR DEFECTO ---
-# Se inicializa sin tiles para agregarlas manualmente y controlar la activación
+# --- 7. MAPA ---
 m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles=None)
 
-# CartoDB Dark activada por defecto (overlay=False para capas base)
+# Capa CartoDB Dark activada por defecto
 folium.TileLayer("CartoDB dark_matter", name="CartoDB Dark (Default)", overlay=False, control=True).add_to(m)
 folium.TileLayer("OpenStreetMap", name="OpenStreetMap (Claro)", overlay=False, control=True).add_to(m)
-folium.TileLayer(
-    tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr='Esri', name='Esri Satellite', overlay=False, control=True
-).add_to(m)
 
 fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos", show=True)
 fg_pozos = folium.FeatureGroup(name="Pozos", show=True)
@@ -151,21 +140,21 @@ fg_pozos = folium.FeatureGroup(name="Pozos", show=True)
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']),
-        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1},
-        tooltip=f"Sector: {s['sector']}"
+        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1}
     ).add_to(fg_sectores)
 
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     q, p = d(info['caudal'])[0], d(info['presion'])[0]
     
-    # Popup actualizado con el valor 1 o 0 solicitado
+    # Popup con el 1 en verde y 0 en rojo
     html_popup = f"""
     <div style="background:#111; color:white; padding:15px; border-radius:10px; width:280px; border:2px solid {info['color']}; font-family:sans-serif;">
         <h4 style="margin:0; color:#00d4ff;">POZO {id_p}</h4>
         <hr style="border:0.5px solid #333;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-            <span>ESTADO:</span> <b style="color:{info['color']};">{info['status']} ({info['valor_bomba_binario']})</b>
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+            <span>ESTADO BOMBA:</span> 
+            <b style="font-size:20px; color:{info['color_binario']}; background:#222; padding:2px 10px; border-radius:5px;">{info['val_binario']}</b>
         </div>
         <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
             <span>💧 CAUDAL:</span> <b>{q:.2f} L/s</b>

@@ -12,7 +12,7 @@ from datetime import datetime
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="MIAA - Estado de Pozos", layout="wide", initial_sidebar_state="expanded")
 
-# 2. ESTILO CSS
+# 2. ESTILO CSS (Panel lateral y estética general)
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
@@ -101,17 +101,16 @@ for id_p, info in mapa_pozos_dict.items():
     q_val = data_scada.get(info['caudal'], (0, 0))[0]
     p_val = data_scada.get(info['presion'], (0, 0))[0]
     
-    # Lógica de color de marcador y clasificación
     if val_bba == 1:
-        info.update({'status': 'ENCENDIDO', 'color': 'green', 'val_binario': 1, 'color_binario': '#00FF00'})
+        info.update({'txt_status': 'OPERANDO', 'color': 'green', 'color_hex': '#00FF00'})
         pozos_on.append(id_p)
         total_q += q_val
         total_p += p_val
     else:
-        info.update({'status': 'APAGADO', 'color': 'red', 'val_binario': 0, 'color_binario': '#FF0000'})
+        info.update({'txt_status': 'APAGADO', 'color': 'red', 'color_hex': '#FF0000'})
         pozos_off.append(id_p)
 
-# --- 6. SIDEBAR ---
+# --- 6. SIDEBAR (Se mantiene igual) ---
 with st.sidebar:
     st.markdown("<h2 style='color:#00d4ff;'>📊 Estado de Pozos</h2>", unsafe_allow_html=True)
     st.markdown(f"""
@@ -127,12 +126,8 @@ with st.sidebar:
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in pozos_off: st.write(f"🔴 {p}")
 
-# --- 7. MAPA ---
-m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles=None)
-
-# Capa CartoDB Dark activada por defecto
-folium.TileLayer("CartoDB dark_matter", name="CartoDB Dark (Default)", overlay=False, control=True).add_to(m)
-folium.TileLayer("OpenStreetMap", name="OpenStreetMap (Claro)", overlay=False, control=True).add_to(m)
+# --- 7. MAPA (Capa negra por defecto) ---
+m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
 
 fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos", show=True)
 fg_pozos = folium.FeatureGroup(name="Pozos", show=True)
@@ -147,14 +142,14 @@ for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     q, p = d(info['caudal'])[0], d(info['presion'])[0]
     
-    # Popup con el 1 en verde y 0 en rojo
+    # Popup con "OPERANDO" o "APAGADO"
     html_popup = f"""
-    <div style="background:#111; color:white; padding:15px; border-radius:10px; width:280px; border:2px solid {info['color']}; font-family:sans-serif;">
+    <div style="background:#111; color:white; padding:15px; border-radius:10px; width:280px; border:2px solid {info['color_hex']}; font-family:sans-serif;">
         <h4 style="margin:0; color:#00d4ff;">POZO {id_p}</h4>
         <hr style="border:0.5px solid #333;">
         <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
             <span>ESTADO BOMBA:</span> 
-            <b style="font-size:20px; color:{info['color_binario']}; background:#222; padding:2px 10px; border-radius:5px;">{info['val_binario']}</b>
+            <b style="font-size:14px; color:{info['color_hex']}; background:#222; padding:4px 10px; border-radius:5px; letter-spacing:1px;">{info['txt_status']}</b>
         </div>
         <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
             <span>💧 CAUDAL:</span> <b>{q:.2f} L/s</b>

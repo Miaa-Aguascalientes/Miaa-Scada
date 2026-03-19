@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS (Sidebar, Animaciones y Tablas)
+# 2. ESTILO CSS
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
@@ -27,7 +27,6 @@ st.markdown("""
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
         
-        /* Animación de parpadeo */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
     </style>
@@ -93,25 +92,26 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Usando el esquema Agua_potable solicitado
+        # Forzamos el esquema Agua_potable y la transformación a 4326
         query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Agua_potable"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
-    except: return []
+    except Exception as e:
+        st.error(f"Error cargando sectores: {e}")
+        return []
 
 # --- 5. PROCESAMIENTO ---
 data_scada = cargar_datos_scada()
 sectores = cargar_sectores_poligonos()
-ahora = datetime.now()
 
 pozos_on, pozos_off = [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
-    val_bba, f_bba = data_scada.get(info['bomba'], (0, None))
-    q_val, f_q = data_scada.get(info['caudal'], (0, None))
-    p_val, f_p = data_scada.get(info['presion'], (0, None))
+    val_bba, _ = data_scada.get(info['bomba'], (0, None))
+    q_val, _ = data_scada.get(info['caudal'], (0, None))
+    p_val, _ = data_scada.get(info['presion'], (0, None))
     
     if val_bba == 1:
         info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
@@ -125,8 +125,6 @@ for id_p, info in mapa_pozos_dict.items():
 # --- 6. SIDEBAR ---
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
-    st.markdown("<h2 style='color:#00d4ff; text-align:center;'>Estado de Pozos</h2>", unsafe_allow_html=True)
-    
     st.markdown(f"""
     <div class="resumen-card">
         <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
@@ -135,22 +133,27 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
-    for p in pozos_on: st.write(f"🟢 {p}")
-    st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
-    for p in pozos_off: st.write(f"🔴 {p}")
-
 # --- 7. MAPA ---
-m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
+m = folium.Map(location=[21.8823, -102.2826], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# DIBUJAR POLIGONOS DE SECTORES (Esquema Agua_potable)
+# DIBUJAR SECTORES (Aseguramos que se añadan primero para quedar al fondo)
 for s in sectores:
-    folium.GeoJson(
-        json.loads(s['geo']), 
-        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-        tooltip=f"Sector: {s['sector']}"
-    ).add_to(m)
+    try:
+        geo_data = json.loads(s['geo'])
+        folium.GeoJson(
+            geo_data,
+            name=f"Sector {s['sector']}",
+            style_function=lambda x: {
+                'fillColor': '#00d4ff',
+                'color': '#00d4ff',
+                'weight': 1.5,
+                'fillOpacity': 0.15
+            },
+            tooltip=f"Sector: {s['sector']}"
+        ).add_to(m)
+    except:
+        continue
 
 for id_p, info in mapa_pozos_dict.items():
     def get_data(tag):
@@ -166,14 +169,12 @@ for id_p, info in mapa_pozos_dict.items():
     v_vals = [get_data(t) for t in info['voltajes_l']]
     a_vals = [get_data(t) for t in info['amperajes_l']]
 
-    # POPUP CON FECHAS DE ACTUALIZACIÓN
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 340px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        
         <div style="margin-bottom: 10px;">
             <div style="font-size: 10px; color: #888; border-bottom: 1px solid #222;">HIDRÁULICA</div>
             <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 5px;">
@@ -185,7 +186,6 @@ for id_p, info in mapa_pozos_dict.items():
                 <span style="font-size: 9px; color: #555;">{f_p}</span>
             </div>
         </div>
-
         <div style="margin-bottom: 10px;">
             <div style="font-size: 10px; color: #888; border-bottom: 1px solid #222;">NIVELES</div>
             <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 3px;">
@@ -201,7 +201,6 @@ for id_p, info in mapa_pozos_dict.items():
                 <span style="font-size: 8px; color: #555;">{f_t}</span>
             </div>
         </div>
-
         <table style="width: 100%; font-size: 10px; text-align: center; border-collapse: collapse;">
             <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
             <tr><td>L1-L2</td><td>{v_vals[0][0]:.1f}V</td><td>{a_vals[0][0]:.1f}A</td></tr>
@@ -213,7 +212,7 @@ for id_p, info in mapa_pozos_dict.items():
 
     folium.CircleMarker(
         location=info['coord'],
-        radius=6,
+        radius=7,
         color=info['color_final'],
         fill=True,
         fill_color=info['color_final'],
@@ -228,7 +227,7 @@ for id_p, info in mapa_pozos_dict.items():
         icon=folium.DivIcon(
             icon_size=(150,36),
             icon_anchor=(0,0),
-            html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
+            html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 14px; top: -10px; white-space: nowrap; text-shadow: 1px 1px 2px black;">{id_p}</div>'
         )
     ).add_to(m)
 

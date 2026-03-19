@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS
+# 2. ESTILO CSS (Sidebar, Animaciones y Tablas)
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
@@ -27,6 +27,7 @@ st.markdown("""
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
         
+        /* Animación de parpadeo */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
     </style>
@@ -84,7 +85,8 @@ def cargar_datos_scada():
         tags_str = "', '".join(list(set(all_tags)))
         query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM vfitagnumhistory h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)"
         df = pd.read_sql(query, engine)
-        return {row['NAME']: (row['VALUE'], row['FECHA']) for _, row in df.iterrows()}
+        # Retornamos el valor y la fecha formateada
+        return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except: return {}
 
 @st.cache_data(ttl=3600)
@@ -92,40 +94,39 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Forzamos esquema Agua_potable y validamos que traiga datos
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Agua_potable"."Sectores_hidr"'
+        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
-    except Exception as e:
-        # Esto aparecerá en tu app si la tabla no existe o falla la conexión
-        st.sidebar.error(f"Error en Postgres: {e}")
-        return []
+    except: return []
 
 # --- 5. PROCESAMIENTO ---
 data_scada = cargar_datos_scada()
 sectores = cargar_sectores_poligonos()
+ahora = datetime.now()
 
 pozos_on, pozos_off = [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
-    val_bba, _ = data_scada.get(info['bomba'], (0, None))
-    q_val, _ = data_scada.get(info['caudal'], (0, None))
-    p_val, _ = data_scada.get(info['presion'], (0, None))
+    val_bba, f_bba = data_scada.get(info['bomba'], (0, "N/A"))
+    q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
+    p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
     
     if val_bba == 1:
-        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False, 'fecha_ref': f_bba})
         pozos_on.append(id_p)
         total_q += q_val
         total_p += p_val
     else:
-        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
+        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True, 'fecha_ref': f_bba})
         pozos_off.append(id_p)
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#00d4ff; text-align:center;'>Estado de Pozos</h2>", unsafe_allow_html=True)
+    
     st.markdown(f"""
     <div class="resumen-card">
         <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
@@ -134,88 +135,96 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# --- 7. MAPA ---
-# Si no hay sectores, avisamos
-if not sectores:
-    st.warning("⚠️ No se cargaron polígonos desde 'Agua_potable'.'Sectores_hidr'. Revisa la conexión a Postgres.")
+    st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
+    for p in pozos_on: st.write(f"🟢 {p}")
+    st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
+    for p in pozos_off: st.write(f"🔴 {p}")
 
-m = folium.Map(location=[21.8823, -102.2826], zoom_start=12, tiles="CartoDB dark_matter")
+# --- 7. MAPA ---
+m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# DIBUJAR SECTORES PRIMERO
+m.get_root().header.add_child(folium.Element("""
+    <style>
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
+    </style>
+"""))
+
 for s in sectores:
-    try:
-        geo_json_data = json.loads(s['geo'])
-        folium.GeoJson(
-            geo_json_data,
-            style_function=lambda x: {
-                'fillColor': '#00d4ff',
-                'color': '#00d4ff',
-                'weight': 2,
-                'fillOpacity': 0.2
-            },
-            tooltip=f"Sector: {s['sector']}"
-        ).add_to(m)
-    except Exception as e:
-        continue
+    folium.GeoJson(json.loads(s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}).add_to(m)
 
 for id_p, info in mapa_pozos_dict.items():
-    def get_data(tag):
-        val, fecha = data_scada.get(tag, (0, None))
-        f_str = fecha.strftime("%d/%m/%Y %H:%M") if isinstance(fecha, datetime) else "N/A"
-        return val, f_str
+    d = lambda tag: data_scada.get(tag, (0, "N/A"))
+    q, f_q = d(info['caudal'])
+    p, f_p = d(info['presion'])
+    sumer, f_s = d(info['sumergencia'])
+    dinam, f_d = d(info['nivel_dinamico'])
+    tanq, f_t = d(info['nivel_tanque'])
+    v = [d(t) for t in info['voltajes_l']]
+    a = [d(t) for t in info['amperajes_l']]
 
-    q, f_q = get_data(info['caudal'])
-    p, f_p = get_data(info['presion'])
-    sumer, f_s = get_data(info['sumergencia'])
-    dinam, f_d = get_data(info['nivel_dinamico'])
-    tanq, f_t = get_data(info['nivel_tanque'])
-    v_vals = [get_data(t) for t in info['voltajes_l']]
-    a_vals = [get_data(t) for t in info['amperajes_l']]
-
-    # POPUP CON FECHAS (Restaurado e íntegro)
+    # POPUP RESTAURADO CON FECHAS
     html_popup = f"""
-    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 340px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 320px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
+        
         <div style="margin-bottom: 10px;">
-            <div style="font-size: 10px; color: #888; border-bottom: 1px solid #222;">HIDRÁULICA</div>
-            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 5px;">
-                <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                <span style="font-size: 9px; color: #555;">{f_q}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 10px; color: #888;">HIDRÁULICA</span>
+                <span style="font-size: 9px; color: #555;">Act: {f_q}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                <span style="font-size: 9px; color: #555;">{f_p}</span>
-            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>💧 Caudal: <b>{q:.2f} L/s</b></span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px;"><span>🚀 Presión: <b>{p:.2f} kg</b></span></div>
         </div>
+        
         <div style="margin-bottom: 10px;">
-            <div style="font-size: 10px; color: #888; border-bottom: 1px solid #222;">NIVELES</div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 3px;">
-                <span>Sumergencia: <b>{sumer:.1f} m</b></span>
-                <span style="font-size: 8px; color: #555;">{f_s}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 10px; color: #888;">NIVELES</span>
+                <span style="font-size: 9px; color: #555;">Act: {f_s}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px;">
-                <span>Dinámico: <b>{dinam:.1f} m</b></span>
-                <span style="font-size: 8px; color: #555;">{f_d}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px;">
-                <span>Tanque: <b>{tanq:.1f} %</b></span>
-                <span style="font-size: 8px; color: #555;">{f_t}</span>
-            </div>
+            <div style="font-size: 11px;">Sumergencia: <b>{sumer:.1f} m</b></div>
+            <div style="font-size: 11px;">Dinámico: <b>{dinam:.1f} m</b></div>
+            <div style="font-size: 11px;">Tanque: <b>{tanq:.1f} %</b> <span style="font-size: 9px; color:#555;">({f_t})</span></div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <span style="font-size: 10px; color: #888;">ELÉCTRICO</span>
+            <span style="font-size: 9px; color: #555;">Act: {v[0][1]}</span>
         </div>
         <table style="width: 100%; font-size: 10px; text-align: center; border-collapse: collapse;">
             <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
-            <tr><td>L1-L2</td><td>{v_vals[0][0]:.1f}V</td><td>{a_vals[0][0]:.1f}A</td></tr>
-            <tr><td>L2-L3</td><td>{v_vals[1][0]:.1f}V</td><td>{a_vals[1][0]:.1f}A</td></tr>
-            <tr><td>L1-L3</td><td>{v_vals[2][0]:.1f}V</td><td>{a_vals[2][0]:.1f}A</td></tr>
+            <tr><td>L1-L2</td><td>{v[0][0]:.1f}V</td><td>{a[0][0]:.1f}A</td></tr>
+            <tr><td>L2-L3</td><td>{v[1][0]:.1f}V</td><td>{a[1][0]:.1f}A</td></tr>
+            <tr><td>L1-L3</td><td>{v[2][0]:.1f}V</td><td>{a[2][0]:.1f}A</td></tr>
         </table>
     </div>
     """
 
+    # PUNTO CIRCULAR
     folium.CircleMarker(
         location=info['coord'],
-        radius=7,
-        color
+        radius=6,
+        color=info['color_final'],
+        fill=True,
+        fill_color=info['color_final'],
+        fill_opacity=1,
+        weight=0,
+        class_name="blink_me" if info['blink'] else "",
+        popup=folium.Popup(html_popup, max_width=350)
+    ).add_to(m)
+
+    # ETIQUETA ID
+    folium.map.Marker(
+        location=info['coord'],
+        icon=folium.DivIcon(
+            icon_size=(150,36),
+            icon_anchor=(0,0),
+            html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
+        )
+    ).add_to(m)
+
+folium_static(m, width=1300, height=800)

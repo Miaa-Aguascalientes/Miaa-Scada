@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS (Sidebar, Animaciones y Tablas)
+# 2. ESTILO CSS (Sidebar, Animaciones y Tablas originales)
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
@@ -33,7 +33,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. DICCIONARIO DE POZOS
+# 3. DICCIONARIO DE CONFIGURACIÓN (Tags verificados)
 mapa_pozos_dict = {
     "P005A": {
         "coord": (21.89147, -102.23195), 
@@ -81,9 +81,17 @@ def cargar_datos_scada():
         for k, v in p.items():
             if isinstance(v, list): all_tags.extend(v)
             elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): all_tags.append(v)
+    
     try:
         tags_str = "', '".join(list(set(all_tags)))
-        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM vfitagnumhistory h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)"
+        # Query optimizada con MAX(HISTORYID) para evitar desfases en P005A
+        query = f"""
+            SELECT r.NAME, h.VALUE, h.FECHA 
+            FROM vfitagnumhistory h
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID
+            WHERE r.NAME IN ('{tags_str}')
+            AND h.HISTORYID IN (SELECT MAX(HISTORYID) FROM vfitagnumhistory GROUP BY GATEID)
+        """
         df = pd.read_sql(query, engine)
         return {row['NAME']: (row['VALUE'], row['FECHA']) for _, row in df.iterrows()}
     except: return {}
@@ -108,7 +116,8 @@ pozos_on, pozos_off = [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
-    val_bba, f_bba = data_scada.get(info['bomba'], (0, None)) # Corregido NameError
+    # Corregido: Usar 'bomba' directamente del diccionario
+    val_bba, f_bba = data_scada.get(info['bomba'], (0, None))
     q_val = data_scada.get(info['caudal'], (0, 0))[0]
     p_val = data_scada.get(info['presion'], (0, 0))[0]
     
@@ -121,7 +130,7 @@ for id_p, info in mapa_pozos_dict.items():
         info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
         pozos_off.append(id_p)
 
-# --- 6. SIDEBAR ---
+# --- 6. SIDEBAR (Diseño Original) ---
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     st.markdown("<h2 style='color:#00d4ff; text-align:center;'>Estado de Pozos</h2>", unsafe_allow_html=True)
@@ -139,7 +148,7 @@ with st.sidebar:
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in pozos_off: st.write(f"🔴 {p}")
 
-# --- 7. MAPA ---
+# --- 7. MAPA PRINCIPAL ---
 m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
@@ -163,7 +172,7 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t) for t in info['voltajes_l']]
     a = [d(t) for t in info['amperajes_l']]
 
-    # POPUP RESTAURADO
+    # POPUP DETALLADO
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 320px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -190,7 +199,7 @@ for id_p, info in mapa_pozos_dict.items():
     </div>
     """
 
-    # PUNTO CIRCULAR
+    # PUNTO CIRCULAR CON PARPADEO
     folium.CircleMarker(
         location=info['coord'],
         radius=6,
@@ -200,10 +209,10 @@ for id_p, info in mapa_pozos_dict.items():
         fill_opacity=1,
         weight=0,
         class_name="blink_me" if info['blink'] else "",
-        popup=folium.Popup(html_popup, max_width=350) # Popup vuelto a poner
+        popup=folium.Popup(html_popup, max_width=350)
     ).add_to(m)
 
-    # ETIQUETA ID
+    # ETIQUETA DE TEXTO ID
     folium.map.Marker(
         location=info['coord'],
         icon=folium.DivIcon(

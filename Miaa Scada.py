@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from folium.plugins import Fullscreen
@@ -8,31 +9,53 @@ import json
 import urllib.parse
 from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA (Favicon oficial)
+# 1. CONFIGURACIÓN DE PÁGINA Y FAVICON
 st.set_page_config(
-    page_title="MIAA - Control Maestro de Pozos", 
+    page_title="MIAA - Estado de Pozos", 
     page_icon="https://www.miaa.mx/favicon.ico", 
     layout="wide", 
     initial_sidebar_state="collapsed"
 )
 
-# 2. ESTILO CSS PARA LOGOTIPO Y TABLERO
+# 2. ESTILO CSS (DARK MODE, LOGO Y ANIMACIÓN BLINK)
 st.markdown("""
     <style>
         .stApp { background-color: #000000 !important; color: white; }
         [data-testid="stHeader"] { background: rgba(0,0,0,0); }
-        .header-miaa {
-            text-align: center; padding: 10px; border-bottom: 2px solid #00d4ff;
-            background: #0b1a29; margin-bottom: 10px;
+        
+        /* Contenedor del encabezado con Logo */
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            background: #0b1a29;
+            border-bottom: 2px solid #00d4ff;
+            margin-bottom: 20px;
         }
+        .header-container img {
+            height: 50px;
+            margin-right: 20px;
+        }
+        
         .stTable { background-color: #111111; border-radius: 10px; }
+        
+        /* Animación de parpadeo */
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+        .blink_me {
+            animation: blinker 1.2s linear infinite;
+        }
     </style>
-    <div class="header-miaa">
-        <h2 style="color: #00d4ff; margin:0; letter-spacing: 2px;">SISTEMA DE MONITOREO Y SECTORIZACIÓN - MIAA</h2>
+    
+    <div class="header-container">
+        <img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg">
+        <h2 style="color: #00d4ff; margin:0; letter-spacing: 2px;">SISTEMA DE MONITOREO Y SECTORIZACIÓN</h2>
     </div>
 """, unsafe_allow_html=True)
 
-# 3. DICCIONARIO DE POZOS COMPLETO (Se mantiene intacto)
+# 3. DICCIONARIO DE CONFIGURACIÓN COMPLETO
 mapa_pozos_dict = {
     "P005A": {
         "coord": (21.89147, -102.23195), 
@@ -58,11 +81,34 @@ mapa_pozos_dict = {
     }
 }
 
-# 4. FUNCIONES DE CARGA SIMPLIFICADAS
+# 4. FUNCIONES DE CONEXIÓN Y CARGA
+@st.cache_resource
+def get_mysql_engine():
+    try:
+        c = st.secrets["mysql"]
+        pwd = urllib.parse.quote_plus(c["password"])
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
+    except: return None
+
 @st.cache_resource
 def get_postgres_conn():
     try: return psycopg2.connect(**st.secrets["postgres"])
     except: return None
+
+def cargar_datos_scada():
+    engine = get_mysql_engine()
+    if not engine: return {}
+    all_tags = []
+    for p in mapa_pozos_dict.values():
+        for k, v in p.items():
+            if isinstance(v, list): all_tags.extend(v)
+            elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): all_tags.append(v)
+    try:
+        tags_str = "', '".join(list(set(all_tags)))
+        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM vfitagnumhistory h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)"
+        df = pd.read_sql(query, engine)
+        return {row['NAME']: (row['VALUE'], row['FECHA']) for _, row in df.iterrows()}
+    except: return {}
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
@@ -75,105 +121,85 @@ def cargar_sectores_poligonos():
         return df.to_dict('records')
     except: return []
 
-# --- 5. PROCESAMIENTO (Demostración de estados) ---
+# --- 5. PROCESAMIENTO DE DATOS ---
+data_scada = cargar_datos_scada()
 sectores = cargar_sectores_poligonos()
 ahora = datetime.now()
 
-# Mantenemos estados fijos: P005A es ON (Verde), P006 es OFF (Rojo parpadeante)
-status_demo = {
-    "P005A": {'txt_status': 'OPERANDO', 'color_hex': '#00FF00', 'blink': False}, 
-    "P006": {'txt_status': 'APAGADO', 'color_hex': '#FF0000', 'blink': True}    
-}
-
-# --- 6. INTERFAZ: PANEL IZQUIERDO Y MAPA PRINCIPAL ---
+# --- 6. INTERFAZ: PANEL IZQUIERDO Y MAPA ---
 col_info, col_map = st.columns([1, 3])
 
 with col_info:
     st.markdown("### 📊 Estado de Pozos")
     resumen_lista = []
-    resumen_lista.append({" ": "🟢", "ID": "P005A", "Estado": "OPERANDO"})
-    resumen_lista.append({" ": "🔴", "ID": "P006", "Estado": "APAGADO (Blink)"})
+    for id_p, info in mapa_pozos_dict.items():
+        # Corrección del NameError: Usar 'bomba' en lugar de 'corriente_bba'
+        val_bba, f_bba = data_scada.get(info['bomba'], (None, None))
+        val_v1, f_v1 = data_scada.get(info['voltajes_l'][0], (None, None))
+        
+        color_hex, status_label, emoji, blink = "#808080", "SIN TELEMETRÍA", "⚪", False
+
+        if val_bba is not None:
+            if f_v1 and (ahora - f_v1).total_seconds() > 14400: # 4 horas
+                color_hex, status_label, emoji, blink = "#FFFF00", "OBSOLETO (+4h)", "🟡", True
+            elif val_bba == 1:
+                color_hex, status_label, emoji, blink = "#00FF00", "ENCENDIDO", "🟢", False
+            else:
+                color_hex, status_label, emoji, blink = "#FF0000", "APAGADO", "🔴", True
+
+        info['color_final'] = color_hex
+        info['status_label'] = status_label
+        info['blink'] = blink
+        
+        resumen_lista.append({
+            " ": emoji, 
+            "ID": id_p, 
+            "Q (L/s)": f"{data_scada.get(info['caudal'], (0,0))[0]:.1f}"
+        })
+
     st.table(pd.DataFrame(resumen_lista))
 
-# --- 7. DISEÑO DEL MAPA CON ANIMACIÓN DE PARPADEO ---
 with col_map:
     m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # GRUPO 1: SECTORES HIDRÁULICOS
-    fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos", show=True)
+    # Inyección de CSS de parpadeo en el mapa
+    m.get_root().header.add_child(folium.Element("""
+        <style>
+            @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+            .blink_me { animation: blink 1.2s infinite; }
+        </style>
+    """))
+
+    # Sectores Hidráulicos
     for s in sectores:
         folium.GeoJson(
             json.loads(s['geo']),
-            style_function=lambda x: {
-                'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1
-            },
-            tooltip=f"Sector: {s['sector']}"
-        ).add_to(fg_sectores)
-    fg_sectores.add_to(m)
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
+        ).add_to(m)
 
-    # GRUPO 2: POZOS (Minimalistas)
-    fg_pozos = folium.FeatureGroup(name="Pozos", show=True)
-    for id_p, coord in [(p, info['coord']) for p, info in mapa_pozos_dict.items()]:
-        
-        estado = status_demo.get(id_p, {'color_hex': '#FFFF00', 'blink': False})
-        
-        # Determinar clase CSS condicionalmente
-        popup_class_name = 'leaflet-interactive' # Clase base predeterminada de Leaflet
-        if estado['blink']:
-             popup_class_name += ' blink_me' # Añadir clase personalizada si debe parpadear
-
-        # 2a. PUNTO CIRCULAR SÓLIDO (CircleMarker condicionalmente animado)
-        # Aplicamos la clase CSS blink_me solo si estado['blink'] es True
+    # Marcadores de Pozos (Estilo Círculo Plano + Texto)
+    for id_p, info in mapa_pozos_dict.items():
+        # 1. Punto Circular
         folium.CircleMarker(
-            location=coord,
-            radius=6, 
-            color=estado['color_hex'], 
-            weight=0, 
+            location=info['coord'],
+            radius=6,
+            color=info['color_final'],
             fill=True,
-            fill_color=estado['color_hex'],
-            fill_opacity=1, 
-            tooltip=f"Pozo: {id_p} ({estado['txt_status']})",
-            class_name=popup_class_name # AQUÍ APLICAMOS LA CLASE DE PARPADEO CONDICIONAL
-        ).add_to(fg_pozos)
+            fill_color=info['color_final'],
+            fill_opacity=1,
+            weight=0,
+            class_name="blink_me" if info['blink'] else ""
+        ).add_to(m)
 
-        # 2b. ETIQUETA DE TEXTO FLOTANTE (Se mantiene igual, sin parpadeo)
-        html_label = f"""
-        <div style="
-            font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;
-            color: {estado['color_hex']}; background-color: transparent; white-space: nowrap;
-            position: absolute; left: 10px; top: -10px;
-        ">
-            {id_p}
-        </div>
-        """
-        
+        # 2. Etiqueta de Texto ID
         folium.map.Marker(
-            location=coord,
-            icon=folium.DivIcon(icon_size=(150, 36), icon_anchor=(0, 0), html=html_label)
-        ).add_to(fg_pozos)
+            location=info['coord'],
+            icon=folium.DivIcon(
+                icon_size=(150,36),
+                icon_anchor=(0,0),
+                html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
+            )
+        ).add_to(m)
 
-    fg_pozos.add_to(m)
-    
-    # Control de capas
-    folium.LayerControl(position='topright', collapsed=False).add_to(m)
-    
-    # --- INYECCIÓN DE CSS PERSONALIZADO PARA EL PARPADEO ---
-    # Creamos la animación blink y la clase blink_me
-    blink_css = """
-    <style>
-    @keyframes blink {
-        0% { opacity: 1; }
-        50% { opacity: 0; }
-        100% { opacity: 1; }
-    }
-    .blink_me {
-        animation: blink 1.2s infinite; /* Parpadeo infinito cada 1.2 segundos */
-    }
-    </style>
-    """
-    # Insertamos el bloque style directamente en el HTML del mapa
-    m.get_root().header.add_child(folium.Element(blink_css))
-    
-    # Renderizar el mapa
     folium_static(m, width=1050, height=750)

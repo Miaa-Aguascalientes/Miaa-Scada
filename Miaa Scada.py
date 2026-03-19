@@ -150,20 +150,21 @@ for id_p, info in mapa_pozos_dict.items():
     sumer, f_s = d(info['sumergencia'])
     dinam, f_d = d(info['nivel_dinamico'])
     tanq, f_t = d(info['nivel_tanque'])
+    
     v = [d(t) for t in info['voltajes_l']]
     a = [d(t) for t in info['amperajes_l']]
 
-    # POPUP CON FECHAS EN AMARILLO A LA DERECHA
+    # POPUP CON FECHAS INDIVIDUALES EN AMARILLO PARA TODOS LOS DATOS
     html_popup = f"""
-    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 340px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 360px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
         
-        <div style="margin-bottom: 10px;">
+        <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px;">
                 <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
                 <span style="color: #FFFF00; font-size: 9px;">{f_q}</span>
             </div>
@@ -173,13 +174,13 @@ for id_p, info in mapa_pozos_dict.items():
             </div>
         </div>
         
-        <div style="margin-bottom: 10px;">
+        <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px;">
                 <span>Sumergencia: <b>{sumer:.1f} m</b></span>
                 <span style="color: #FFFF00; font-size: 9px;">{f_s}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px;">
                 <span>Dinámico: <b>{dinam:.1f} m</b></span>
                 <span style="color: #FFFF00; font-size: 9px;">{f_d}</span>
             </div>
@@ -193,19 +194,24 @@ for id_p, info in mapa_pozos_dict.items():
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
             <table style="width: 100%; font-size: 10px; text-align: center; border-collapse: collapse;">
                 <tr style="color: #00d4ff; border-bottom: 1px solid #333;">
-                    <th>Fase</th><th>Voltaje</th><th>Amp</th><th>Actualizado</th>
+                    <th>Fase</th>
+                    <th>Voltaje</th>
+                    <th>Amperaje</th>
+                </tr>
+                <tr style="border-bottom: 1px solid #222;">
+                    <td style="padding: 4px 0;">L1-L2</td>
+                    <td>{v[0][0]:.1f}V<br><small style="color:#FFFF00; font-size:8px;">{v[0][1]}</small></td>
+                    <td>{a[0][0]:.1f}A<br><small style="color:#FFFF00; font-size:8px;">{a[0][1]}</small></td>
+                </tr>
+                <tr style="border-bottom: 1px solid #222;">
+                    <td style="padding: 4px 0;">L2-L3</td>
+                    <td>{v[1][0]:.1f}V<br><small style="color:#FFFF00; font-size:8px;">{v[1][1]}</small></td>
+                    <td>{a[1][0]:.1f}A<br><small style="color:#FFFF00; font-size:8px;">{a[1][1]}</small></td>
                 </tr>
                 <tr>
-                    <td>L1-L2</td><td>{v[0][0]:.1f}V</td><td>{a[0][0]:.1f}A</td>
-                    <td style="color: #FFFF00; font-size: 8px;">{v[0][1]}</td>
-                </tr>
-                <tr>
-                    <td>L2-L3</td><td>{v[1][0]:.1f}V</td><td>{a[1][0]:.1f}A</td>
-                    <td style="color: #FFFF00; font-size: 8px;">{v[1][1]}</td>
-                </tr>
-                <tr>
-                    <td>L1-L3</td><td>{v[2][0]:.1f}V</td><td>{a[2][0]:.1f}A</td>
-                    <td style="color: #FFFF00; font-size: 8px;">{v[2][1]}</td>
+                    <td style="padding: 4px 0;">L1-L3</td>
+                    <td>{v[2][0]:.1f}V<br><small style="color:#FFFF00; font-size:8px;">{v[2][1]}</small></td>
+                    <td>{a[2][0]:.1f}A<br><small style="color:#FFFF00; font-size:8px;">{a[2][1]}</small></td>
                 </tr>
             </table>
         </div>
@@ -221,7 +227,7 @@ for id_p, info in mapa_pozos_dict.items():
         fill_opacity=1,
         weight=0,
         class_name="blink_me" if info['blink'] else "",
-        popup=folium.Popup(html_popup, max_width=380)
+        popup=folium.Popup(html_popup, max_width=400)
     ).add_to(m)
 
     folium.map.Marker(

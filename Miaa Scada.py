@@ -9,53 +9,31 @@ import json
 import urllib.parse
 from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA Y FAVICON
+# 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
     page_icon="https://www.miaa.mx/favicon.ico", 
     layout="wide", 
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS (DARK MODE, LOGO Y ANIMACIÓN BLINK)
+# 2. ESTILO CSS (Tu diseño original de Sidebar y animaciones)
 st.markdown("""
     <style>
-        .stApp { background-color: #000000 !important; color: white; }
-        [data-testid="stHeader"] { background: rgba(0,0,0,0); }
+        .stApp { background-color: #000000; color: white; }
+        [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
+        .sidebar-logo { display: flex; justify-content: center; padding: 10px 0 20px 0; }
+        .sidebar-logo img { max-width: 85%; height: auto; }
+        .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
+        .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
         
-        /* Contenedor del encabezado con Logo */
-        .header-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 10px;
-            background: #0b1a29;
-            border-bottom: 2px solid #00d4ff;
-            margin-bottom: 20px;
-        }
-        .header-container img {
-            height: 50px;
-            margin-right: 20px;
-        }
-        
-        .stTable { background-color: #111111; border-radius: 10px; }
-        
-        /* Animación de parpadeo */
-        @keyframes blinker {
-            50% { opacity: 0; }
-        }
-        .blink_me {
-            animation: blinker 1.2s linear infinite;
-        }
+        /* Animación de parpadeo para el mapa */
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
     </style>
-    
-    <div class="header-container">
-        <img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg">
-        <h2 style="color: #00d4ff; margin:0; letter-spacing: 2px;">SISTEMA DE MONITOREO Y SECTORIZACIÓN</h2>
-    </div>
 """, unsafe_allow_html=True)
 
-# 3. DICCIONARIO DE CONFIGURACIÓN COMPLETO
+# 3. DICCIONARIO DE POZOS (Completo y sin recortes)
 mapa_pozos_dict = {
     "P005A": {
         "coord": (21.89147, -102.23195), 
@@ -81,7 +59,7 @@ mapa_pozos_dict = {
     }
 }
 
-# 4. FUNCIONES DE CONEXIÓN Y CARGA
+# 4. FUNCIONES DE CONEXIÓN
 @st.cache_resource
 def get_mysql_engine():
     try:
@@ -121,85 +99,88 @@ def cargar_sectores_poligonos():
         return df.to_dict('records')
     except: return []
 
-# --- 5. PROCESAMIENTO DE DATOS ---
+# --- 5. PROCESAMIENTO ---
 data_scada = cargar_datos_scada()
 sectores = cargar_sectores_poligonos()
 ahora = datetime.now()
 
-# --- 6. INTERFAZ: PANEL IZQUIERDO Y MAPA ---
-col_info, col_map = st.columns([1, 3])
+pozos_on, pozos_off = [], []
+total_q, total_p = 0.0, 0.0
 
-with col_info:
-    st.markdown("### 📊 Estado de Pozos")
-    resumen_lista = []
-    for id_p, info in mapa_pozos_dict.items():
-        # Corrección del NameError: Usar 'bomba' en lugar de 'corriente_bba'
-        val_bba, f_bba = data_scada.get(info['bomba'], (None, None))
-        val_v1, f_v1 = data_scada.get(info['voltajes_l'][0], (None, None))
-        
-        color_hex, status_label, emoji, blink = "#808080", "SIN TELEMETRÍA", "⚪", False
+for id_p, info in mapa_pozos_dict.items():
+    val_bba, f_bba = data_scada.get(info['bomba'], (0, None))
+    q_val = data_scada.get(info['caudal'], (0, 0))[0]
+    p_val = data_scada.get(info['presion'], (0, 0))[0]
+    
+    # Lógica de estados y colores
+    if val_bba == 1:
+        info.update({'txt_status': 'OPERANDO', 'color_hex': '#00FF00', 'blink': False})
+        pozos_on.append(id_p)
+        total_q += q_val
+        total_p += p_val
+    else:
+        info.update({'txt_status': 'APAGADO', 'color_hex': '#FF0000', 'blink': True})
+        pozos_off.append(id_p)
 
-        if val_bba is not None:
-            if f_v1 and (ahora - f_v1).total_seconds() > 14400: # 4 horas
-                color_hex, status_label, emoji, blink = "#FFFF00", "OBSOLETO (+4h)", "🟡", True
-            elif val_bba == 1:
-                color_hex, status_label, emoji, blink = "#00FF00", "ENCENDIDO", "🟢", False
-            else:
-                color_hex, status_label, emoji, blink = "#FF0000", "APAGADO", "🔴", True
+# --- 6. SIDEBAR (Diseño original restaurado) ---
+with st.sidebar:
+    st.markdown(f'<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#00d4ff; text-align:center;'>Estado de Pozos</h2>", unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div class="resumen-card">
+        <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
+        <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+        <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
+    </div>
+    """, unsafe_allow_html=True)
 
-        info['color_final'] = color_hex
-        info['status_label'] = status_label
-        info['blink'] = blink
-        
-        resumen_lista.append({
-            " ": emoji, 
-            "ID": id_p, 
-            "Q (L/s)": f"{data_scada.get(info['caudal'], (0,0))[0]:.1f}"
-        })
+    st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
+    for p in pozos_on: st.write(f"🟢 {p}")
+    st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
+    for p in pozos_off: st.write(f"🔴 {p}")
 
-    st.table(pd.DataFrame(resumen_lista))
+# --- 7. MAPA PRINCIPAL ---
+m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
+Fullscreen().add_to(m)
 
-with col_map:
-    m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
-    Fullscreen().add_to(m)
+# Inyectar CSS de parpadeo al mapa
+m.get_root().header.add_child(folium.Element("""
+    <style>
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
+    </style>
+"""))
 
-    # Inyección de CSS de parpadeo en el mapa
-    m.get_root().header.add_child(folium.Element("""
-        <style>
-            @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-            .blink_me { animation: blink 1.2s infinite; }
-        </style>
-    """))
+# Sectores
+for s in sectores:
+    folium.GeoJson(
+        json.loads(s['geo']),
+        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
+    ).add_to(m)
 
-    # Sectores Hidráulicos
-    for s in sectores:
-        folium.GeoJson(
-            json.loads(s['geo']),
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
-        ).add_to(m)
+# Marcadores estilo minimalista con parpadeo condicional
+for id_p, info in mapa_pozos_dict.items():
+    # Punto circular
+    folium.CircleMarker(
+        location=info['coord'],
+        radius=6,
+        color=info['color_hex'],
+        fill=True,
+        fill_color=info['color_hex'],
+        fill_opacity=1,
+        weight=0,
+        class_name="blink_me" if info['blink'] else ""
+    ).add_to(m)
 
-    # Marcadores de Pozos (Estilo Círculo Plano + Texto)
-    for id_p, info in mapa_pozos_dict.items():
-        # 1. Punto Circular
-        folium.CircleMarker(
-            location=info['coord'],
-            radius=6,
-            color=info['color_final'],
-            fill=True,
-            fill_color=info['color_final'],
-            fill_opacity=1,
-            weight=0,
-            class_name="blink_me" if info['blink'] else ""
-        ).add_to(m)
+    # Etiqueta de texto
+    folium.map.Marker(
+        location=info['coord'],
+        icon=folium.DivIcon(
+            icon_size=(150,36),
+            icon_anchor=(0,0),
+            html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_hex"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
+        )
+    ).add_to(m)
 
-        # 2. Etiqueta de Texto ID
-        folium.map.Marker(
-            location=info['coord'],
-            icon=folium.DivIcon(
-                icon_size=(150,36),
-                icon_anchor=(0,0),
-                html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
-            )
-        ).add_to(m)
-
-    folium_static(m, width=1050, height=750)
+folium_static(m, width=1300, height=800)

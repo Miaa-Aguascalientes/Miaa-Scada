@@ -12,7 +12,7 @@ from datetime import datetime
 # 1. CONFIGURACIÓN DE PÁGINA Y FAVICON
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
-    page_icon="📊", 
+    page_icon="https://www.miaa.mx/favicon.ico", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )

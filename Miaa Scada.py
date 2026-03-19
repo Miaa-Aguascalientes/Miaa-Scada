@@ -31,11 +31,19 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. FUNCIONES DE CONEXIÓN
+# 3. FUNCIONES DE CONEXIÓN (Manejo de 3 DBs)
 @st.cache_resource
-def get_mysql_engine():
+def get_mysql_scada_engine():
     try:
-        c = st.secrets["mysql"]
+        c = st.secrets["mysql_scada"]
+        pwd = urllib.parse.quote_plus(c["password"])
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
+    except: return None
+
+@st.cache_resource
+def get_mysql_telemetria_engine():
+    try:
+        c = st.secrets["mysql_telemetria"]
         pwd = urllib.parse.quote_plus(c["password"])
         return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except: return None
@@ -45,10 +53,10 @@ def get_postgres_conn():
     try: return psycopg2.connect(**st.secrets["postgres"])
     except: return None
 
-# 4. CARGA DINÁMICA DESDE Diccionario_de_pozos
+# 4. CARGA DE DATOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
-    engine = get_mysql_engine()
+    engine = get_mysql_telemetria_engine() # Usa la DB telemetria2
     if not engine: return {}
     try:
         query = "SELECT * FROM Diccionario_de_pozos"
@@ -78,11 +86,11 @@ def cargar_mapa_pozos_desde_db():
             }
         return nuevo_mapa
     except Exception as e:
-        st.error(f"Error base de datos: {e}")
+        st.error(f"Error Diccionario: {e}")
         return {}
 
 def cargar_datos_scada(mapa_pozos):
-    engine = get_mysql_engine()
+    engine = get_mysql_scada_engine() # Usa la DB SCADA (telemetria original)
     if not engine: return {}
     all_tags = []
     for p in mapa_pozos.values():

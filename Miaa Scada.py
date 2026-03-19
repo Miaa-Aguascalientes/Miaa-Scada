@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS
+# 2. ESTILO CSS (Sidebar, Animaciones y Tablas)
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
@@ -27,6 +27,7 @@ st.markdown("""
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
         
+        /* Animación de parpadeo */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
     </style>
@@ -82,15 +83,8 @@ def cargar_datos_scada():
             elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): all_tags.append(v)
     try:
         tags_str = "', '".join(list(set(all_tags)))
-        query = f"""
-            SELECT r.NAME, h.VALUE, h.FECHA 
-            FROM vfitagnumhistory h 
-            JOIN VfiTagRef r ON h.GATEID = r.GATEID 
-            WHERE r.NAME IN ('{tags_str}') 
-            AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)
-        """
+        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM vfitagnumhistory h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)"
         df = pd.read_sql(query, engine)
-        # Retorna el valor y la fecha como tupla
         return {row['NAME']: (row['VALUE'], row['FECHA']) for _, row in df.iterrows()}
     except: return {}
 
@@ -150,11 +144,15 @@ with st.sidebar:
 m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
+# DIBUJAR POLIGONOS DE SECTORES (Esquema Agua_potable)
 for s in sectores:
-    folium.GeoJson(json.loads(s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}).add_to(m)
+    folium.GeoJson(
+        json.loads(s['geo']), 
+        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+        tooltip=f"Sector: {s['sector']}"
+    ).add_to(m)
 
 for id_p, info in mapa_pozos_dict.items():
-    # Helper para obtener valor y fecha formateada
     def get_data(tag):
         val, fecha = data_scada.get(tag, (0, None))
         f_str = fecha.strftime("%d/%m/%Y %H:%M") if isinstance(fecha, datetime) else "N/A"
@@ -165,15 +163,10 @@ for id_p, info in mapa_pozos_dict.items():
     sumer, f_s = get_data(info['sumergencia'])
     dinam, f_d = get_data(info['nivel_dinamico'])
     tanq, f_t = get_data(info['nivel_tanque'])
-    
-    # Voltajes y Amperajes
     v_vals = [get_data(t) for t in info['voltajes_l']]
     a_vals = [get_data(t) for t in info['amperajes_l']]
-    
-    # Fecha general de actualización (usamos la del caudal como referencia principal)
-    ultima_act = f_q
 
-    # POPUP ACTUALIZADO CON FECHAS
+    # POPUP CON FECHAS DE ACTUALIZACIÓN
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 340px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -181,10 +174,6 @@ for id_p, info in mapa_pozos_dict.items():
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
         
-        <div style="text-align: right; font-size: 9px; color: #666; margin-bottom: 10px;">
-            Actualizado: {ultima_act}
-        </div>
-
         <div style="margin-bottom: 10px;">
             <div style="font-size: 10px; color: #888; border-bottom: 1px solid #222;">HIDRÁULICA</div>
             <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 5px;">
@@ -214,29 +203,14 @@ for id_p, info in mapa_pozos_dict.items():
         </div>
 
         <table style="width: 100%; font-size: 10px; text-align: center; border-collapse: collapse;">
-            <tr style="color: #00d4ff; border-bottom: 1px solid #333;">
-                <th>Fase</th><th>Voltaje</th><th>Amp</th>
-            </tr>
-            <tr>
-                <td>L1-L2</td>
-                <td>{v_vals[0][0]:.1f}V</td>
-                <td>{a_vals[0][0]:.1f}A</td>
-            </tr>
-            <tr>
-                <td>L2-L3</td>
-                <td>{v_vals[1][0]:.1f}V</td>
-                <td>{a_vals[1][0]:.1f}A</td>
-            </tr>
-            <tr>
-                <td>L1-L3</td>
-                <td>{v_vals[2][0]:.1f}V</td>
-                <td>{a_vals[2][0]:.1f}A</td>
-            </tr>
+            <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
+            <tr><td>L1-L2</td><td>{v_vals[0][0]:.1f}V</td><td>{a_vals[0][0]:.1f}A</td></tr>
+            <tr><td>L2-L3</td><td>{v_vals[1][0]:.1f}V</td><td>{a_vals[1][0]:.1f}A</td></tr>
+            <tr><td>L1-L3</td><td>{v_vals[2][0]:.1f}V</td><td>{a_vals[2][0]:.1f}A</td></tr>
         </table>
     </div>
     """
 
-    # PUNTO CIRCULAR
     folium.CircleMarker(
         location=info['coord'],
         radius=6,
@@ -249,7 +223,6 @@ for id_p, info in mapa_pozos_dict.items():
         popup=folium.Popup(html_popup, max_width=350)
     ).add_to(m)
 
-    # ETIQUETA ID
     folium.map.Marker(
         location=info['coord'],
         icon=folium.DivIcon(

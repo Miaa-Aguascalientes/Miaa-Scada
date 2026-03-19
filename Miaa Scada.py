@@ -12,7 +12,7 @@ from datetime import datetime
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="MIAA - Estado de Pozos", layout="wide", initial_sidebar_state="expanded")
 
-# 2. ESTILO CSS PARA LA ESTÉTICA DE LA IMAGEN
+# 2. ESTILO CSS
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
@@ -48,7 +48,7 @@ mapa_pozos_dict = {
     }
 }
 
-# 4. FUNCIONES DE CARGA
+# 4. FUNCIONES DE CARGA (Basadas en Miaa Scada - respaldo.py)
 @st.cache_resource
 def get_mysql_engine():
     try:
@@ -97,9 +97,13 @@ pozos_on, pozos_off, pozos_obs = [], [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
+    # Extraer el valor real de la bomba (1 o 0)
     val_bba, f_bba = data_scada.get(info['bomba'], (0, None))
     q_val = data_scada.get(info['caudal'], (0, 0))[0]
     p_val = data_scada.get(info['presion'], (0, 0))[0]
+    
+    # Guardamos el valor exacto para el popup
+    info['valor_bomba_binario'] = int(val_bba) if val_bba is not None else 0
     
     if f_bba and (ahora - f_bba).total_seconds() > 14400:
         info.update({'status': 'OBSOLETO', 'color': 'orange'})
@@ -128,26 +132,22 @@ with st.sidebar:
     for p in pozos_on: st.write(f"🟢 {p}")
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in pozos_off: st.write(f"🔴 {p}")
-    st.markdown(f"<div class='section-header' style='background:#4a148c;'>Obsoletos ({len(pozos_obs)})</div>", unsafe_allow_html=True)
-    for p in pozos_obs: st.write(f"🟡 {p}")
 
-# --- 7. MAPA CON CONTROL DE CAPAS ---
+# --- 7. MAPA CON CAPA POR DEFECTO ---
+# Se inicializa sin tiles para agregarlas manualmente y controlar la activación
 m = folium.Map(location=[21.8900, -102.2500], zoom_start=12, tiles=None)
 
-# Mapas Base
-folium.TileLayer("CartoDB dark_matter", name="CartoDB Dark (Default)").add_to(m)
-folium.TileLayer("OpenStreetMap", name="OpenStreetMap (Claro)").add_to(m)
+# CartoDB Dark activada por defecto (overlay=False para capas base)
+folium.TileLayer("CartoDB dark_matter", name="CartoDB Dark (Default)", overlay=False, control=True).add_to(m)
+folium.TileLayer("OpenStreetMap", name="OpenStreetMap (Claro)", overlay=False, control=True).add_to(m)
 folium.TileLayer(
     tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attr='Esri',
-    name='Esri Satellite'
+    attr='Esri', name='Esri Satellite', overlay=False, control=True
 ).add_to(m)
 
-# Grupos de Capas (Permiten activar/desactivar en el control de la derecha)
-fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos (Polígonos)", show=True)
+fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos", show=True)
 fg_pozos = folium.FeatureGroup(name="Pozos", show=True)
 
-# Dibujar Sectores en su grupo
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']),
@@ -155,18 +155,24 @@ for s in sectores:
         tooltip=f"Sector: {s['sector']}"
     ).add_to(fg_sectores)
 
-# Dibujar Pozos en su grupo
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     q, p = d(info['caudal'])[0], d(info['presion'])[0]
     
+    # Popup actualizado con el valor 1 o 0 solicitado
     html_popup = f"""
     <div style="background:#111; color:white; padding:15px; border-radius:10px; width:280px; border:2px solid {info['color']}; font-family:sans-serif;">
         <h4 style="margin:0; color:#00d4ff;">POZO {id_p}</h4>
         <hr style="border:0.5px solid #333;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>ESTADO:</span> <b style="color:{info['color']};">{info['status']}</b></div>
-        <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>💧 CAUDAL:</span> <b>{q:.2f} L/s</b></div>
-        <div style="display:flex; justify-content:space-between;"><span>🚀 PRESIÓN:</span> <b>{p:.2f} kg</b></div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+            <span>ESTADO:</span> <b style="color:{info['color']};">{info['status']} ({info['valor_bomba_binario']})</b>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+            <span>💧 CAUDAL:</span> <b>{q:.2f} L/s</b>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+            <span>🚀 PRESIÓN:</span> <b>{p:.2f} kg</b>
+        </div>
     </div>
     """
     folium.Marker(
@@ -175,7 +181,6 @@ for id_p, info in mapa_pozos_dict.items():
         popup=folium.Popup(html_popup, max_width=300)
     ).add_to(fg_pozos)
 
-# Añadir grupos y control al mapa
 fg_sectores.add_to(m)
 fg_pozos.add_to(m)
 Fullscreen().add_to(m)

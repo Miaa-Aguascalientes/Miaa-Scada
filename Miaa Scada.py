@@ -233,6 +233,7 @@ with st.sidebar:
 
 # --- 7. MAPA ---
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=13, tiles="CartoDB dark_matter")
+col_mapa, _ = st.columns([10, 0.01])
 Fullscreen().add_to(m)
 
 # RENDERIZADO DE POLIGONOS (SECTORES)

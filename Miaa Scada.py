@@ -31,7 +31,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. FUNCIONES DE CONEXIÓN (Manejo de 3 DBs)
+# 3. FUNCIONES DE CONEXIÓN
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -56,7 +56,7 @@ def get_postgres_conn():
 # 4. CARGA DE DATOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
-    engine = get_mysql_telemetria_engine() # Usa la DB telemetria2
+    engine = get_mysql_telemetria_engine()
     if not engine: return {}
     try:
         query = "SELECT * FROM Diccionario_de_pozos"
@@ -90,7 +90,7 @@ def cargar_mapa_pozos_desde_db():
         return {}
 
 def cargar_datos_scada(mapa_pozos):
-    engine = get_mysql_scada_engine() # Usa la DB SCADA (telemetria original)
+    engine = get_mysql_scada_engine()
     if not engine: return {}
     all_tags = []
     for p in mapa_pozos.values():
@@ -102,7 +102,13 @@ def cargar_datos_scada(mapa_pozos):
     if not all_tags: return {}
     try:
         tags_str = "', '".join(list(set(all_tags)))
-        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM vfitagnumhistory h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)"
+        query = f"""
+            SELECT r.NAME, h.VALUE, h.FECHA 
+            FROM vfitagnumhistory h 
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID 
+            WHERE r.NAME IN ('{tags_str}') 
+            AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)
+        """
         df = pd.read_sql(query, engine)
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except: return {}
@@ -112,17 +118,19 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        # Usando el esquema Agua_potable como se especificó en correcciones previas
+        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Agua_potable"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
-    except: return []
+    except Exception as e:
+        st.error(f"Error cargando sectores: {e}")
+        return []
 
 # --- 5. PROCESAMIENTO ---
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
-
 
 pozos_on, pozos_off = [], []
 total_q, total_p = 0.0, 0.0
@@ -163,9 +171,24 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
+# Capa de Sectores (Se añade primero para que quede al fondo)
 for s in sectores:
-    folium.GeoJson(json.loads(s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}).add_to(m)
+    try:
+        folium.GeoJson(
+            json.loads(s['geo']),
+            name=f"Sector {s['sector']}",
+            style_function=lambda x: {
+                'fillColor': '#00d4ff',
+                'color': '#00d4ff',
+                'weight': 1.5,
+                'fillOpacity': 0.15
+            },
+            highlight_function=lambda x: {'weight': 3, 'fillOpacity': 0.3},
+            tooltip=f"Sector: {s['sector']}"
+        ).add_to(m)
+    except: continue
 
+# Capa de Pozos
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     q, f_q = d(info['caudal'])

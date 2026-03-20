@@ -127,7 +127,7 @@ def cargar_datos_scada(mapa_pozos):
         tags_str = "', '".join(list(set(all_tags)))
         query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)"
         df = pd.read_sql(query, engine)
-        return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
+        return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m/%Y %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except: return {}
 
 @st.cache_data(ttl=3600)

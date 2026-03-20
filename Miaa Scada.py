@@ -116,7 +116,6 @@ def cargar_datos_scada(mapa_pozos):
     engine = get_mysql_scada_engine()
     if not engine: return {}
     
-    # Recopilamos todos los tags necesarios en una sola lista
     all_tags = []
     for p in mapa_pozos.values():
         for k, v in p.items():
@@ -128,16 +127,17 @@ def cargar_datos_scada(mapa_pozos):
     if not all_tags: return {}
     
     try:
-        # Usamos tu nueva tabla que ya tiene los valores calculados
         tags_str = "', '".join(list(set(all_tags)))
+        
+        # Intentamos con 'TagName' que es el estándar en muchas versiones de VFI
+        # Si no es TagName, prueba con 'Tag'
         query = f"""
-            SELECT NAME, VALUE, FECHA 
+            SELECT TagName as NAME, VALUE, FECHA 
             FROM VfiTagNumHistory_Ultimo 
-            WHERE NAME IN ('{tags_str}')
+            WHERE TagName IN ('{tags_str}')
         """
         df = pd.read_sql(query, engine)
         
-        # Diccionario optimizado: {nombre_tag: (valor, fecha_formateada)}
         return {
             row['NAME']: (
                 row['VALUE'], 
@@ -145,7 +145,13 @@ def cargar_datos_scada(mapa_pozos):
             ) for _, row in df.iterrows()
         }
     except Exception as e:
-        st.error(f"Error al leer la tabla de últimos valores: {e}")
+        # Si falla, mostramos los nombres reales de las columnas para corregir rápido
+        st.error(f"Error en la tabla: {e}")
+        try:
+            columns_query = "SHOW COLUMNS FROM VfiTagNumHistory_Ultimo"
+            cols = pd.read_sql(columns_query, engine)
+            st.write("Las columnas reales de tu tabla son:", cols['Field'].tolist())
+        except: pass
         return {}
 
 @st.cache_data(ttl=3600)

@@ -201,15 +201,21 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
-    for p in sorted(pozos_on): st.write(f"🟢 {p}")
+# Sección de Bombas ON
+    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
+        for p in sorted(pozos_on): 
+            st.write(f"🟢 {p}")
     
-    st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
-    for p in sorted(pozos_off): st.write(f"🔴 {p}")
+    # Sección de Bombas OFF
+    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
+        for p in sorted(pozos_off): 
+            st.write(f"🔴 {p}")
 
+    # Sección Sin Telemetría
     if pozos_sin_telemetria:
-        st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
-        for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
+        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
+            for p in sorted(pozos_sin_telemetria): 
+                st.write(f"⚪ {p}")
 
 # --- 7. MAPA ---
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")

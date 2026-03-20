@@ -147,8 +147,9 @@ sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-pozos_on, pozos_off, pozos_sin_telemetria = [], [], []
+pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
 total_q, total_p = 0.0, 0.0
+ahora = datetime.now()
 
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
@@ -156,6 +157,25 @@ for id_p, info in mapa_pozos_dict.items():
     if bomba_val == "Sin telemetria":
         info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
+        continue
+
+    # Verificar antigüedad de voltajes (L1, L2, L3)
+    es_falla_com = False
+    for v_tag in info['voltajes_l']:
+        _, fecha_str = data_scada.get(v_tag, (0, "N/A"))
+        if fecha_str != "N/A":
+            try:
+                # El formato en tu código es '%d/%m %H:%M', necesitamos el año para comparar
+                fecha_dt = datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
+                dif_horas = (ahora - fecha_dt).total_seconds() / 3600
+                if dif_horas > 4:
+                    es_falla_com = True
+                    break
+            except: pass
+    
+    if es_falla_com:
+        info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
+        pozos_falla_com.append(id_p)
     else:
         val_bba, f_bba = data_scada.get(info['bomba'], (0, "N/A"))
         q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
@@ -211,6 +231,12 @@ with st.sidebar:
         for p in sorted(pozos_off): 
             st.write(f"🔴 {p}")
 
+    # Nueva Sección: Falla de Comunicación
+    if pozos_falla_com:
+        with st.expander(f"⚠️ Falla de Com. (+4h) ({len(pozos_falla_com)})", expanded=True):
+            for p in sorted(pozos_falla_com):
+                st.write(f"🟠 {p}")
+    
     # Sección Sin Telemetría
     if pozos_sin_telemetria:
         with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):

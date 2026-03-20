@@ -422,7 +422,7 @@ for id_p, info in mapa_pozos_dict.items():
         fill=True,
         fill_color=info['color_final'],
         fill_opacity=1,
-        weight=0,
+        weight=2,
         class_name="blink_me" if info['blink'] else "",
         popup=folium.Popup(html_popup, max_width=450)
     ).add_to(m)

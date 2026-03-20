@@ -155,7 +155,7 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# --- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---
+# 5----------------------------------------------------- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) --------------------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()

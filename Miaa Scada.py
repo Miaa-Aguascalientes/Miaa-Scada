@@ -404,7 +404,7 @@ for id_p, info in mapa_pozos_dict.items():
     else:
         folium.CircleMarker(
             location=info['coord'],
-            radius=6,
+            radius=4,
             color=info['color_final'],
             fill=True,
             fill_color=info['color_final'],

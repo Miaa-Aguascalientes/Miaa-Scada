@@ -181,12 +181,14 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
+
 # --- 6. SIDEBAR ---
 with st.sidebar:
-    # Contenedor del logo con ajustes forzados hacia arriba
+    # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     
-    with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
+    # 1. ESTADO DE CONEXIONES (Expander)
+    with st.expander("🔌 ESTADO DE CONEXIONES", expanded=False):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
         status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
         status_postgres = "OK" if get_postgres_conn() else "ERROR"
@@ -204,6 +206,7 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
 
+    # RESUMEN GLOBAL
     st.markdown(f"""
     <div class="resumen-card">
         <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
@@ -212,15 +215,21 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
-    for p in sorted(pozos_on): st.write(f"🟢 {p}")
+    # 2. BOMBAS ON (Expander)
+    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=True):
+        for p in sorted(pozos_on): 
+            st.write(f"🟢 {p}")
     
-    st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
-    for p in sorted(pozos_off): st.write(f"🔴 {p}")
+    # 3. BOMBAS OFF (Expander)
+    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
+        for p in sorted(pozos_off): 
+            st.write(f"🔴 {p}")
 
+    # 4. SIN TELEMETRÍA (Expander)
     if pozos_sin_telemetria:
-        st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
-        for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
+        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
+            for p in sorted(pozos_sin_telemetria): 
+                st.write(f"⚪ {p}")
 
 # --- 7. MAPA ---
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=13, tiles="CartoDB dark_matter")

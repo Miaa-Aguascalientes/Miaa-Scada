@@ -304,21 +304,23 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# --- INYECCIÓN DE CSS DIRECTA EN EL HEADER DEL MAPA ---
-# Usamos un selector universal para que no haya forma de que el navegador lo ignore
-estilo_parpadeo = """
+estilo_final_v2 = """
 <style>
-@keyframes blinker_miaa {
+@keyframes parpadeo_extremo {
     0% { opacity: 1.0; }
-    50% { opacity: 0.0; }
+    50% { opacity: 0.1; }
     100% { opacity: 1.0; }
 }
+
+/* Seleccionamos los círculos de Folium que tengan relleno rojo */
+path.leaflet-interactive[fill="#FF0000"], 
+path.leaflet-interactive[stroke="#FF0000"],
 .blink_me {
-    animation: blinker_miaa 0.8s linear infinite !important;
+    animation: parpadeo_extremo 0.8s infinite !important;
 }
 </style>
 """
-m.get_root().header.add_child(folium.Element(estilo_parpadeo))
+m.get_root().header.add_child(folium.Element(estilo_final_v2))
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:

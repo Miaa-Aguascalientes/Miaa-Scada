@@ -20,28 +20,39 @@ st.set_page_config(
 # 2. ESTILO CSS
 st.markdown("""
     <style>
+        /* Fondo y colores base */
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
         
-        /* ELIMINAR ESPACIO SUPERIOR POR DEFECTO DE STREAMLIT EN SIDEBAR */
-        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
+        /* Ajuste de contenedores para eliminar márgenes laterales en pantallas grandes */
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 0rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+            max-width: 100%; /* Asegura que ocupe todo el ancho disponible */
+        }
+
+        /* Ocultar el header de Streamlit para ganar espacio vertical */
+        header {visibility: hidden;}
         
-        /* AJUSTE MÁXIMO DEL LOGO HACIA ARRIBA */
+        /* Logo responsivo */
         .sidebar-logo { 
             display: flex; 
             justify-content: center; 
             padding: 0px !important; 
-            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
+            margin-top: -40px !important; 
             margin-bottom: 10px;
         }
-        .sidebar-logo img { max-width: 85%; height: auto; }
+        .sidebar-logo img { width: 85%; height: auto; }
         
+        /* Estilos de tarjetas y secciones */
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
         .status-err { background-color: #b71c1c; color: #ef9a9a; }
         .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
+        
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
     </style>
@@ -212,7 +223,7 @@ with st.sidebar:
         for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
 
 # --- 7. MAPA ---
-m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
+m = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
@@ -338,4 +349,4 @@ for id_p, info in mapa_pozos_dict.items():
         )
     ).add_to(m)
 
-folium_static(m, width=1300, height=800)
+folium_static(m, width=None, height=750)

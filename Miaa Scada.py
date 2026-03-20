@@ -424,27 +424,34 @@ for id_p, info in mapa_pozos_dict.items():
         </div>
     </div>
     """
-
+for id_p, info in mapa_pozos_dict.items():
+    html_popup = f"<div style='background:#000; color:#fff; padding:10px;'><b>POZO {id_p}</b><br>Estado: {info['status_label']}</div>"
+    
+    # Si parpadea (ROJO o NARANJA), usamos DivIcon con HTML animado
+    if info.get('blink'):
+        folium.Marker(
+            location=info['coord'],
+            icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+            popup=folium.Popup(html_popup, max_width=300)
+        ).add_to(m)
+    else:
     folium.CircleMarker(
         location=info['coord'],
-        radius=3,
+        radius=5,
         color=info['color_final'],
         fill=True,
         fill_color=info['color_final'],
         fill_opacity=1,
-        weight=1,
+        popup=folium.Popup(html_popup, max_width=300)
+        
 # LA CLAVE: Usamos class_name para aplicar el estilo inyectado
         class_name="blink_me" if info.get('blink', False) else "",
         popup=folium.Popup(html_popup, max_width=450)
     ).add_to(m)
 
-    folium.map.Marker(
+folium.map.Marker(
         location=info['coord'],
-        icon=folium.DivIcon(
-            icon_size=(150,36),
-            icon_anchor=(0,0),
-            html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
-        )
+        icon=folium.DivIcon(html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; transform: translate(12px, -8px);">{id_p}</div>')
     ).add_to(m)
 
 folium_static(m, width=None, height=750)

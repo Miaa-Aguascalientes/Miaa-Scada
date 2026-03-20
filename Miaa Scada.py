@@ -9,7 +9,7 @@ import json
 import urllib.parse
 from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA
+# 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
     page_icon="https://www.miaa.mx/favicon.ico", 
@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS
+# 2-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
@@ -47,7 +47,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. FUNCIONES DE CONEXIÓN
+# 3--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ----------------------------------------------------------------------------------------------------------
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -77,7 +77,7 @@ def get_postgres_conn():
     except: 
         return None
 
-# 4. CARGA DE DATOS
+# 4-------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
@@ -155,7 +155,7 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# --- 5. PROCESAMIENTO (CON AJUSTE DE ZONA HORARIA MEXICO) ---
+# 5----------------------------------------------------- 5. PROCESAMIENTO (CON AJUSTE DE ZONA HORARIA MEXICO) -------------------------------------------------------------------------------------------------------------
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
@@ -216,7 +216,7 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
             
-# --- 6. SIDEBAR ---
+# 6 -------------------------------------------------------------------------------SECCION 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
@@ -269,7 +269,7 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
-# --- 7. MAPA ---
+# 7---------------------------------------------------------------------------------SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
@@ -377,7 +377,7 @@ for id_p, info in mapa_pozos_dict.items():
 
     folium.CircleMarker(
         location=info['coord'],
-        radius=7,
+        radius=3,
         color=info['color_final'],
         fill=True,
         fill_color=info['color_final'],

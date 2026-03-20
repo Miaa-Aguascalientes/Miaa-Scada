@@ -304,7 +304,17 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# Función para el punto parpadeante (Falla Com y Apagados)
+# 1. FUNCIÓN PARA HORARIO 00:00
+def formato_hora(decimal):
+    try:
+        if decimal == "N/A" or decimal is None: return "00:00"
+        horas = int(float(decimal))
+        minutos = int((float(decimal) - horas) * 60)
+        return f"{horas:02d}:{minutos:02d}"
+    except:
+        return "00:00"
+
+# 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
 def get_blink_icon(color):
     return f"""
     <div style="
@@ -319,37 +329,37 @@ def get_blink_icon(color):
     </style>
     """
 
-# 1. RENDERIZADO DE POLIGONOS (SECTORES)
+# 3. RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
-        style_function=lambda x: {
-            'fillColor': '#00d4ff', 
-            'color': '#00d4ff', 
-            'weight': 1, 
-            'fillOpacity': 0.1
-        },
+        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
         tooltip=f"Sector: {s['sector']}"
     ).add_to(m)
 
-# 2. RENDERIZADO DE POZOS
+# 4. RENDERIZADO DE POZOS
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
-    # Extracción de datos para el Popup
+    # Extracción de datos y fechas (Tu diseño original)
     q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
     dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
     tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
     col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-    h_arr, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
-    h_par, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+    
+    # Horarios formateados
+    h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+    h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+    h_arr_fmt = formato_hora(h_arr_val)
+    h_par_fmt = formato_hora(h_par_val)
+
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-    # Construcción del Popup Detallado
+    # TU DISEÑO ORIGINAL RESTAURADO (Con MTS y 00:00)
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -382,7 +392,7 @@ for id_p, info in mapa_pozos_dict.items():
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
             </div>
             <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
+                <span>🔋 Tanque: <b>{tanq:.1f} mts</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
             </div>
         </div>
@@ -412,23 +422,33 @@ for id_p, info in mapa_pozos_dict.items():
             </table>
             <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
             <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>▶️ H_Arranque: <b>{h_arr:.1f}</b></span>
+                <span>▶️ Arranque: <b>{h_arr_fmt}</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
             </div>
             <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>⏹️ H_Paro: <b>{h_par:.1f}</b></span>
+                <span>⏹️ Paro: <b>{h_par_fmt}</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
             </div>
         </div>
     </div>
     """
 
-    # Creación del Marcador (Punto parpadeante o Círculo fijo)
+    # CAPA DE TEXTO (A la derecha y transparente al clic)
+    folium.Marker(
+        location=info['coord'],
+        icon=folium.DivIcon(
+            icon_size=(150,36),
+            icon_anchor=(-12, 10), # Desplazado a la derecha
+            html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
+        )
+    ).add_to(m)
+
+    # CAPA DEL MARCADOR (Con el popup original)
     if info.get('blink'):
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-            popup=folium.Popup(html_popup, max_width=400)
+            popup=folium.Popup(html_popup, max_width=450)
         ).add_to(m)
     else:
         folium.CircleMarker(
@@ -439,18 +459,7 @@ for id_p, info in mapa_pozos_dict.items():
             fill_color=info['color_final'],
             fill_opacity=1,
             weight=1,
-            popup=folium.Popup(html_popup, max_width=400)
+            popup=folium.Popup(html_popup, max_width=450)
         ).add_to(m)
 
-    # Etiqueta de texto con el ID del Pozo
-    folium.map.Marker(
-        location=info['coord'],
-        icon=folium.DivIcon(
-            icon_size=(150,36),
-            icon_anchor=(0,0),
-            html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap; text-shadow: 1px 1px #000;">{id_p}</div>'
-        )
-    ).add_to(m)
-
-# Renderizado final en Streamlit
 folium_static(m, width=None, height=750)

@@ -22,9 +22,21 @@ st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
-        /* Ajuste de posición del logo: Padding superior en 0 para subirlo al máximo */
-        .sidebar-logo { display: flex; justify-content: center; padding: 0px 0 10px 0; margin-top: -10px; }
+        
+        /* ELIMINAR ESPACIO SUPERIOR POR DEFECTO DE STREAMLIT EN SIDEBAR */
+        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
+        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
+        
+        /* AJUSTE MÁXIMO DEL LOGO HACIA ARRIBA */
+        .sidebar-logo { 
+            display: flex; 
+            justify-content: center; 
+            padding: 0px !important; 
+            margin-top: -30px !important; /* Ajuste negativo para compensar el contenedor */
+            margin-bottom: 10px;
+        }
         .sidebar-logo img { max-width: 85%; height: auto; }
+        
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
@@ -97,7 +109,7 @@ def cargar_mapa_pozos_desde_db():
                 "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']]
             }
         return nuevo_mapa
-    except Exception as e:
+    except:
         return {}
 
 def cargar_datos_scada(mapa_pozos):
@@ -160,7 +172,7 @@ for id_p, info in mapa_pozos_dict.items():
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
-    # Logo colocado al inicio con padding reducido
+    # Contenedor del logo con ajustes forzados hacia arriba
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     
     with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
@@ -238,7 +250,6 @@ for id_p, info in mapa_pozos_dict.items():
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
             <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
@@ -250,7 +261,6 @@ for id_p, info in mapa_pozos_dict.items():
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
             </div>
         </div>
-        
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
             <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
@@ -270,7 +280,6 @@ for id_p, info in mapa_pozos_dict.items():
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
             </div>
         </div>
-        
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
             <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
@@ -295,7 +304,6 @@ for id_p, info in mapa_pozos_dict.items():
                     <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
                 </tr>
             </table>
-            
             <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
             <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
                 <span>▶️ H_Arranque: <b>{h_arr:.1f}</b></span>

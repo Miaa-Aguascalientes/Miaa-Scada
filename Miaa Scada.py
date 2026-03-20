@@ -391,10 +391,10 @@ for id_p, info in mapa_pozos_dict.items():
                 <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
             </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>🏗️ Columna: <b>{col:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
-            </div>
+            <div style="margin-bottom: 8px; border-top: 1px solid #222; padding-top: 5px;">
+            <div style="font-size: 11px; margin-bottom: 2px;">📏 Sumer: <b>{sumer:.1f} m</b> | Din: <b>{dinam:.1f} m</b></div>
+            <div style="font-size: 11px;">🏗️ Col: <b>{col:.1f} m</b> | 🔋 Tanque: <b style="color:#00d4ff;">{tanq:.1f} mts</b></div>
+           </div>
             <div style="display: flex; align-items: baseline; font-size: 11px;">
                 <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
@@ -429,9 +429,11 @@ for id_p, info in mapa_pozos_dict.items():
                 <span>▶️ H_Arranque: <b>{h_arr:.1f}</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
             </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>⏹️ H_Paro: <b>{h_par:.1f}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
+            <div style="margin-bottom: 8px; border-top: 1px solid #222; padding-top: 5px;">
+            <div style="font-size: 10px; color: #888; margin-bottom: 3px;">ELECTRICO & HORARIOS</div>
+            <div style="font-size: 11px;">V: <b>{v[0][0]:.0f}/{v[1][0]:.0f}/{v[2][0]:.0f} V</b> | A: <b>{a[0][0]:.1f}A</b></div>
+            <div style="font-size: 11px; margin-top:3px; color: #a5d6a7;">
+                ▶️ Arr: <b>{h_arr_fmt}</b> | ⏹️ Paro: <b>{h_par_fmt}</b>
             </div>
         </div>
     </div>

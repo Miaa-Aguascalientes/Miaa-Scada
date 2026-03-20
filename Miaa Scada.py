@@ -259,7 +259,7 @@ with st.sidebar:
 
     # Nueva Sección: Falla de Comunicación
     if pozos_falla_com:
-        with st.expander(f"⚠️ Falla de Com. (+4h) ({len(pozos_falla_com)})", expanded=True):
+        with st.expander(f"⚠️ Falla de Com. (+4h) ({len(pozos_falla_com)})", expanded=False):
             for p in sorted(pozos_falla_com):
                 st.write(f"🟠 {p}")
     

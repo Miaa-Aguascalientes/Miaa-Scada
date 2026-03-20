@@ -304,23 +304,26 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-estilo_final = """
+estilo_blindado = """
 <style>
-@keyframes blinker_miaa {
-    0% { opacity: 1.0; }
-    50% { opacity: 0.0; }
-    100% { opacity: 1.0; }
+@keyframes parpadeo_rojo {
+    0% { filter: brightness(1) drop-shadow(0 0 0px #FF0000); }
+    50% { filter: brightness(0) drop-shadow(0 0 0px #FF0000); opacity: 0; }
+    100% { filter: brightness(1) drop-shadow(0 0 0px #FF0000); }
 }
 
-/* Este selector es infalible: busca el color de relleno directamente en el SVG */
-path.leaflet-interactive[fill="#FF0000"], 
-path.leaflet-interactive[fill="#FFA500"],
-.blink_me {
-    animation: blinker_miaa 0.8s linear infinite !important;
+/* Atacamos directamente al dibujo del pozo por su color de relleno rojo */
+path.leaflet-interactive[fill="#FF0000"] {
+    animation: parpadeo_rojo 0.8s infinite normal !important;
+}
+
+/* También para los naranjas de falla de comunicación */
+path.leaflet-interactive[fill="#FFA500"] {
+    animation: parpadeo_rojo 0.8s infinite normal !important;
 }
 </style>
 """
-m.get_root().header.add_child(folium.Element(estilo_final))
+m.get_root().header.add_child(folium.Element(estilo_blindado))
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:

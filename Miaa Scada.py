@@ -314,7 +314,7 @@ def formato_hora(decimal):
     except:
         return "00:00"
 
-# 2. FUNCIÓN PARA ICONO PARPADEANTE (8px)
+# 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
 def get_blink_icon(color):
     return f"""
     <div style="
@@ -329,7 +329,7 @@ def get_blink_icon(color):
     </style>
     """
 
-# 3. RENDERIZADO DE SECTORES
+# 3. RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
@@ -342,7 +342,7 @@ for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
-    # Datos SCADA
+    # Extracción de datos y fechas (Tu diseño original)
     q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -350,16 +350,17 @@ for id_p, info in mapa_pozos_dict.items():
     tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
     col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
     
-    h_arr_val, _ = d(info['h_arranque']) if not is_st else (0.0, "N/A")
-    h_par_val, _ = d(info['h_paro']) if not is_st else (0.0, "N/A")
+    # Horarios formateados
+    h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+    h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
     h_arr_fmt = formato_hora(h_arr_val)
     h_par_fmt = formato_hora(h_par_val)
 
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-    # HTML DEL POPUP (Ajustado)
-html_popup = f"""
+    # TU DISEÑO ORIGINAL RESTAURADO (Con MTS y 00:00)
+    html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
@@ -432,24 +433,23 @@ html_popup = f"""
     </div>
     """
 
-
-    # 1. El Nombre (Sin eventos de puntero para que no bloquee el clic)
+    # CAPA DE TEXTO (A la derecha y transparente al clic)
     folium.Marker(
         location=info['coord'],
         icon=folium.DivIcon(
             icon_size=(150,36),
-            icon_anchor=(-10, 8), # Empuja el texto a la DERECHA
+            icon_anchor=(-12, 10), # Desplazado a la derecha
             html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
         )
-    ).add_to(fg)
+    ).add_to(m)
 
-    # 2. El Punto (Con el Popup)
+    # CAPA DEL MARCADOR (Con el popup original)
     if info.get('blink'):
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-            popup=folium.Popup(html_popup, max_width=400)
-        ).add_to(fg)
+            popup=folium.Popup(html_popup, max_width=450)
+        ).add_to(m)
     else:
         folium.CircleMarker(
             location=info['coord'],
@@ -459,7 +459,7 @@ html_popup = f"""
             fill_color=info['color_final'],
             fill_opacity=1,
             weight=1,
-            popup=folium.Popup(html_popup, max_width=400)
-        ).add_to(fg)
+            popup=folium.Popup(html_popup, max_width=450)
+        ).add_to(m)
 
 folium_static(m, width=None, height=750)

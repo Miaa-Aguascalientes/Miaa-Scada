@@ -360,55 +360,46 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-    # DISEÑO DEL POPUP REESTRUCTURADO
+    # HTML DEL POPUP
     html_popup = f"""
-    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 340px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 320px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 12px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px;">
+        <div style="margin-bottom: 12px; font-size: 12px;">
+            <div style="display: flex; justify-content: space-between;">
                 <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
                 <span style="color: #FFFF00; font-size: 9px;">{f_q}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-            </div>
+            <span>🚀 Presión: <b>{p:.2f} kg</b></span>
         </div>
-
-        <div style="margin-bottom: 12px; border-top: 1px solid #222; padding-top: 8px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px;">
+        <div style="margin-bottom: 12px; border-top: 1px solid #222; padding-top: 8px; font-size: 11px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
                 <div>📏 Sumer: <b>{sumer:.1f} m</b></div>
                 <div>📉 Dinam: <b>{dinam:.1f} m</b></div>
                 <div>🏗️ Colum: <b>{col:.1f} m</b></div>
                 <div>🔋 Tanque: <b style="color: #00d4ff;">{tanq:.1f} mts</b></div>
             </div>
         </div>
-
-        <div style="margin-bottom: 12px; border-top: 1px solid #222; padding-top: 8px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-            <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
-                <tr style="color: #00d4ff; font-size: 9px; border-bottom: 1px solid #333; text-align:left;">
-                    <th>FASE</th><th>VOLTAJE</th><th>AMP</th>
-                </tr>
-                <tr><td style="color:#888;">L1-L2</td><td><b>{v[0][0]:.0f}V</b></td><td><b>{a[0][0]:.1f}A</b></td></tr>
-                <tr><td style="color:#888;">L2-L3</td><td><b>{v[1][0]:.0f}V</b></td><td><b>{a[1][0]:.1f}A</b></td></tr>
-                <tr><td style="color:#888;">L1-L3</td><td><b>{v[2][0]:.0f}V</b></td><td><b>{a[2][0]:.1f}A</b></td></tr>
-            </table>
-        </div>
-
-        <div style="border-top: 1px solid #222; padding-top: 8px; display: flex; justify-content: space-between;">
-            <div style="font-size: 11px; color: #a5d6a7;">▶️ Arr: <b>{h_arr_fmt}</b></div>
-            <div style="font-size: 11px; color: #ef9a9a;">⏹️ Paro: <b>{h_par_fmt}</b></div>
+        <div style="border-top: 1px solid #222; padding-top: 8px; display: flex; justify-content: space-between; font-size: 11px;">
+            <div style="color: #a5d6a7;">▶️ Arr: <b>{h_arr_fmt}</b></div>
+            <div style="color: #ef9a9a;">⏹️ Paro: <b>{h_par_fmt}</b></div>
         </div>
     </div>
     """
 
-    # LÓGICA DE MARCADORES (PEQUEÑOS)
+    # 1. PRIMERO DIBUJAMOS EL TEXTO (Abajo en capas para que no bloquee el clic)
+    folium.Marker(
+        location=info['coord'],
+        icon=folium.DivIcon(
+            icon_size=(100,20),
+            icon_anchor=(-8, 10), # Desplaza el texto a la derecha (negativo en X)
+            html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
+        )
+    ).add_to(m)
+
+    # 2. LUEGO EL MARCADOR (Arriba para recibir el clic)
     if info.get('blink'):
         folium.Marker(
             location=info['coord'],
@@ -426,14 +417,5 @@ for id_p, info in mapa_pozos_dict.items():
             weight=1,
             popup=folium.Popup(html_popup, max_width=400)
         ).add_to(m)
-
-    # ETIQUETA DE NOMBRE (ID)
-    folium.map.Marker(
-        location=info['coord'],
-        icon=folium.DivIcon(
-            icon_size=(150,36),
-            html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 10px; top: -8px; white-space: nowrap; text-shadow: 1px 1px #000;">{id_p}</div>'
-        )
-    ).add_to(m)
 
 folium_static(m, width=None, height=750)

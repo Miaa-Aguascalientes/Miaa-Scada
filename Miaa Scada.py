@@ -432,9 +432,6 @@ html_popup = f"""
     </div>
     """
 
-    # --- EL TRUCO PARA QUE EL CLIC FUNCIONE ---
-    # Creamos un FeatureGroup por pozo para asegurar que el marcador esté "encima" del texto
-    fg = folium.FeatureGroup(name=f"Pozo {id_p}").add_to(m)
 
     # 1. El Nombre (Sin eventos de puntero para que no bloquee el clic)
     folium.Marker(

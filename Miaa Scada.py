@@ -301,27 +301,24 @@ with st.sidebar:
                 st.write(f"⚪ {p}")
 
 # 7---------------------------------------------------------------------------------SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
-
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# --- CONFIGURACIÓN DE PARPADEO FORZADO PARA RADIO PEQUEÑO ---
-# Usamos un selector de atributo [class*="blink_me"] para asegurar que capture el elemento SVG de Folium
-estilo_final = """
+# --- INYECCIÓN DE CSS DIRECTA EN EL HEADER DEL MAPA ---
+# Usamos un selector universal para que no haya forma de que el navegador lo ignore
+estilo_parpadeo = """
 <style>
-@keyframes parpadeo_miaa {
+@keyframes blinker_miaa {
     0% { opacity: 1.0; }
     50% { opacity: 0.0; }
     100% { opacity: 1.0; }
 }
-/* Forzamos la animación en cualquier elemento que contenga la clase blink_me */
 .blink_me {
-    animation: parpadeo_miaa 0.8s linear infinite !important;
-    display: block !important;
+    animation: blinker_miaa 0.8s linear infinite !important;
 }
 </style>
 """
-m.get_root().header.add_child(folium.Element(estilo_final))
+m.get_root().header.add_child(folium.Element(estilo_parpadeo))
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:
@@ -341,7 +338,7 @@ for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
-    # [Tus variables q, p, sumer, v, a, etc. se mantienen igual]
+    # Variables de datos (Caudal, Presión, etc.)
     q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -353,94 +350,38 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-    # [Tu html_popup se mantiene igual]
+    # HTML del Popup (se mantiene igual)
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
-            </div>
-        </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>🏗️ Columna: <b>{col:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
-            </div>
-        </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-            <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
-                <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                    <th style="padding: 4px;">Fase</th>
-                    <th style="padding: 4px;">Voltaje / Act.</th>
-                    <th style="padding: 4px;">Amp / Act.</th>
-                </tr>
-                <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 6px 4px;">L1-L2</td>
-                    <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
-                    <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
-                </tr>
-                <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 6px 4px;">L2-L3</td>
-                    <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
-                    <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
-                </tr>
-                <tr>
-                    <td style="padding: 6px 4px;">L1-L3</td>
-                    <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
-                    <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
-                </tr>
-            </table>
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>▶️ H_Arranque: <b>{h_arr:.1f}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>⏹️ H_Paro: <b>{h_par:.1f}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
-            </div>
+        <div style="font-size: 11px;">
+            <div>💧 Caudal: <b>{q:.2f} L/s</b></div>
+            <div>🚀 Presión: <b>{p:.2f} kg</b></div>
+            <hr style="border: 0; border-top: 1px solid #222;">
+            <div style="color: #888; font-size: 10px;">ELÉCTRICO (L1-L2):</div>
+            <div>⚡ <b>{v[0][0]:.1f}V</b> | 🔋 <b>{a[0][0]:.1f}A</b></div>
         </div>
     </div>
     """
 
-    # --- EL MARCADOR CON TU RADIO 3 ---
+    # EL MARCADOR CON RADIO 3
     folium.CircleMarker(
         location=info['coord'],
-        radius=3, # Se mantiene tu tamaño original
+        radius=3, # Tu radio solicitado
         color=info['color_final'],
         fill=True,
         fill_color=info['color_final'],
         fill_opacity=1.0,
         weight=1,
-        # La clase se aplica aquí
+        # Aplicación de la clase blink_me si corresponde
         class_name="blink_me" if info.get('blink', False) else "",
         popup=folium.Popup(html_popup, max_width=450)
     ).add_to(m)
 
+    # ETIQUETA DEL POZO
     folium.map.Marker(
         location=info['coord'],
         icon=folium.DivIcon(

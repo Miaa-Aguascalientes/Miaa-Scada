@@ -304,6 +304,15 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
+# Justo debajo de m = folium.Map(...)
+st_style = """
+<style>
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
+.blink_me { animation: blink 1s infinite; }
+</style>
+"""
+m.get_root().header.add_child(folium.Element(st_style))
+
 # RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:
     folium.GeoJson(

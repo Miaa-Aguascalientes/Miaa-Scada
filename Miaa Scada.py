@@ -155,62 +155,96 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# 5--------------------------------------------------- 5. PROCESAMIENTO (ZONA HORARIA MÉXICO + LÓGICA ESTRICTA + PARPADEO) ---
+# --- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---
+
+# 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-# Inicialización de listas y contadores
-pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
-total_q, total_p = 0.0, 0.0
+# 2. Inicialización de listas y contadores para el resumen
+pozos_on = []
+pozos_off = []
+pozos_sin_telemetria = []
+pozos_falla_com = []
+total_q = 0.0
+total_p = 0.0
 
-# FORZAMOS LA HORA DE AGUASCALIENTES (UTC-6)
+# 3. Ajuste de Hora Local (Aguascalientes UTC-6)
+# Esto evita que datos recientes se marquen como falla por el desfase del servidor
 import datetime as dt
 ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
 
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
     
-    # 1. FILTRO: SIN TELEMETRÍA CONFIGURADA
+    # A. FILTRO INICIAL: SIN TELEMETRÍA
     if bomba_val == "Sin telemetria":
-        info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
+        info.update({
+            'status_label': 'SIN TELEMETRÍA', 
+            'color_final': '#808080', 
+            'blink': False
+        })
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # 2. VALIDACIÓN DE COMUNICACIÓN (Basado en Voltaje L1)
+    # B. VALIDACIÓN DE COMUNICACIÓN (SOLO L1)
+    # Buscamos el tag de la línea 1 de voltaje configurado en el diccionario
     tag_l1 = info['voltajes_l'][0]
     _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
     
     es_falla_com = False
     if fecha_str != "N/A":
         try:
-            # Convertimos fecha del SCADA (ej. "20/03 08:29") al año actual
+            # Convertimos la fecha del SCADA (ej. "20/03 08:29") usando el año actual
             fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
             
-            # Calculamos horas de antigüedad
+            # Calculamos la antigüedad del dato en horas
             diff = ahora - fecha_dt
             horas_atras = diff.total_seconds() / 3600
             
-            # Si el dato es de hace más de 4 horas reales -> Falla
+            # Si el último dato de L1 es de hace más de 4 horas -> FALLA COM.
             if horas_atras > 4:
                 es_falla_com = True
         except:
-            es_falla_com = True # Error en formato de fecha se considera falla
+            # Si hay error al procesar la fecha, se marca como falla por precaución
+            es_falla_com = True
     else:
-        es_falla_com = True # Sin fecha es falla directa
+        # Si no hay fecha registrada para L1, no hay comunicación
+        es_falla_com = True
 
-    # 3. ASIGNACIÓN DE ESTADOS Y PARPADEO (BLINK)
-     if es_falla_com:
-        info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
+    # C. ASIGNACIÓN DE ESTADO FINAL Y PARPADEO
+    if es_falla_com:
+        # FALLA DE COMUNICACIÓN: Naranja y Parpadea
+        info.update({
+            'status_label': 'FALLA COM.', 
+            'color_final': '#FFA500', 
+            'blink': True
+        })
         pozos_falla_com.append(id_p)
     else:
+        # Si hay comunicación (< 4h), evaluamos si la bomba está encendida
         val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
+        q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
+        p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
+        
         if val_bba == 1:
-            info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+            # OPERANDO: Verde y Fijo
+            info.update({
+                'status_label': 'OPERANDO', 
+                'color_final': '#00FF00', 
+                'blink': False
+            })
             pozos_on.append(id_p)
+            total_q += q_val
+            total_p += p_val
         else:
-            # IMPORTANTE: blink debe ser True para los rojos
-            info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
+            # APAGADO: Rojo y Parpadea
+            info.update({
+                'status_label': 'APAGADO', 
+                'color_final': '#FF0000', 
+                'blink': True
+            })
             pozos_off.append(id_p)
             
 # 6 -------------------------------------------------------------------------------SECCION 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------

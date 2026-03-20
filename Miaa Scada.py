@@ -300,30 +300,26 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
-# 7---------------------------------------------------------------------------------SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
+# 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# URLs de los GIFs de parpadeo (son archivos de imagen, cargan 100% seguro)
-URL_GIF_ROJO = "https://raw.githubusercontent.com/MIAA-Aguascalientes/Sistemas/main/red_blink.gif" 
-# Si el repositorio anterior no existe, puedes usar este público:
-URL_GIF_ROJO = "https://upload.wikimedia.org/wikipedia/commons/2/23/Circle-icons-eye.svg" # (Cambiado a uno que sirva de marcador si el gif falla)
-# Para asegurar éxito inmediato, usaremos un icono de punto rojo animado vía HTML:
+# Función para el punto parpadeante (Falla Com y Apagados)
 def get_blink_icon(color):
     return f"""
     <div style="
         width: 12px; height: 12px; 
         background-color: {color}; 
         border-radius: 50%; 
-        box-shadow: 0 0 10px {color};
+        box-shadow: 0 0 12px {color};
         animation: blinker 1s linear infinite;">
     </div>
     <style>
-    @keyframes blinker {{ 50% {{ opacity: 0; }} }}
+    @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
     </style>
     """
 
-# RENDERIZADO DE POLIGONOS (SECTORES)
+# 1. RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
@@ -336,11 +332,12 @@ for s in sectores:
         tooltip=f"Sector: {s['sector']}"
     ).add_to(m)
 
-# RENDERIZADO DE POZOS
+# 2. RENDERIZADO DE POZOS
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
+    # Extracción de datos para el Popup
     q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -352,106 +349,79 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
+    # Construcción del Popup Detallado
     html_popup = f"""
-    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 350px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        <div style="margin-bottom: 12px;">
+        <div style="margin-bottom: 10px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+            <div style="display: flex; font-size: 11px; margin-bottom: 2px;">
                 <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
             </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
+            <div style="display: flex; font-size: 11px;">
                 <span>🚀 Presión: <b>{p:.2f} kg</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
             </div>
         </div>
-        <div style="margin-bottom: 12px;">
+        <div style="margin-bottom: 10px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
+            <div style="display: flex; font-size: 11px; margin-bottom: 2px;">
+                <span>📏 Sumer: <b>{sumer:.1f} m</b> | 📉 Din: <b>{dinam:.1f} m</b></span>
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
             </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>🏗️ Columna: <b>{col:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
+            <div style="display: flex; font-size: 11px;">
+                <span>🔋 Tanque: <b>{tanq:.1f} %</b> | 🏗️ Col: <b>{col:.1f} m</b></span>
             </div>
         </div>
-        <div style="margin-bottom: 12px;">
+        <div style="margin-bottom: 10px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-            <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
-                <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                    <th style="padding: 4px;">Fase</th>
-                    <th style="padding: 4px;">Voltaje / Act.</th>
-                    <th style="padding: 4px;">Amp / Act.</th>
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                <tr style="color: #00d4ff; border-bottom: 1px solid #333;">
+                    <th align="left">Fase</th><th align="left">Voltaje</th><th align="left">Amp</th>
                 </tr>
-                <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 6px 4px;">L1-L2</td>
-                    <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
-                    <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
-                </tr>
-                <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 6px 4px;">L2-L3</td>
-                    <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
-                    <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
-                </tr>
-                <tr>
-                    <td style="padding: 6px 4px;">L1-L3</td>
-                    <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
-                    <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
-                </tr>
+                <tr><td>L1</td><td><b>{v[0][0]:.1f}V</b></td><td><b>{a[0][0]:.1f}A</b></td></tr>
+                <tr><td>L2</td><td><b>{v[1][0]:.1f}V</b></td><td><b>{a[1][0]:.1f}A</b></td></tr>
+                <tr><td>L3</td><td><b>{v[2][0]:.1f}V</b></td><td><b>{a[2][0]:.1f}A</b></td></tr>
             </table>
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>▶️ H_Arranque: <b>{h_arr:.1f}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>⏹️ H_Paro: <b>{h_par:.1f}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
-            </div>
+        </div>
+        <div style="font-size: 9px; color: #888; border-top: 1px solid #333; padding-top: 5px;">
+            Última Act: <span style="color:#FFFF00;">{f_q}</span>
         </div>
     </div>
     """
-for id_p, info in mapa_pozos_dict.items():
-    html_popup = f"<div style='background:#000; color:#fff; padding:10px;'><b>POZO {id_p}</b><br>Estado: {info['status_label']}</div>"
-    
-    # Si parpadea (ROJO o NARANJA), usamos DivIcon con HTML animado
+
+    # Creación del Marcador (Punto parpadeante o Círculo fijo)
     if info.get('blink'):
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-            popup=folium.Popup(html_popup, max_width=300)
+            popup=folium.Popup(html_popup, max_width=400)
         ).add_to(m)
     else:
-    folium.CircleMarker(
+        folium.CircleMarker(
+            location=info['coord'],
+            radius=6,
+            color=info['color_final'],
+            fill=True,
+            fill_color=info['color_final'],
+            fill_opacity=1,
+            weight=1,
+            popup=folium.Popup(html_popup, max_width=400)
+        ).add_to(m)
+
+    # Etiqueta de texto con el ID del Pozo
+    folium.map.Marker(
         location=info['coord'],
-        radius=5,
-        color=info['color_final'],
-        fill=True,
-        fill_color=info['color_final'],
-        fill_opacity=1,
-        popup=folium.Popup(html_popup, max_width=300)
-        
-# LA CLAVE: Usamos class_name para aplicar el estilo inyectado
-        class_name="blink_me" if info.get('blink', False) else "",
-        popup=folium.Popup(html_popup, max_width=450)
+        icon=folium.DivIcon(
+            icon_size=(150,36),
+            icon_anchor=(0,0),
+            html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap; text-shadow: 1px 1px #000;">{id_p}</div>'
+        )
     ).add_to(m)
 
-folium.map.Marker(
-        location=info['coord'],
-        icon=folium.DivIcon(html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; transform: translate(12px, -8px);">{id_p}</div>')
-    ).add_to(m)
-
+# Renderizado final en Streamlit
 folium_static(m, width=None, height=750)

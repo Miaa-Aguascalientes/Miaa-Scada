@@ -142,7 +142,7 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# --- 5. PROCESAMIENTO ---
+# --- 5. PROCESAMIENTO (CORREGIDO) ---
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
@@ -159,24 +159,26 @@ for id_p, info in mapa_pozos_dict.items():
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # Verificar antigüedad de voltajes (L1, L2, L3)
-    es_falla_com = False
+    # NUEVA LÓGICA: Solo falla si las TRES líneas de voltaje están viejas (> 4h)
+    voltajes_viejos = 0
     for v_tag in info['voltajes_l']:
         _, fecha_str = data_scada.get(v_tag, (0, "N/A"))
         if fecha_str != "N/A":
             try:
-                # El formato en tu código es '%d/%m %H:%M', necesitamos el año para comparar
                 fecha_dt = datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
                 dif_horas = (ahora - fecha_dt).total_seconds() / 3600
                 if dif_horas > 4:
-                    es_falla_com = True
-                    break
+                    voltajes_viejos += 1
             except: pass
-    
-    if es_falla_com:
+        else:
+            voltajes_viejos += 1 # Si no hay dato, cuenta como viejo
+
+    # Si las 3 líneas fallan, es Falla de Comunicación
+    if voltajes_viejos == 3:
         info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
+        # Si hay comunicación, procedemos con el estado normal (ON/OFF)
         val_bba, f_bba = data_scada.get(info['bomba'], (0, "N/A"))
         q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
         p_val = data_scada.get(info['presion'], (0, "N/A"))[0]

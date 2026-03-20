@@ -22,7 +22,8 @@ st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
-        .sidebar-logo { display: flex; justify-content: center; padding: 10px 0 20px 0; }
+        /* Ajuste de posición del logo: Padding superior en 0 para subirlo al máximo */
+        .sidebar-logo { display: flex; justify-content: center; padding: 0px 0 10px 0; margin-top: -10px; }
         .sidebar-logo img { max-width: 85%; height: auto; }
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
@@ -41,7 +42,7 @@ def get_mysql_scada_engine():
         c = st.secrets["mysql_scada"]
         pwd = urllib.parse.quote_plus(c["password"])
         engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        with engine.connect() as conn: pass # Test connection
+        with engine.connect() as conn: pass 
         return engine
     except: return None
 
@@ -51,7 +52,7 @@ def get_mysql_telemetria_engine():
         c = st.secrets["mysql_telemetria"]
         pwd = urllib.parse.quote_plus(c["password"])
         engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        with engine.connect() as conn: pass # Test connection
+        with engine.connect() as conn: pass 
         return engine
     except: return None
 
@@ -59,7 +60,7 @@ def get_mysql_telemetria_engine():
 def get_postgres_conn():
     try: 
         conn = psycopg2.connect(**st.secrets["postgres"])
-        conn.close() # Test connection and close
+        conn.close() 
         return psycopg2.connect(**st.secrets["postgres"])
     except: 
         return None
@@ -130,7 +131,6 @@ def cargar_sectores_poligonos():
         return []
 
 # --- 5. PROCESAMIENTO ---
-# Primero sectores como pediste
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
@@ -160,9 +160,9 @@ for id_p, info in mapa_pozos_dict.items():
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
+    # Logo colocado al inicio con padding reducido
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     
-    # SECCIÓN DE ESTADO DE BASES DE DATOS
     with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
         status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
@@ -203,7 +203,7 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# RENDERIZADO DE POLIGONOS (SECTORES) - Primero al fondo
+# RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
@@ -216,7 +216,7 @@ for s in sectores:
         tooltip=f"Sector: {s['sector']}"
     ).add_to(m)
 
-# RENDERIZADO DE POZOS - Encima de sectores
+# RENDERIZADO DE POZOS
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')

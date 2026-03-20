@@ -130,7 +130,7 @@ pozos_on, pozos_off, pozos_sin_telemetria = [], [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
-    # Lógica para pozos sin telemetría
+    # Lógica para "Sin telemetria"
     if str(info['bomba']).strip() == "Sin telemetria":
         info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
@@ -163,15 +163,12 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    # Sección de Bombas ON
     st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_on): st.write(f"🟢 {p}")
     
-    # Sección de Bombas OFF
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_off): st.write(f"🔴 {p}")
 
-    # Nueva sección: Pozos SIN TELEMETRÍA en el panel izquierdo
     if pozos_sin_telemetria:
         st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
         for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
@@ -180,19 +177,18 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# Renderizado de sectores
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
         style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
     ).add_to(m)
 
-# Renderizado de pozos
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
+    
+    # Extraer datos solo si no es "Sin telemetría"
     is_st = info['status_label'] == 'SIN TELEMETRÍA'
     
-    # Obtención de valores (se mantienen en 0 si no hay telemetría)
     q, f_q = d(info['caudal']) if not is_st else (0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0, "N/A")

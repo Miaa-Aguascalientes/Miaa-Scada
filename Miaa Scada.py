@@ -301,9 +301,12 @@ with st.sidebar:
                 st.write(f"⚪ {p}")
 
 # 7---------------------------------------------------------------------------------SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
+
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
+# --- CONFIGURACIÓN DE PARPADEO FORZADO PARA RADIO PEQUEÑO ---
+# Usamos un selector de atributo [class*="blink_me"] para asegurar que capture el elemento SVG de Folium
 estilo_final = """
 <style>
 @keyframes parpadeo_miaa {
@@ -311,8 +314,10 @@ estilo_final = """
     50% { opacity: 0.0; }
     100% { opacity: 1.0; }
 }
+/* Forzamos la animación en cualquier elemento que contenga la clase blink_me */
 .blink_me {
-    animation: parpadeo_miaa 1.0s linear infinite !important;
+    animation: parpadeo_miaa 0.8s linear infinite !important;
+    display: block !important;
 }
 </style>
 """
@@ -336,6 +341,7 @@ for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
+    # [Tus variables q, p, sumer, v, a, etc. se mantienen igual]
     q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -347,6 +353,7 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
+    # [Tu html_popup se mantiene igual]
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -420,15 +427,16 @@ for id_p, info in mapa_pozos_dict.items():
     </div>
     """
 
+    # --- EL MARCADOR CON TU RADIO 3 ---
     folium.CircleMarker(
         location=info['coord'],
-        radius=3,
+        radius=3, # Se mantiene tu tamaño original
         color=info['color_final'],
         fill=True,
         fill_color=info['color_final'],
-        fill_opacity=1,
+        fill_opacity=1.0,
         weight=1,
-# LA CLAVE: Usamos class_name para aplicar el estilo inyectado
+        # La clase se aplica aquí
         class_name="blink_me" if info.get('blink', False) else "",
         popup=folium.Popup(html_popup, max_width=450)
     ).add_to(m)

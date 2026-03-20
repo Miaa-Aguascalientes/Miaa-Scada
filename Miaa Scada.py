@@ -98,7 +98,7 @@ def cargar_datos_scada(mapa_pozos):
     for p in mapa_pozos.values():
         for k, v in p.items():
             if isinstance(v, list): 
-                all_tags.extend([str(tag) for tag in v if tag and str(tag) != '0'])
+                all_tags.extend([str(tag) for tag in v if tag and str(tag) not in ['0', 'Sin telemetria']])
             elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): 
                 all_tags.append(v)
     if not all_tags: return {}
@@ -114,7 +114,6 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Consulta usando el esquema Sectorizacion
         query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
@@ -127,10 +126,16 @@ sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-pozos_on, pozos_off = [], []
+pozos_on, pozos_off, pozos_sin_telemetria = [], [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
+    # Lógica para pozos sin telemetría
+    if str(info['bomba']).strip() == "Sin telemetria":
+        info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
+        pozos_sin_telemetria.append(id_p)
+        continue
+
     val_bba, f_bba = data_scada.get(info['bomba'], (0, "N/A"))
     q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
     p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
@@ -157,35 +162,47 @@ with st.sidebar:
         <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Sección de Bombas ON
     st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_on): st.write(f"🟢 {p}")
+    
+    # Sección de Bombas OFF
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_off): st.write(f"🔴 {p}")
+
+    # Nueva sección: Pozos SIN TELEMETRÍA en el panel izquierdo
+    if pozos_sin_telemetria:
+        st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
+        for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
 
 # --- 7. MAPA ---
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# RENDERIZADO DE SECTORES (Tu parte específica)
+# Renderizado de sectores
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
         style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
     ).add_to(m)
 
-# RENDERIZADO DE POZOS
+# Renderizado de pozos
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
-    q, f_q = d(info['caudal'])
-    p, f_p = d(info['presion'])
-    sumer, f_s = d(info['sumergencia'])
-    dinam, f_d = d(info['nivel_dinamico'])
-    tanq, f_t = d(info['nivel_tanque'])
-    col, f_col = d(info['columna'])
-    h_arr, f_h_arr = d(info['h_arranque'])
-    h_par, f_h_par = d(info['h_paro'])
-    v = [d(t) for t in info['voltajes_l']]
-    a = [d(t) for t in info['amperajes_l']]
+    is_st = info['status_label'] == 'SIN TELEMETRÍA'
+    
+    # Obtención de valores (se mantienen en 0 si no hay telemetría)
+    q, f_q = d(info['caudal']) if not is_st else (0, "N/A")
+    p, f_p = d(info['presion']) if not is_st else (0, "N/A")
+    sumer, f_s = d(info['sumergencia']) if not is_st else (0, "N/A")
+    dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0, "N/A")
+    tanq, f_t = d(info['nivel_tanque']) if not is_st else (0, "N/A")
+    col, f_col = d(info['columna']) if not is_st else (0, "N/A")
+    h_arr, f_h_arr = d(info['h_arranque']) if not is_st else (0, "N/A")
+    h_par, f_h_par = d(info['h_paro']) if not is_st else (0, "N/A")
+    v = [d(t) for t in info['voltajes_l']] if not is_st else [(0, "N/A")]*3
+    a = [d(t) for t in info['amperajes_l']] if not is_st else [(0, "N/A")]*3
 
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">

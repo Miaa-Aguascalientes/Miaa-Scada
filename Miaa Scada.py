@@ -115,7 +115,6 @@ def cargar_mapa_pozos_desde_db():
 def cargar_datos_scada(mapa_pozos):
     engine = get_mysql_scada_engine()
     if not engine: return {}
-    
     all_tags = []
     for p in mapa_pozos.values():
         for k, v in p.items():
@@ -123,31 +122,26 @@ def cargar_datos_scada(mapa_pozos):
                 all_tags.extend([str(tag) for tag in v if tag and str(tag) not in ['0', 'Sin telemetria']])
             elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): 
                 all_tags.append(v)
-    
     if not all_tags: return {}
-    
     try:
         tags_str = "', '".join(list(set(all_tags)))
-        
-        # Si dices que las columnas son las mismas, el nombre del campo debe ser NAME
-        # Eliminamos el JOIN y consultamos directo a la nueva tabla
-        query = f"""
-            SELECT NAME, VALUE, FECHA 
-            FROM VfiTagNumHistory_Ultimo 
-            WHERE NAME IN ('{tags_str}')
-        """
+        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)"
         df = pd.read_sql(query, engine)
-        
-        # Retornamos el diccionario con el formato que ya usa tu script
-        return {
-            row['NAME']: (
-                row['VALUE'], 
-                row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A"
-            ) for _, row in df.iterrows()
-        }
-    except Exception as e:
-        st.error(f"Error al leer VfiTagNumHistory_Ultimo: {e}")
-        return {}
+        return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
+    except: return {}
+
+@st.cache_data(ttl=3600)
+def cargar_sectores_poligonos():
+    conn = get_postgres_conn()
+    if not conn: return []
+    try:
+        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return df.to_dict('records')
+    except: 
+        return []
+
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():

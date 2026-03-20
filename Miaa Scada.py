@@ -304,14 +304,19 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# Justo debajo de m = folium.Map(...)
-st_style = """
+estilo_final = """
 <style>
-@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
-.blink_me { animation: blink 1s infinite; }
+@keyframes parpadeo_miaa {
+    0% { opacity: 1.0; }
+    50% { opacity: 0.0; }
+    100% { opacity: 1.0; }
+}
+.blink_me {
+    animation: parpadeo_miaa 1.0s linear infinite !important;
+}
 </style>
 """
-m.get_root().header.add_child(folium.Element(st_style))
+m.get_root().header.add_child(folium.Element(estilo_final))
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:
@@ -422,8 +427,9 @@ for id_p, info in mapa_pozos_dict.items():
         fill=True,
         fill_color=info['color_final'],
         fill_opacity=1,
-        weight=2,
-        class_name="blink_me" if info['blink'] else "",
+        weight=1,
+# LA CLAVE: Usamos class_name para aplicar el estilo inyectado
+        class_name="blink_me" if info.get('blink', False) else "",
         popup=folium.Popup(html_popup, max_width=450)
     ).add_to(m)
 

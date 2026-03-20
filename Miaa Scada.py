@@ -223,7 +223,7 @@ with st.sidebar:
         for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
 
 # --- 7. MAPA ---
-m = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
+m = folium.Map(location=[21.8820, -102.2800], zoom_start=13, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
 # RENDERIZADO DE POLIGONOS (SECTORES)

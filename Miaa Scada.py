@@ -8,6 +8,7 @@ import psycopg2
 import json
 import urllib.parse
 from datetime import datetime
+import time
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
@@ -32,7 +33,7 @@ st.markdown("""
             display: flex; 
             justify-content: center; 
             padding: 0px !important; 
-            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
+            margin-top: -30px !important; 
             margin-bottom: 10px;
         }
         .sidebar-logo img { max-width: 85%; height: auto; }
@@ -78,7 +79,7 @@ def get_postgres_conn():
         return None
 
 # 4. CARGA DE DATOS
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60) # Reducido el TTL para permitir actualizaciones frecuentes
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
     if not engine: return {}
@@ -142,200 +143,200 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# --- 5. PROCESAMIENTO ---
-sectores = cargar_sectores_poligonos()
-mapa_pozos_dict = cargar_mapa_pozos_desde_db()
-data_scada = cargar_datos_scada(mapa_pozos_dict)
+# --- 5. LÓGICA DE ACTUALIZACIÓN AUTOMÁTICA ---
+# Usamos un fragmento para que solo se refresque la parte de datos y el mapa
+@st.fragment(run_every="30s")
+def monitor_principal():
+    # Procesamiento de datos
+    sectores = cargar_sectores_poligonos()
+    mapa_pozos_dict = cargar_mapa_pozos_desde_db()
+    data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-pozos_on, pozos_off, pozos_sin_telemetria = [], [], []
-total_q, total_p = 0.0, 0.0
+    pozos_on, pozos_off, pozos_sin_telemetria = [], [], []
+    total_q, total_p = 0.0, 0.0
 
-for id_p, info in mapa_pozos_dict.items():
-    bomba_val = str(info['bomba']).strip()
-    
-    if bomba_val == "Sin telemetria":
-        info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
-        pozos_sin_telemetria.append(id_p)
-    else:
-        val_bba, f_bba = data_scada.get(info['bomba'], (0, "N/A"))
-        q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
-        p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
+    for id_p, info in mapa_pozos_dict.items():
+        bomba_val = str(info['bomba']).strip()
         
-        if val_bba == 1:
-            info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
-            pozos_on.append(id_p)
-            total_q += q_val
-            total_p += p_val
+        if bomba_val == "Sin telemetria":
+            info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
+            pozos_sin_telemetria.append(id_p)
         else:
-            info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
-            pozos_off.append(id_p)
+            val_bba, f_bba = data_scada.get(info['bomba'], (0, "N/A"))
+            q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
+            p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
+            
+            if val_bba == 1:
+                info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+                pozos_on.append(id_p)
+                total_q += q_val
+                total_p += p_val
+            else:
+                info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
+                pozos_off.append(id_p)
 
-# --- 6. SIDEBAR ---
+    # --- 6. SIDEBAR CONTENIDO DINÁMICO ---
+    with st.sidebar:
+        st.markdown(f"""
+        <div class="resumen-card">
+            <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
+            <p style="font-size: 0.8em; color: #888;">Última act: {datetime.now().strftime('%H:%M:%S')}</p>
+            <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+            <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
+        for p in sorted(pozos_on): st.write(f"🟢 {p}")
+        
+        st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
+        for p in sorted(pozos_off): st.write(f"🔴 {p}")
+
+        if pozos_sin_telemetria:
+            st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
+            for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
+
+    # --- 7. MAPA ---
+    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
+    Fullscreen().add_to(m)
+
+    # RENDERIZADO DE POLIGONOS (SECTORES)
+    for s in sectores:
+        folium.GeoJson(
+            json.loads(s['geo']), 
+            style_function=lambda x: {
+                'fillColor': '#00d4ff', 
+                'color': '#00d4ff', 
+                'weight': 1, 
+                'fillOpacity': 0.1
+            },
+            tooltip=f"Sector: {s['sector']}"
+        ).add_to(m)
+
+    # RENDERIZADO DE POZOS
+    for id_p, info in mapa_pozos_dict.items():
+        d = lambda tag: data_scada.get(tag, (0, "N/A"))
+        is_st = (info['status_label'] == 'SIN TELEMETRÍA')
+        
+        q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+        p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+        sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+        dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+        tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+        col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
+        h_arr, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+        h_par, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+        v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+        a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+
+        html_popup = f"""
+        <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+                <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
+                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                    <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
+                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
+                </div>
+                <div style="display: flex; align-items: baseline; font-size: 11px;">
+                    <span>🚀 Presión: <b>{p:.2f} kg</b></span>
+                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
+                </div>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
+                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                    <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
+                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
+                </div>
+                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                    <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
+                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
+                </div>
+                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                    <span>🏗️ Columna: <b>{col:.1f} m</b></span>
+                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
+                </div>
+                <div style="display: flex; align-items: baseline; font-size: 11px;">
+                    <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
+                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
+                </div>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
+                <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
+                    <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
+                        <th style="padding: 4px;">Fase</th>
+                        <th style="padding: 4px;">Voltaje / Act.</th>
+                        <th style="padding: 4px;">Amp / Act.</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #222;">
+                        <td style="padding: 6px 4px;">L1-L2</td>
+                        <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
+                        <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #222;">
+                        <td style="padding: 6px 4px;">L2-L3</td>
+                        <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
+                        <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 4px;">L1-L3</td>
+                        <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
+                        <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        """
+
+        folium.CircleMarker(
+            location=info['coord'],
+            radius=7,
+            color=info['color_final'],
+            fill=True,
+            fill_color=info['color_final'],
+            fill_opacity=1,
+            weight=0,
+            class_name="blink_me" if info['blink'] else "",
+            popup=folium.Popup(html_popup, max_width=450)
+        ).add_to(m)
+
+        folium.map.Marker(
+            location=info['coord'],
+            icon=folium.DivIcon(
+                icon_size=(150,36),
+                icon_anchor=(0,0),
+                html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
+            )
+        ).add_to(m)
+
+    folium_static(m, width=1300, height=800)
+
+# --- 8. EJECUCIÓN INICIAL DEL SIDEBAR ESTÁTICO ---
 with st.sidebar:
-    # Contenedor del logo con ajustes forzados hacia arriba
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     
     with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
-        status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
-        status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
-        status_postgres = "OK" if get_postgres_conn() else "ERROR"
+        s_scada = "OK" if get_mysql_scada_engine() else "ERROR"
+        s_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
+        s_post = "OK" if get_postgres_conn() else "ERROR"
 
         def get_tag(status):
             cls = "status-ok" if status == "OK" else "status-err"
             return f'<span class="status-tag {cls}">{status}</span>'
 
-        st.markdown(f"**SCADA:** {get_tag(status_mysql_scada)}", unsafe_allow_html=True)
-        st.markdown(f"**Telemetría:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
-        st.markdown(f"**PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
+        st.markdown(f"**SCADA:** {get_tag(s_scada)}", unsafe_allow_html=True)
+        st.markdown(f"**Telemetría:** {get_tag(s_tele)}", unsafe_allow_html=True)
+        st.markdown(f"**PostgreSQL:** {get_tag(s_post)}", unsafe_allow_html=True)
 
-    if st.button("♻️ Actualizar Datos", use_container_width=True):
+    if st.button("♻️ Actualizar Manualmente", use_container_width=True):
         st.cache_data.clear()
         st.cache_resource.clear()
         st.rerun()
 
-    st.markdown(f"""
-    <div class="resumen-card">
-        <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
-        <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
-        <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
-    for p in sorted(pozos_on): st.write(f"🟢 {p}")
-    
-    st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
-    for p in sorted(pozos_off): st.write(f"🔴 {p}")
-
-    if pozos_sin_telemetria:
-        st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
-        for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
-
-# --- 7. MAPA ---
-m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
-Fullscreen().add_to(m)
-
-# RENDERIZADO DE POLIGONOS (SECTORES)
-for s in sectores:
-    folium.GeoJson(
-        json.loads(s['geo']), 
-        style_function=lambda x: {
-            'fillColor': '#00d4ff', 
-            'color': '#00d4ff', 
-            'weight': 1, 
-            'fillOpacity': 0.1
-        },
-        tooltip=f"Sector: {s['sector']}"
-    ).add_to(m)
-
-# RENDERIZADO DE POZOS
-for id_p, info in mapa_pozos_dict.items():
-    d = lambda tag: data_scada.get(tag, (0, "N/A"))
-    is_st = (info['status_label'] == 'SIN TELEMETRÍA')
-    
-    q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
-    p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
-    sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
-    dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
-    tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
-    col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-    h_arr, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
-    h_par, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
-    v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
-    a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
-
-    html_popup = f"""
-    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
-        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
-            <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
-            <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
-        </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
-            </div>
-        </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>🏗️ Columna: <b>{col:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
-            </div>
-        </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-            <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
-                <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                    <th style="padding: 4px;">Fase</th>
-                    <th style="padding: 4px;">Voltaje / Act.</th>
-                    <th style="padding: 4px;">Amp / Act.</th>
-                </tr>
-                <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 6px 4px;">L1-L2</td>
-                    <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
-                    <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
-                </tr>
-                <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 6px 4px;">L2-L3</td>
-                    <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
-                    <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
-                </tr>
-                <tr>
-                    <td style="padding: 6px 4px;">L1-L3</td>
-                    <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
-                    <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
-                </tr>
-            </table>
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>▶️ H_Arranque: <b>{h_arr:.1f}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>⏹️ H_Paro: <b>{h_par:.1f}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
-            </div>
-        </div>
-    </div>
-    """
-
-    folium.CircleMarker(
-        location=info['coord'],
-        radius=7,
-        color=info['color_final'],
-        fill=True,
-        fill_color=info['color_final'],
-        fill_opacity=1,
-        weight=0,
-        class_name="blink_me" if info['blink'] else "",
-        popup=folium.Popup(html_popup, max_width=450)
-    ).add_to(m)
-
-    folium.map.Marker(
-        location=info['coord'],
-        icon=folium.DivIcon(
-            icon_size=(150,36),
-            icon_anchor=(0,0),
-            html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
-        )
-    ).add_to(m)
-
-folium_static(m, width=1300, height=800)
+# Lanzar el monitor principal que se actualiza cada 30s
+monitor_principal()

@@ -24,9 +24,13 @@ st.markdown("""
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
         [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        .sidebar-logo { display: flex; justify-content: center; margin-top: -70px !important; margin-bottom: 10px; }
+        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
+        .sidebar-logo { display: flex; justify-content: center; padding: 0px !important; margin-top: -70px !important; margin-bottom: 10px; }
         .sidebar-logo img { max-width: 85%; height: auto; }
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
+        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
+        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
+        .status-err { background-color: #b71c1c; color: #ef9a9a; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -47,6 +51,11 @@ def get_mysql_telemetria_engine():
         return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except: return None
 
+@st.cache_resource
+def get_postgres_conn():
+    try: return psycopg2.connect(**st.secrets["postgres"])
+    except: return None
+
 # 4-------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
@@ -60,7 +69,11 @@ def cargar_mapa_pozos_desde_db():
                 lat, lon = map(float, str(row['coord']).strip("()").split(','))
                 nuevo_mapa[row['Pozos']] = {
                     "coord": (lat, lon), "bomba": row['bomba'], "caudal": row['caudal'],
-                    "presion": row['presion'], "voltajes_l": [row['voltaje_L1'], row['voltaje_L2'], row['voltaje_L3']]
+                    "presion": row['presion'], "sumergencia": row['sumergencia'],
+                    "nivel_dinamico": row['nivel_dinamico'], "nivel_tanque": row['nivel_tanque'],
+                    "columna": row['columna'], "h_arranque": row['H_arranque'], "h_paro": row['H_paro'],
+                    "voltajes_l": [row['voltaje_L1'], row['voltaje_L2'], row['voltaje_L3']],
+                    "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']]
                 }
             except: continue
         return nuevo_mapa
@@ -72,67 +85,123 @@ def cargar_datos_scada(mapa_pozos):
     all_tags = []
     for p in mapa_pozos.values():
         for k, v in p.items():
-            if isinstance(v, list): all_tags.extend([str(t) for t in v if t and str(t) not in ['0', 'Sin telemetria']])
+            if isinstance(v, list): all_tags.extend([str(tag) for tag in v if tag and str(tag) not in ['0', 'Sin telemetria']])
             elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): all_tags.append(v)
+    if not all_tags: return {}
     try:
         tags_str = "', '".join(list(set(all_tags)))
         query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)"
         df = pd.read_sql(query, engine)
-        return {row['NAME']: (row['VALUE'], row['FECHA']) for _, row in df.iterrows()}
+        return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except: return {}
 
+@st.cache_data(ttl=3600)
+def cargar_sectores_poligonos():
+    conn = get_postgres_conn()
+    if not conn: return []
+    try:
+        df = pd.read_sql('SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"', conn)
+        conn.close()
+        return df.to_dict('records')
+    except: return []
+
 # 5-------------------------------------------------------------------------------- 5. PROCESAMIENTO ----------------------------------------------------------------------------------------------------------
+sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-# URLs de los GIFs para los estados
-GIF_ROJO = "https://raw.githubusercontent.com/iconic/open-iconic/master/png/dot-8x.png" # Placeholder, usaré uno dinámico abajo
-# Usaremos iconos custom con HTML para asegurar que el GIF funcione
+pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
+total_q, total_p = 0.0, 0.0
+ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
 
+for id_p, info in mapa_pozos_dict.items():
+    bomba_val = str(info['bomba']).strip()
+    if bomba_val == "Sin telemetria":
+        info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
+        pozos_sin_telemetria.append(id_p)
+        continue
+
+    tag_l1 = info['voltajes_l'][0]
+    _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
+    es_falla_com = False
+    if fecha_str != "N/A":
+        try:
+            fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
+            if (ahora - fecha_dt).total_seconds() / 3600 > 4: es_falla_com = True
+        except: es_falla_com = True
+    else: es_falla_com = True
+
+    if es_falla_com:
+        info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
+        pozos_falla_com.append(id_p)
+    else:
+        val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
+        if val_bba == 1:
+            info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+            pozos_on.append(id_p)
+            total_q += data_scada.get(info['caudal'], (0, 0))[0]
+            total_p += data_scada.get(info['presion'], (0, 0))[0]
+        else:
+            info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
+            pozos_off.append(id_p)
+            
 # 6 ------------------------------------------------------------------------------- 6. SIDEBAR ------------------------------------------------------------------------------------------
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
+        st.cache_resource.clear()
         st.rerun()
 
 # 7--------------------------------------------------------------------------------- 7. MAPA -------------------------------------------------------------------------------------------------------------
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
+# URLs de los GIFs de parpadeo (son archivos de imagen, cargan 100% seguro)
+URL_GIF_ROJO = "https://raw.githubusercontent.com/MIAA-Aguascalientes/Sistemas/main/red_blink.gif" 
+# Si el repositorio anterior no existe, puedes usar este público:
+URL_GIF_ROJO = "https://upload.wikimedia.org/wikipedia/commons/2/23/Circle-icons-eye.svg" # (Cambiado a uno que sirva de marcador si el gif falla)
+# Para asegurar éxito inmediato, usaremos un icono de punto rojo animado vía HTML:
+def get_blink_icon(color):
+    return f"""
+    <div style="
+        width: 12px; height: 12px; 
+        background-color: {color}; 
+        border-radius: 50%; 
+        box-shadow: 0 0 10px {color};
+        animation: blinker 1s linear infinite;">
+    </div>
+    <style>
+    @keyframes blinker {{ 50% {{ opacity: 0; }} }}
+    </style>
+    """
+
 for id_p, info in mapa_pozos_dict.items():
-    val_bba, _ = data_scada.get(info['bomba'], (0, None))
+    html_popup = f"<div style='background:#000; color:#fff; padding:10px;'><b>POZO {id_p}</b><br>Estado: {info['status_label']}</div>"
     
-    # URL de un GIF circular rojo parpadeante
-    url_gif_rojo = "https://upload.wikimedia.org/wikipedia/commons/1/15/Red_Data_Light.gif"
-    
-    if val_bba == 1:
-        # Si está encendido: Círculo verde estático (funciona bien siempre)
-        folium.CircleMarker(
-            location=info['coord'],
-            radius=6,
-            color='#00FF00',
-            fill=True,
-            fill_color='#00FF00',
-            fill_opacity=1,
-            popup=f"Pozo {id_p}: OPERANDO"
-        ).add_to(m)
-    else:
-        # SI ESTÁ APAGADO: USAMOS UN GIF
-        icon_red = folium.CustomIcon(
-            url_gif_rojo,
-            icon_size=(18, 18), # Tamaño del parpadeo
-        )
+    # Si parpadea (ROJO o NARANJA), usamos DivIcon con HTML animado
+    if info.get('blink'):
         folium.Marker(
             location=info['coord'],
-            icon=icon_red,
-            popup=f"Pozo {id_p}: APAGADO (SISTEMA VIVO)"
+            icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+            popup=folium.Popup(html_popup, max_width=300)
+        ).add_to(m)
+    else:
+        # Si no parpadea (VERDE), el círculo normal
+        folium.CircleMarker(
+            location=info['coord'],
+            radius=5,
+            color=info['color_final'],
+            fill=True,
+            fill_color=info['color_final'],
+            fill_opacity=1,
+            popup=folium.Popup(html_popup, max_width=300)
         ).add_to(m)
 
-    # Etiqueta con el nombre del pozo
+    # Nombre del pozo al lado
     folium.map.Marker(
         location=info['coord'],
-        icon=folium.DivIcon(html=f'<div style="font-size:10px; font-weight:bold; color:{"#00FF00" if val_bba==1 else "#FF0000"}; transform:translate(12px, -10px);">{id_p}</div>')
+        icon=folium.DivIcon(html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; transform: translate(12px, -8px);">{id_p}</div>')
     ).add_to(m)
 
 folium_static(m, width=None, height=750)

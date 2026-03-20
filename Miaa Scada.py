@@ -122,7 +122,7 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# --- 5. PROCESAMIENTO ---
+# --- 5. PROCESAMIENTO (AJUSTADO: Sectores primero) ---
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
@@ -178,7 +178,7 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# RENDERIZADO DE POLIGONOS (SECTORES) - Restaurado
+# RENDERIZADO DE POLIGONOS (SECTORES) - Primero para que queden al fondo
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
@@ -191,7 +191,7 @@ for s in sectores:
         tooltip=f"Sector: {s['sector']}"
     ).add_to(m)
 
-# RENDERIZADO DE POZOS
+# RENDERIZADO DE POZOS - Segundo para que queden encima de los polígonos
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')

@@ -304,22 +304,21 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-estilo_final = """
-<style>
-@keyframes blinker_miaa {
-    0% { opacity: 1.0; }
-    50% { opacity: 0.0; }
-    100% { opacity: 1.0; }
-}
-/* Esto obliga a CUALQUIER círculo rojo (#FF0000) o naranja (#FFA500) a parpadear */
-path.leaflet-interactive[fill="#FF0000"], 
-path.leaflet-interactive[fill="#FFA500"],
-.blink_me {
-    animation: blinker_miaa 0.8s linear infinite !important;
-}
-</style>
+script_parpadeo = """
+<script>
+setInterval(function() {
+    var elementos = document.querySelectorAll('.blink_me');
+    elementos.forEach(function(el) {
+        if (el.style.visibility === 'hidden') {
+            el.style.visibility = 'visible';
+        } else {
+            el.style.visibility = 'hidden';
+        }
+    });
+}, 800);
+</script>
 """
-m.get_root().header.add_child(folium.Element(estilo_final))
+m.get_root().html.add_child(folium.Element(script_parpadeo))
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:

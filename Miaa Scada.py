@@ -142,7 +142,7 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# --- 5. PROCESAMIENTO (CORREGIDO) ---
+# --- 5. PROCESAMIENTO (CORRECCIÓN DEFINITIVA) ---
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
@@ -159,27 +159,36 @@ for id_p, info in mapa_pozos_dict.items():
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # NUEVA LÓGICA: Solo falla si las TRES líneas de voltaje están viejas (> 4h)
-    voltajes_viejos = 0
-    for v_tag in info['voltajes_l']:
-        _, fecha_str = data_scada.get(v_tag, (0, "N/A"))
-        if fecha_str != "N/A":
-            try:
-                fecha_dt = datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
-                dif_horas = (ahora - fecha_dt).total_seconds() / 3600
-                if dif_horas > 4:
-                    voltajes_viejos += 1
-            except: pass
-        else:
-            voltajes_viejos += 1 # Si no hay dato, cuenta como viejo
+    # 1. EVALUAR SOLO VOLTAJE L1 PARA COMUNICACIÓN
+    tag_l1 = info['voltajes_l'][0] # Tomamos la primera línea (L1)
+    _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
+    
+    es_falla_com = False
+    if fecha_str != "N/A":
+        try:
+            # Forzamos el año actual y convertimos a objeto datetime
+            fecha_dt = datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
+            
+            # Calculamos la diferencia en horas
+            diferencia = ahora - fecha_dt
+            horas_transcurridas = diferencia.total_seconds() / 3600
+            
+            if horas_transcurridas > 4:
+                es_falla_com = True
+        except Exception as e:
+            # Si hay error en la fecha, por seguridad no lo marcamos como falla 
+            # para evitar falsos positivos como los de la imagen
+            es_falla_com = False 
+    else:
+        es_falla_com = True # Si no hay fecha, no hay comunicación
 
-    # Si las 3 líneas fallan, es Falla de Comunicación
-    if voltajes_viejos == 3:
+    # 2. ASIGNACIÓN DE ESTADOS
+    if es_falla_com:
         info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
-        # Si hay comunicación, procedemos con el estado normal (ON/OFF)
-        val_bba, f_bba = data_scada.get(info['bomba'], (0, "N/A"))
+        # Si la comunicación es buena (< 4h), evaluamos si está ON u OFF
+        val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
         q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
         p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
         
@@ -191,7 +200,7 @@ for id_p, info in mapa_pozos_dict.items():
         else:
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
-
+            
 # --- 6. SIDEBAR ---
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba

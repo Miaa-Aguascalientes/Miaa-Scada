@@ -98,11 +98,9 @@ def cargar_datos_scada(mapa_pozos):
     for p in mapa_pozos.values():
         for k, v in p.items():
             if isinstance(v, list): 
-                # Solo agregamos tags si no son '0' o 'Sin telemetria'
                 all_tags.extend([str(tag) for tag in v if tag and str(tag) not in ['0', 'Sin telemetria']])
             elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): 
                 all_tags.append(v)
-    
     if not all_tags: return {}
     try:
         tags_str = "', '".join(list(set(all_tags)))
@@ -116,6 +114,7 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
+        # Consulta explícita al esquema Sectorizacion
         query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
@@ -132,7 +131,6 @@ pozos_on, pozos_off, pozos_sin_telemetria = [], [], []
 total_q, total_p = 0.0, 0.0
 
 for id_p, info in mapa_pozos_dict.items():
-    # Detectar explícitamente "Sin telemetria"
     bomba_val = str(info['bomba']).strip()
     
     if bomba_val == "Sin telemetria":
@@ -166,14 +164,12 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    # Listado en el Panel Izquierdo
     st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_on): st.write(f"🟢 {p}")
     
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_off): st.write(f"🔴 {p}")
 
-    # SECCIÓN SOLICITADA: Sin Telemetría
     if pozos_sin_telemetria:
         st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
         for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
@@ -182,17 +178,24 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
+# RENDERIZADO DE POLIGONOS (SECTORES) - Restaurado
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
-        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
+        style_function=lambda x: {
+            'fillColor': '#00d4ff', 
+            'color': '#00d4ff', 
+            'weight': 1, 
+            'fillOpacity': 0.1
+        },
+        tooltip=f"Sector: {s['sector']}"
     ).add_to(m)
 
+# RENDERIZADO DE POZOS
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
-    # Si es "Sin Telemetría", los valores por defecto son 0 y "N/A"
     q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -201,7 +204,6 @@ for id_p, info in mapa_pozos_dict.items():
     col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
     h_arr, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
     h_par, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
-    
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
@@ -211,7 +213,6 @@ for id_p, info in mapa_pozos_dict.items():
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        <div style="font-size: 11px; margin-bottom: 10px;">{ "⚠️ No hay conexión de datos SCADA para este pozo." if is_st else "" }</div>
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
             <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
@@ -241,7 +242,6 @@ for id_p, info in mapa_pozos_dict.items():
     </div>
     """
 
-    # PUNTO EN GRIS EN EL MAPA (P101)
     folium.CircleMarker(
         location=info['coord'],
         radius=7,
@@ -254,7 +254,6 @@ for id_p, info in mapa_pozos_dict.items():
         popup=folium.Popup(html_popup, max_width=450)
     ).add_to(m)
 
-    # ETIQUETA DE TEXTO
     folium.map.Marker(
         location=info['coord'],
         icon=folium.DivIcon(

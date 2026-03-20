@@ -458,4 +458,4 @@ for id_p, info in mapa_pozos_dict.items():
             popup=folium.Popup(html_popup, max_width=500)
         ).add_to(m)
 
-folium_static(m, width=None, height=750)
+folium_static(m, width=1200, height=750)

@@ -200,24 +200,16 @@ for id_p, info in mapa_pozos_dict.items():
         es_falla_com = True # Sin fecha es falla directa
 
     # 3. ASIGNACIÓN DE ESTADOS Y PARPADEO (BLINK)
-    if es_falla_com:
-        # FALLA DE COMUNICACIÓN: Naranja + Parpadeo
+     if es_falla_com:
         info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
-        # Si hay comunicación reciente, revisamos si la bomba está encendida o apagada
         val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
-        q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
-        p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
-        
         if val_bba == 1:
-            # OPERANDO: Verde + Fijo
             info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
             pozos_on.append(id_p)
-            total_q += q_val
-            total_p += p_val
         else:
-            # APAGADO: Rojo + Parpadeo
+            # IMPORTANTE: blink debe ser True para los rojos
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
             

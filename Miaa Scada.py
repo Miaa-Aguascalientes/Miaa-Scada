@@ -301,7 +301,6 @@ with st.sidebar:
                 st.write(f"⚪ {p}")
 
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
-# 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
@@ -315,7 +314,7 @@ def formato_hora(decimal):
     except:
         return "00:00"
 
-# 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
+# 2. FUNCIÓN PARA ICONO PARPADEANTE (8px)
 def get_blink_icon(color):
     return f"""
     <div style="
@@ -330,7 +329,7 @@ def get_blink_icon(color):
     </style>
     """
 
-# 3. RENDERIZADO DE POLIGONOS (SECTORES)
+# 3. RENDERIZADO DE SECTORES
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
@@ -343,7 +342,7 @@ for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
-    # Extracción de datos
+    # Datos SCADA
     q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -351,7 +350,6 @@ for id_p, info in mapa_pozos_dict.items():
     tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
     col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
     
-    # Formateo de Horas
     h_arr_val, _ = d(info['h_arranque']) if not is_st else (0.0, "N/A")
     h_par_val, _ = d(info['h_paro']) if not is_st else (0.0, "N/A")
     h_arr_fmt = formato_hora(h_arr_val)
@@ -360,52 +358,48 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-    # HTML DEL POPUP
+    # HTML DEL POPUP (Ajustado)
     html_popup = f"""
-    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 320px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 300px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 12px;">
-            <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
-            <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+            <b style="color: #00d4ff; font-size: 14px;">POZO {id_p}</b>
+            <span style="font-size: 9px; background: {info['color_final']}; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        <div style="margin-bottom: 12px; font-size: 12px;">
-            <div style="display: flex; justify-content: space-between;">
-                <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                <span style="color: #FFFF00; font-size: 9px;">{f_q}</span>
-            </div>
-            <span>🚀 Presión: <b>{p:.2f} kg</b></span>
+        <div style="font-size: 11px; margin-bottom: 8px;">
+            💧 Caudal: <b>{q:.2f} L/s</b><br>
+            🚀 Presión: <b>{p:.2f} kg</b>
         </div>
-        <div style="margin-bottom: 12px; border-top: 1px solid #222; padding-top: 8px; font-size: 11px;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                <div>📏 Sumer: <b>{sumer:.1f} m</b></div>
-                <div>📉 Dinam: <b>{dinam:.1f} m</b></div>
-                <div>🏗️ Colum: <b>{col:.1f} m</b></div>
-                <div>🔋 Tanque: <b style="color: #00d4ff;">{tanq:.1f} mts</b></div>
-            </div>
+        <div style="font-size: 11px; border-top: 1px solid #222; padding-top: 8px;">
+            📏 Sumer: <b>{sumer:.1f} m</b> | 🏗️ Col: <b>{col:.1f} m</b><br>
+            🔋 Tanque: <b style="color: #00d4ff;">{tanq:.1f} mts</b>
         </div>
-        <div style="border-top: 1px solid #222; padding-top: 8px; display: flex; justify-content: space-between; font-size: 11px;">
-            <div style="color: #a5d6a7;">▶️ Arr: <b>{h_arr_fmt}</b></div>
-            <div style="color: #ef9a9a;">⏹️ Paro: <b>{h_par_fmt}</b></div>
+        <div style="font-size: 11px; border-top: 1px solid #222; padding-top: 8px; color: #a5d6a7;">
+            ▶️ Arr: <b>{h_arr_fmt}</b> | ⏹️ Paro: <b>{h_par_fmt}</b>
         </div>
     </div>
     """
 
-    # 1. PRIMERO DIBUJAMOS EL TEXTO (Abajo en capas para que no bloquee el clic)
+    # --- EL TRUCO PARA QUE EL CLIC FUNCIONE ---
+    # Creamos un FeatureGroup por pozo para asegurar que el marcador esté "encima" del texto
+    fg = folium.FeatureGroup(name=f"Pozo {id_p}").add_to(m)
+
+    # 1. El Nombre (Sin eventos de puntero para que no bloquee el clic)
     folium.Marker(
         location=info['coord'],
         icon=folium.DivIcon(
-            icon_size=(100,20),
-            icon_anchor=(-8, 10), # Desplaza el texto a la derecha (negativo en X)
+            icon_size=(150,36),
+            icon_anchor=(-10, 8), # Empuja el texto a la DERECHA
             html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
         )
-    ).add_to(m)
+    ).add_to(fg)
 
-    # 2. LUEGO EL MARCADOR (Arriba para recibir el clic)
+    # 2. El Punto (Con el Popup)
     if info.get('blink'):
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
             popup=folium.Popup(html_popup, max_width=400)
-        ).add_to(m)
+        ).add_to(fg)
     else:
         folium.CircleMarker(
             location=info['coord'],
@@ -416,6 +410,6 @@ for id_p, info in mapa_pozos_dict.items():
             fill_opacity=1,
             weight=1,
             popup=folium.Popup(html_popup, max_width=400)
-        ).add_to(m)
+        ).add_to(fg)
 
 folium_static(m, width=None, height=750)

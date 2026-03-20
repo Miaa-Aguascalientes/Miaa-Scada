@@ -8,8 +8,8 @@ import psycopg2
 import json
 import urllib.parse
 from datetime import datetime
-import plotly.graph_objects as go  # <--- AÑADIR ESTA LÍNEA
-...
+import datetime as dt
+import plotly.graph_objects as go
 
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
@@ -24,26 +24,20 @@ st.markdown("""
     <style>
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
-        
-        /* ELIMINAR ESPACIO SUPERIOR POR DEFECTO DE STREAMLIT EN SIDEBAR */
         [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
         [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
-        
-        /* AJUSTE MÁXIMO DEL LOGO HACIA ARRIBA */
         .sidebar-logo { 
             display: flex; 
             justify-content: center; 
             padding: 0px !important; 
-            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
+            margin-top: -70px !important; 
             margin-bottom: 10px;
         }
         .sidebar-logo img { max-width: 85%; height: auto; }
-        
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
         .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
     </style>
@@ -56,7 +50,6 @@ def get_mysql_scada_engine():
         c = st.secrets["mysql_scada"]
         pwd = urllib.parse.quote_plus(c["password"])
         engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        with engine.connect() as conn: pass 
         return engine
     except: return None
 
@@ -66,18 +59,13 @@ def get_mysql_telemetria_engine():
         c = st.secrets["mysql_telemetria"]
         pwd = urllib.parse.quote_plus(c["password"])
         engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        with engine.connect() as conn: pass 
         return engine
     except: return None
 
 @st.cache_resource
 def get_postgres_conn():
-    try: 
-        conn = psycopg2.connect(**st.secrets["postgres"])
-        conn.close() 
-        return psycopg2.connect(**st.secrets["postgres"])
-    except: 
-        return None
+    try: return psycopg2.connect(**st.secrets["postgres"])
+    except: return None
 
 # 4-------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
@@ -87,7 +75,6 @@ def cargar_mapa_pozos_desde_db():
     try:
         query = "SELECT * FROM Diccionario_de_pozos"
         df_pozos = pd.read_sql(query, engine)
-        
         nuevo_mapa = {}
         for _, row in df_pozos.iterrows():
             try:
@@ -95,24 +82,15 @@ def cargar_mapa_pozos_desde_db():
                 lat, lon = map(float, coords_str.split(','))
                 coords = (lat, lon)
             except: continue
-
             nuevo_mapa[row['Pozos']] = {
-                "coord": coords,
-                "bomba": row['bomba'],
-                "caudal": row['caudal'],
-                "presion": row['presion'],
-                "sumergencia": row['sumergencia'],
-                "nivel_dinamico": row['nivel_dinamico'],
-                "nivel_tanque": row['nivel_tanque'],
-                "columna": row['columna'],
-                "h_arranque": row['H_arranque'],
-                "h_paro": row['H_paro'],
+                "coord": coords, "bomba": row['bomba'], "caudal": row['caudal'], "presion": row['presion'],
+                "sumergencia": row['sumergencia'], "nivel_dinamico": row['nivel_dinamico'], "nivel_tanque": row['nivel_tanque'],
+                "columna": row['columna'], "h_arranque": row['H_arranque'], "h_paro": row['H_paro'],
                 "voltajes_l": [row['voltaje_L1'], row['voltaje_L2'], row['voltaje_L3']],
                 "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']]
             }
         return nuevo_mapa
-    except:
-        return {}
+    except: return {}
 
 def cargar_datos_scada(mapa_pozos):
     engine = get_mysql_scada_engine()
@@ -120,14 +98,12 @@ def cargar_datos_scada(mapa_pozos):
     all_tags = []
     for p in mapa_pozos.values():
         for k, v in p.items():
-            if isinstance(v, list): 
-                all_tags.extend([str(tag) for tag in v if tag and str(tag) not in ['0', 'Sin telemetria']])
-            elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): 
-                all_tags.append(v)
+            if isinstance(v, list): all_tags.extend([str(tag) for tag in v if tag and str(tag) not in ['0', 'Sin telemetria']])
+            elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): all_tags.append(v)
     if not all_tags: return {}
     try:
         tags_str = "', '".join(list(set(all_tags)))
-        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)"
+        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}')"
         df = pd.read_sql(query, engine)
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except: return {}
@@ -141,424 +117,179 @@ def cargar_sectores_poligonos():
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
-    except: 
-        return []
-
-
-@st.cache_data(ttl=3600)
-def cargar_sectores_poligonos():
-    conn = get_postgres_conn()
-    if not conn: return []
-    try:
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df.to_dict('records')
-    except: 
-        return []
+    except: return []
 
 @st.cache_data(ttl=300)
-def cargar_historico_detallado(id_pozo):
+def cargar_historico_detallado(id_pozo, mapa_pozos):
     engine = get_mysql_scada_engine()
-    if not engine or id_pozo not in mapa_pozos_dict: return pd.DataFrame()
-    
-    info = mapa_pozos_dict[id_pozo]
-    # Mapeamos los tags a nombres legibles para la gráfica
+    if not engine or id_pozo not in mapa_pozos: return pd.DataFrame()
+    info = mapa_pozos[id_pozo]
     tags_map = {
-        info['caudal']: 'Caudal (l/s)',
-        info['presion']: 'Presión (Kg/cm²)',
-        info['sumergencia']: 'Sumergencia (m)',
-        info['voltajes_l'][0]: 'Volt L1',
-        info['voltajes_l'][1]: 'Volt L2',
-        info['voltajes_l'][2]: 'Volt L3',
-        info['amperajes_l'][0]: 'Amp L1',
-        info['amperajes_l'][1]: 'Amp L2',
-        info['amperajes_l'][2]: 'Amp L3'
+        info['caudal']: 'Caudal (l/s)', info['presion']: 'Presión (Kg/cm²)',
+        info['sumergencia']: 'Sumergencia (m)', info['nivel_dinamico']: 'Nivel Dinámico (m)',
+        info['voltajes_l'][0]: 'Volt L1', info['voltajes_l'][1]: 'Volt L2', info['voltajes_l'][2]: 'Volt L3',
+        info['amperajes_l'][0]: 'Amp L1', info['amperajes_l'][1]: 'Amp L2', info['amperajes_l'][2]: 'Amp L3'
     }
-    
-    # Limpiamos tags inválidos o '0'
     tags_validos = [str(t) for t in tags_map.keys() if t and str(t) not in ['0', 'Sin telemetria']]
     if not tags_validos: return pd.DataFrame()
-
-    tags_str = "', '".join(tags_validos)
     query = f"""
-        SELECT h.FECHA, r.NAME, h.VALUE 
-        FROM VfiTagNumHistory h 
+        SELECT h.FECHA, r.NAME, h.VALUE FROM VfiTagNumHistory h 
         JOIN VfiTagRef r ON h.GATEID = r.GATEID 
-        WHERE r.NAME IN ('{tags_str}') 
-        AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+        WHERE r.NAME IN ('{"', '".join(tags_validos)}') AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 3 DAY)
         ORDER BY h.FECHA ASC
     """
     df = pd.read_sql(query, engine)
     if df.empty: return df
-    
-    # Transformamos los datos para Plotly
     df['NAME'] = df['NAME'].map(tags_map)
-    df_pivot = df.pivot(index='FECHA', columns='NAME', values='VALUE').interpolate()
-    return df_pivot
+    return df.pivot(index='FECHA', columns='NAME', values='VALUE').interpolate()
 
-# 5--------------------------------------------------- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---------------------------------------------------------------------
-
-# 1. Carga de datos base
+# --- 5. PROCESAMIENTO ---
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-# 2. Inicialización de listas y contadores para el resumen
-pozos_on = []
-pozos_off = []
-pozos_sin_telemetria = []
-pozos_falla_com = []
-total_q = 0.0
-total_p = 0.0
-
-# 3. Ajuste de Hora Local (Aguascalientes UTC-6)
-# Esto evita que datos recientes se marquen como falla por el desfase del servidor
-import datetime as dt
-ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
+# Lógica de estados
+pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
+total_q, total_p = 0.0, 0.0
+ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
 
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
-    
-    # A. FILTRO INICIAL: SIN TELEMETRÍA
     if bomba_val == "Sin telemetria":
-        info.update({
-            'status_label': 'SIN TELEMETRÍA', 
-            'color_final': '#808080', 
-            'blink': False
-        })
+        info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # B. VALIDACIÓN DE COMUNICACIÓN (SOLO L1)
-    # Buscamos el tag de la línea 1 de voltaje configurado en el diccionario
     tag_l1 = info['voltajes_l'][0]
     _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
-    
     es_falla_com = False
     if fecha_str != "N/A":
         try:
-            # Convertimos la fecha del SCADA (ej. "20/03 08:29") usando el año actual
             fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
-            
-            # Calculamos la antigüedad del dato en horas
-            diff = ahora - fecha_dt
-            horas_atras = diff.total_seconds() / 3600
-            
-            # Si el último dato de L1 es de hace más de 4 horas -> FALLA COM.
-            if horas_atras > 4:
-                es_falla_com = True
-        except:
-            # Si hay error al procesar la fecha, se marca como falla por precaución
-            es_falla_com = True
-    else:
-        # Si no hay fecha registrada para L1, no hay comunicación
-        es_falla_com = True
+            if (ahora - fecha_dt).total_seconds() / 3600 > 4: es_falla_com = True
+        except: es_falla_com = True
+    else: es_falla_com = True
 
-    # C. ASIGNACIÓN DE ESTADO FINAL Y PARPADEO
     if es_falla_com:
-        # FALLA DE COMUNICACIÓN: Naranja y Parpadea
-        info.update({
-            'status_label': 'FALLA COM.', 
-            'color_final': '#FFA500', 
-            'blink': True
-        })
+        info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
-        # Si hay comunicación (< 4h), evaluamos si la bomba está encendida
-        val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
-        q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
-        p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
-        
+        val_bba = data_scada.get(info['bomba'], (0, "N/A"))[0]
         if val_bba == 1:
-            # OPERANDO: Verde y Fijo
-            info.update({
-                'status_label': 'OPERANDO', 
-                'color_final': '#00FF00', 
-                'blink': False
-            })
-            pozos_on.append(id_p)
-            total_q += q_val
-            total_p += p_val
+            info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+            pozos_on.append(id_p); total_q += data_scada.get(info['caudal'], (0, ""))[0]; total_p += data_scada.get(info['presion'], (0, ""))[0]
         else:
-            # APAGADO: Rojo y Parpadea
-            info.update({
-                'status_label': 'APAGADO', 
-                'color_final': '#FF0000', 
-                'blink': True
-            })
+            info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- 5.5 LÓGICA DE NAVEGACIÓN (PANTALLA DE GRÁFICAS) ---
-    if "pozo" in st.query_params:
+# --- 5.5 VISTA DE GRÁFICAS (DETIENE MAPA SI SE ACTIVA) ---
+if "pozo" in st.query_params:
     pozo_id = st.query_params["pozo"]
-    
-    # Botón para regresar al mapa (limpia la URL)
-    if st.button("⬅️ Volver al Mapa Principal"):
+    if st.button("⬅️ Volver al Mapa"):
         st.query_params.clear()
         st.rerun()
-        
-    st.title(f"📊 Análisis Detallado: {pozo_id}")
-    
-    df_plot = cargar_historico_detallado(pozo_id)
-    
+    st.title(f"📈 Análisis Detallado: {pozo_id}")
+    df_plot = cargar_historico_detallado(pozo_id, mapa_pozos_dict)
     if not df_plot.empty:
         fig = go.Figure()
-        # ... (Aquí va todo el código de Plotly que me pasaste) ...
+        if 'Caudal (l/s)' in df_plot: fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Caudal (l/s)'], name="Caudal (l/s)", line=dict(color='#00ffff', width=2)))
+        if 'Presión (Kg/cm²)' in df_plot: fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Presión (Kg/cm²)'], name="Presión", line=dict(color='#00ff00', width=2)))
+        for col, color in zip(['Volt L1', 'Volt L2', 'Volt L3'], ['#ffd700', '#ffa500', '#ff4500']):
+            if col in df_plot: fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot[col], name=col, yaxis="y2", line=dict(dash='dot', color=color)))
+        if 'Sumergencia (m)' in df_plot: fig.add_trace(go.Scatter(x=df_plot.index, y=df_plot['Sumergencia (m)'], name="Sumergencia", yaxis="y3", line=dict(color='#ff00ff', width=3)))
         
+        fig.update_layout(
+            template="plotly_dark", hovermode="x unified", height=700,
+            yaxis=dict(title="Hidráulica", titlefont=dict(color="#00ff00")),
+            yaxis2=dict(title="Voltaje", overlaying="y", side="right", titlefont=dict(color="#ffd700")),
+            yaxis3=dict(title="Nivel (m)", overlaying="y", side="right", anchor="free", position=0.95, titlefont=dict(color="#ff00ff")),
+            legend=dict(orientation="h", y=1.05)
+        )
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error(f"No se encontraron datos históricos recientes para el Pozo {pozo_id}")
-        
-    st.stop() # CRÍTICO: Detiene la ejecución para que no cargue el mapa abajo
-            
-# 6 -------------------------------------------------------------------------------SECCION 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
+    else: st.warning("No hay datos históricos.")
+    st.stop()
+
+# 6 ------------------------------------------------------------------------------- SIDEBAR ------------------------------------------------------------------------------------------
 with st.sidebar:
-    # Contenedor del logo con ajustes forzados hacia arriba
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
-    
     with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
-        status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
-        status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
-        status_postgres = "OK" if get_postgres_conn() else "ERROR"
-
-        def get_tag(status):
-            cls = "status-ok" if status == "OK" else "status-err"
-            return f'<span class="status-tag {cls}">{status}</span>'
-
-        st.markdown(f"**SCADA:** {get_tag(status_mysql_scada)}", unsafe_allow_html=True)
-        st.markdown(f"**Telemetría:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
-        st.markdown(f"**PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
-
-    if st.button("♻️ Actualizar Datos", use_container_width=True):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.rerun()
-
-    st.markdown(f"""
-    <div class="resumen-card">
-        <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
-        <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
-        <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-# Sección de Bombas ON
-    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
-        for p in sorted(pozos_on): 
-            st.write(f"🟢 {p}")
-    
-    # Sección de Bombas OFF
-    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
-        for p in sorted(pozos_off): 
-            st.write(f"🔴 {p}")
-
-    # Nueva Sección: Falla de Comunicación
+        s1, s2, s3 = get_mysql_scada_engine(), get_mysql_telemetria_engine(), get_postgres_conn()
+        st.markdown(f"**SCADA:** {'<span class="status-tag status-ok">OK</span>' if s1 else '<span class="status-tag status-err">ERR</span>'}", unsafe_allow_html=True)
+        st.markdown(f"**Telemetría:** {'<span class="status-tag status-ok">OK</span>' if s2 else '<span class="status-tag status-err">ERR</span>'}", unsafe_allow_html=True)
+    if st.button("♻️ Actualizar Datos", use_container_width=True): st.cache_data.clear(); st.rerun()
+    st.markdown(f'<div class="resumen-card"><h4 style="color:#00d4ff;">RESUMEN</h4><p>Caudal: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p><p>Presión: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg</b></p></div>', unsafe_allow_html=True)
+    with st.expander(f"🟢 ON ({len(pozos_on)})"): [st.write(f"🟢 {p}") for p in sorted(pozos_on)]
+    with st.expander(f"🔴 OFF ({len(pozos_off)})"): [st.write(f"🔴 {p}") for p in sorted(pozos_off)]
     if pozos_falla_com:
-        with st.expander(f"⚠️ Falla de Com. (+4h) ({len(pozos_falla_com)})", expanded=False):
-            for p in sorted(pozos_falla_com):
-                st.write(f"🟠 {p}")
-    
-    # Sección Sin Telemetría
-    if pozos_sin_telemetria:
-        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
-            for p in sorted(pozos_sin_telemetria): 
-                st.write(f"⚪ {p}")
+        with st.expander(f"⚠️ Falla Com ({len(pozos_falla_com)})"): [st.write(f"🟠 {p}") for p in sorted(pozos_falla_com)]
 
-# 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
+# 7--------------------------------------------------------------------------------- MAPA -------------------------------------------------------------------------------------------------------------
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# 1. FUNCIÓN PARA HORARIO 00:00
 def formato_hora(decimal):
     try:
-        if decimal == "N/A" or decimal is None: return "00:00"
-        horas = int(float(decimal))
-        minutos = int((float(decimal) - horas) * 60)
+        horas = int(float(decimal)); minutos = int((float(decimal) - horas) * 60)
         return f"{horas:02d}:{minutos:02d}"
     except: return "00:00"
 
-# 2. FUNCIÓN PARA ICONO PARPADEANTE (8px)
-def get_blink_icon(color):
-    return f"""
-    <div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
-    <style> @keyframes blinker {{ 50% {{ opacity: 0.2; }} }} </style>
-    """
-
-# 3. RENDERIZADO DE SECTORES
 for s in sectores:
-    try:
-        folium.GeoJson(
-            json.loads(s['geo']), 
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-            tooltip=f"Sector: {s['sector']}"
-        ).add_to(m)
-    except: continue
+    folium.GeoJson(json.loads(s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}).add_to(m)
 
-# 4. RENDERIZADO DE POZOS
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
-    # Datos y fechas
-    q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
-    p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
-    sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
-    dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
-    tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
-    col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-    
-    h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
-    h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
-    h_arr_fmt = formato_hora(h_arr_val)
-    h_par_fmt = formato_hora(h_par_val)
+    q, f_q = d(info['caudal']); p, f_p = d(info['presion'])
+    sumer, f_s = d(info['sumergencia']); dinam, f_d = d(info['nivel_dinamico'])
+    tanq, f_t = d(info['nivel_tanque']); col, f_col = d(info['columna'])
+    h_arr, f_arr = d(info['h_arranque']); h_par, f_par = d(info['h_paro'])
+    v = [d(t) for t in info['voltajes_l']]; a = [d(t) for t in info['amperajes_l']]
 
-    v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
-    a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
-    
-def cargar_historico_detallado(id_pozo):
-    engine = get_mysql_scada_engine()
-    if not engine: return pd.DataFrame()
-    
-    info = mapa_pozos_dict.get(id_pozo)
-    if not info: return pd.DataFrame()
-
-    # Mapeo de tags según tu estructura de base de datos
-    tags_map = {
-        info['caudal']: 'Caudal (l/s)',
-        info['presion']: 'Presión (Kg/cm²)',
-        info['sumergencia']: 'Sumergencia (m)',
-        info['nivel_dinamico']: 'Nivel Dinámico (m)',
-        info['voltajes_l'][0]: 'Volt L1',
-        info['voltajes_l'][1]: 'Volt L2',
-        info['voltajes_l'][2]: 'Volt L3',
-        info['amperajes_l'][0]: 'Amp L1',
-        info['amperajes_l'][1]: 'Amp L2',
-        info['amperajes_l'][2]: 'Amp L3'
-    }
-    
-    tags_str = "', '".join([t for t in tags_map.keys() if t and str(t) != '0'])
-    
-    query = f"""
-        SELECT h.FECHA, r.NAME, h.VALUE 
-        FROM VfiTagNumHistory h 
-        JOIN VfiTagRef r ON h.GATEID = r.GATEID 
-        WHERE r.NAME IN ('{tags_str}') 
-        AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        ORDER BY h.FECHA ASC
-    """
-    df = pd.read_sql(query, engine)
-    
-    # Renombrar tags a nombres legibles y pivotar
-    df['NAME'] = df['NAME'].map(tags_map)
-    return df.pivot(index='FECHA', columns='NAME', values='VALUE').interpolate()
-    
-    url_grafica = f"/?pozo={urllib.parse.quote(id_p)}"
-    # DISEÑO ORIGINAL RESTAURADO CON FECHAS COMPLETAS (Día/Mes/Año)
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        
         <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
-            </div>
+            <div style="font-size: 10px; color: #888;">HIDRÁULICA</div>
+            <div style="display: flex; font-size: 11px;">💧 Caudal: <b>{q:.2f} L/s</b> <span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_q}</span></div>
+            <div style="display: flex; font-size: 11px;">🚀 Presión: <b>{p:.2f} kg</b> <span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_p}</span></div>
         </div>
-
         <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>🏗️ Columna: <b>{col:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🔋 Tanque: <b>{tanq:.1f} mts</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
-            </div>
+            <div style="font-size: 10px; color: #888;">NIVELES</div>
+            <div style="display: flex; font-size: 11px;">📏 Sumergencia: <b>{sumer:.1f} m</b> <span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_s}</span></div>
+            <div style="display: flex; font-size: 11px;">📉 Dinámico: <b>{dinam:.1f} m</b> <span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_d}</span></div>
+            <div style="display: flex; font-size: 11px;">🏗️ Columna: <b>{col:.1f} m</b> <span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_col}</span></div>
+            <div style="display: flex; font-size: 11px;">🔋 Tanque: <b>{tanq:.1f} mts</b> <span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_t}</span></div>
         </div>
-
         <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-            <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
-                <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                    <th style="padding: 4px;">Fase</th>
-                    <th style="padding: 4px;">Voltaje / Act.</th>
-                    <th style="padding: 4px;">Amp / Act.</th>
-                </tr>
-                <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 6px 4px;">L1-L2</td>
-                    <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
-                    <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
-                </tr>
-                <tr style="border-bottom: 1px solid #222;">
-                    <td style="padding: 6px 4px;">L2-L3</td>
-                    <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
-                    <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
-                </tr>
-                <tr>
-                    <td style="padding: 6px 4px;">L1-L3</td>
-                    <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
-                    <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
-                </tr>
+            <div style="font-size: 10px; color: #888;">ELÉCTRICO</div>
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
+                <tr><td>L1-L2</td><td>{v[0][0]:.1f}V <span style="font-size:7px; color:#ff0;">{v[0][1]}</span></td><td>{a[0][0]:.1f}A <span style="font-size:7px; color:#ff0;">{a[0][1]}</span></td></tr>
+                <tr><td>L2-L3</td><td>{v[1][0]:.1f}V <span style="font-size:7px; color:#ff0;">{v[1][1]}</span></td><td>{a[1][0]:.1f}A <span style="font-size:7px; color:#ff0;">{a[1][1]}</span></td></tr>
+                <tr><td>L1-L3</td><td>{v[2][0]:.1f}V <span style="font-size:7px; color:#ff0;">{v[2][1]}</span></td><td>{a[2][0]:.1f}A <span style="font-size:7px; color:#ff0;">{a[2][1]}</span></td></tr>
             </table>
-            
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>▶️ Arranque: <b>{h_arr_fmt}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>⏹️ Paro: <b>{h_par_fmt}</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
-            </div>
+        </div>
+        <div style="margin-bottom: 12px; border-top: 1px solid #333; padding-top: 5px;">
+            <div style="display: flex; font-size: 11px;">▶️ Arranque: <b>{formato_hora(h_arr)}</b> <span style="color:#ff0; font-size:8px; margin-left:auto;">{f_arr}</span></div>
+            <div style="display: flex; font-size: 11px;">⏹️ Paro: <b>{formato_hora(h_par)}</b> <span style="color:#ff0; font-size:8px; margin-left:auto;">{f_par}</span></div>
+        </div>
+        <div style="text-align: center; margin-top: 10px;">
+            <a href="./?pozo={id_p}" target="_blank" style="text-decoration: none;">
+                <div style="background: #1f4068; color: white; padding: 8px; border-radius: 6px; font-weight: bold; border: 1px solid #00d4ff;">📈 VER GRÁFICO DETALLADO</div>
+            </a>
         </div>
     </div>
     """
-
-    # CAPA DE TEXTO (Nombre a la derecha)
-    folium.Marker(
-        location=info['coord'],
-        icon=folium.DivIcon(
-            icon_size=(150,36),
-            icon_anchor=(-15, 12), # Desplazado a la derecha
-            html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 2px 2px #000; pointer-events: none;">{id_p}</div>'
-        )
-    ).add_to(m)
-
-    # CAPA DEL MARCADOR (Clicable)
+    
+    folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-15, 12), html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 2px 2px #000;">{id_p}</div>')).add_to(m)
+    
     if info.get('blink'):
-        folium.Marker(
-            location=info['coord'],
-            icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-            popup=folium.Popup(html_popup, max_width=500)
-        ).add_to(m)
+        folium.Marker(location=info['coord'], icon=folium.DivIcon(html=f'<div style="width: 8px; height: 8px; background-color: {info["color_final"]}; border-radius: 50%; box-shadow: 0 0 8px {info["color_final"]}; animation: blinker 1s linear infinite;"></div><style>@keyframes blinker {{50% {{opacity: 0.2;}}}}</style>'), popup=folium.Popup(html_popup, max_width=500)).add_to(m)
     else:
-        folium.CircleMarker(
-            location=info['coord'],
-            radius=4,
-            color=info['color_final'],
-            fill=True,
-            fill_color=info['color_final'],
-            fill_opacity=1,
-            weight=1,
-            popup=folium.Popup(html_popup, max_width=500)
-        ).add_to(m)
+        folium.CircleMarker(location=info['coord'], radius=4, color=info['color_final'], fill=True, fill_color=info['color_final'], fill_opacity=1, popup=folium.Popup(html_popup, max_width=500)).add_to(m)
 
 folium_static(m, width=None, height=750)

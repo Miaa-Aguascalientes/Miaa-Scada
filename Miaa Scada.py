@@ -48,6 +48,13 @@ def get_mysql_telemetria_engine():
         return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except: return None
 
+@st.cache_resource
+def get_postgres_conn():
+    try: 
+        return psycopg2.connect(**st.secrets["postgres"])
+    except: 
+        return None
+
 # 4. CARGA DE DATOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
@@ -104,14 +111,15 @@ def cargar_datos_scada(mapa_pozos):
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
+    conn = get_postgres_conn()
+    if not conn: return []
     try:
-        # Abrimos y cerramos la conexión automáticamente con 'with'
-        with psycopg2.connect(**st.secrets["postgres"]) as conn:
-            query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Agua_potable"."Sectores_hidr"'
-            df = pd.read_sql(query, conn)
+        # Consulta usando el esquema Sectorizacion
+        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        df = pd.read_sql(query, conn)
+        conn.close()
         return df.to_dict('records')
-    except Exception as e:
-        st.error(f"Error cargando sectores: {e}")
+    except: 
         return []
 
 # --- 5. PROCESAMIENTO ---
@@ -158,24 +166,26 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# Dibujar Sectores
+# RENDERIZADO DE SECTORES (Tu parte específica)
 for s in sectores:
-    try:
-        folium.GeoJson(
-            json.loads(s['geo']),
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.15},
-            tooltip=f"Sector: {s['sector']}"
-        ).add_to(m)
-    except: continue
+    folium.GeoJson(
+        json.loads(s['geo']), 
+        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
+    ).add_to(m)
 
-# Dibujar Pozos
+# RENDERIZADO DE POZOS
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
-    q, f_q = d(info['caudal']); p, f_p = d(info['presion'])
-    sumer, f_s = d(info['sumergencia']); dinam, f_d = d(info['nivel_dinamico'])
-    tanq, f_t = d(info['nivel_tanque']); col, f_col = d(info['columna'])
-    h_arr, f_h_arr = d(info['h_arranque']); h_par, f_h_par = d(info['h_paro'])
-    v = [d(t) for t in info['voltajes_l']]; a = [d(t) for t in info['amperajes_l']]
+    q, f_q = d(info['caudal'])
+    p, f_p = d(info['presion'])
+    sumer, f_s = d(info['sumergencia'])
+    dinam, f_d = d(info['nivel_dinamico'])
+    tanq, f_t = d(info['nivel_tanque'])
+    col, f_col = d(info['columna'])
+    h_arr, f_h_arr = d(info['h_arranque'])
+    h_par, f_h_par = d(info['h_paro'])
+    v = [d(t) for t in info['voltajes_l']]
+    a = [d(t) for t in info['amperajes_l']]
 
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
@@ -183,11 +193,31 @@ for id_p, info in mapa_pozos_dict.items():
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        <div style="font-size: 11px;">
-            <span>💧 Caudal: <b>{q:.2f} L/s</b></span><br>
-            <span>🚀 Presión: <b>{p:.2f} kg</b></span><br>
-            <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span><br>
-            <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
+            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
+                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
+            </div>
+            <div style="display: flex; align-items: baseline; font-size: 11px;">
+                <span>🚀 Presión: <b>{p:.2f} kg</b></span>
+                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
+            </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
+            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
+                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
+            </div>
+            <div style="display: flex; align-items: baseline; font-size: 11px;">
+                <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
+                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
+            </div>
+        </div>
+        <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
+        <div style="display: flex; align-items: baseline; font-size: 11px;">
+            <span>▶️ H_Arr: <b>{h_arr:.1f}</b></span> | <span>⏹️ H_Paro: <b>{h_par:.1f}</b></span>
         </div>
     </div>
     """

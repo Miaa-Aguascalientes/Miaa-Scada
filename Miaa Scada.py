@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import folium
-from folium import LayerControl  # Corrección de la importación
+from folium import LayerControl
 from streamlit_folium import folium_static
 from folium.plugins import Fullscreen
 from sqlalchemy import create_engine
@@ -64,7 +64,6 @@ def cargar_mapa_pozos_desde_db():
     try:
         query = "SELECT * FROM Diccionario_de_pozos"
         df_pozos = pd.read_sql(query, engine)
-        
         nuevo_mapa = {}
         for _, row in df_pozos.iterrows():
             try:
@@ -143,7 +142,7 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- 6. SIDEBAR IZQUIERDO ---
+# --- 6. SIDEBAR ---
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     if st.button("♻️ Actualizar Datos", use_container_width=True):
@@ -156,47 +155,85 @@ with st.sidebar:
         <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
     </div>
     """, unsafe_allow_html=True)
-    
     st.markdown(f"<div class='section-header' style='background:#1b5e20;'>Bombas ON ({len(pozos_on)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_on): st.write(f"🟢 {p}")
-    
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_off): st.write(f"🔴 {p}")
-
     if pozos_sin_telemetria:
         st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
         for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
 
-# --- 7. MAPA CON PANEL DE CAPAS ---
+# --- 7. MAPA ---
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# Creación de Grupos de Capas
+# Grupos de Capas
 fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos")
 fg_on = folium.FeatureGroup(name="Pozos Operando")
 fg_off = folium.FeatureGroup(name="Pozos Apagados")
-fg_st = folium.FeatureGroup(name="Pozos Sin Telemetría (Gris)")
+fg_st = folium.FeatureGroup(name="Pozos Sin Telemetría")
 
-# RENDERIZADO DE SECTORES (Capa base)
+# RENDER SECTORES (Fondo)
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
-        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
+        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+        tooltip=f"Sector: {s['sector']}"
     ).add_to(fg_sectores)
 
-# RENDERIZADO DE POZOS
+# RENDER POZOS
 for id_p, info in mapa_pozos_dict.items():
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
-    q = d(info['caudal'])[0]
-    p = d(info['presion'])[0]
+    
+    q, f_q = d(info['caudal'])
+    p, f_p = d(info['presion'])
+    sumer, f_s = d(info['sumergencia'])
+    dinam, f_d = d(info['nivel_dinamico'])
+    tanq, f_t = d(info['nivel_tanque'])
+    col, f_col = d(info['columna'])
+    h_arr, f_h_arr = d(info['h_arranque'])
+    h_par, f_h_par = d(info['h_paro'])
+    v = [d(t) for t in info['voltajes_l']]
+    a = [d(t) for t in info['amperajes_l']]
 
     html_popup = f"""
-    <div style="background: #050505; color: white; padding: 10px; border-radius: 8px; width: 250px; border: 1px solid {info['color_final']};">
-        <b style="color: #00d4ff;">POZO {id_p}</b><br>
-        Status: {info['status_label']}<br>
-        💧 Caudal: {q:.2f} L/s<br>
-        🚀 Presión: {p:.2f} kg
+    <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+            <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+            <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
+            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
+                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
+            </div>
+            <div style="display: flex; align-items: baseline; font-size: 11px;">
+                <span>🚀 Presión: <b>{p:.2f} kg</b></span>
+                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
+            </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
+            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                <span>📏 Sumer: <b>{sumer:.1f} m</b></span>
+                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
+            </div>
+            <div style="display: flex; align-items: baseline; font-size: 11px;">
+                <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
+                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
+            </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th style="text-align:left;">Fase</th><th>Voltaje</th><th>Amp</th></tr>
+                <tr><td>L1-L2</td><td><b>{v[0][0]:.1f}V</b></td><td><b>{a[0][0]:.1f}A</b></td></tr>
+                <tr><td>L2-L3</td><td><b>{v[1][0]:.1f}V</b></td><td><b>{a[1][0]:.1f}A</b></td></tr>
+                <tr><td>L1-L3</td><td><b>{v[2][0]:.1f}V</b></td><td><b>{a[2][0]:.1f}A</b></td></tr>
+            </table>
+        </div>
     </div>
     """
 
@@ -209,18 +246,13 @@ for id_p, info in mapa_pozos_dict.items():
         fill_opacity=1,
         weight=0,
         class_name="blink_me" if info['blink'] else "",
-        popup=folium.Popup(html_popup, max_width=300)
+        popup=folium.Popup(html_popup, max_width=450)
     )
 
-    # Añadir al grupo correspondiente
-    if info['status_label'] == 'OPERANDO':
-        marker.add_to(fg_on)
-    elif info['status_label'] == 'APAGADO':
-        marker.add_to(fg_off)
-    else:
-        marker.add_to(fg_st)
+    if info['status_label'] == 'OPERANDO': marker.add_to(fg_on)
+    elif info['status_label'] == 'APAGADO': marker.add_to(fg_off)
+    else: marker.add_to(fg_st)
 
-    # Etiqueta de texto (Nombre del pozo siempre visible)
     folium.map.Marker(
         location=info['coord'],
         icon=folium.DivIcon(
@@ -230,13 +262,12 @@ for id_p, info in mapa_pozos_dict.items():
         )
     ).add_to(m)
 
-# Añadir grupos al mapa
+# Añadir grupos y control
 fg_sectores.add_to(m)
 fg_on.add_to(m)
 fg_off.add_to(m)
 fg_st.add_to(m)
 
-# ACTIVADOR DE CAPAS (Panel a la derecha)
 LayerControl(position='topright', collapsed=False).add_to(m)
 
 folium_static(m, width=1300, height=800)

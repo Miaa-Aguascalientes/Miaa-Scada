@@ -304,23 +304,22 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-estilo_final_v2 = """
+estilo_final = """
 <style>
-@keyframes parpadeo_extremo {
+@keyframes blinker_miaa {
     0% { opacity: 1.0; }
-    50% { opacity: 0.1; }
+    50% { opacity: 0.0; }
     100% { opacity: 1.0; }
 }
-
-/* Seleccionamos los círculos de Folium que tengan relleno rojo */
+/* Esto obliga a CUALQUIER círculo rojo (#FF0000) o naranja (#FFA500) a parpadear */
 path.leaflet-interactive[fill="#FF0000"], 
-path.leaflet-interactive[stroke="#FF0000"],
+path.leaflet-interactive[fill="#FFA500"],
 .blink_me {
-    animation: parpadeo_extremo 0.8s infinite !important;
+    animation: blinker_miaa 0.8s linear infinite !important;
 }
 </style>
 """
-m.get_root().header.add_child(folium.Element(estilo_final_v2))
+m.get_root().header.add_child(folium.Element(estilo_final))
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:
@@ -369,21 +368,21 @@ for id_p, info in mapa_pozos_dict.items():
     </div>
     """
 
-    # EL MARCADOR CON RADIO 3
+# Dibujamos el marcador con tu RADIO 3
     folium.CircleMarker(
         location=info['coord'],
-        radius=3, # Tu radio solicitado
+        radius=3, 
         color=info['color_final'],
         fill=True,
         fill_color=info['color_final'],
         fill_opacity=1.0,
         weight=1,
-        # Aplicación de la clase blink_me si corresponde
-        class_name="blink_me" if info.get('blink', False) else "",
+        # Asignamos la clase y el color exacto para que el CSS lo atrape
+        class_name="blink_me" if info.get('blink', False) else "fijo",
         popup=folium.Popup(html_popup, max_width=450)
     ).add_to(m)
 
-    # ETIQUETA DEL POZO
+    # Etiqueta de texto
     folium.map.Marker(
         location=info['coord'],
         icon=folium.DivIcon(

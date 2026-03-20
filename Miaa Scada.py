@@ -32,7 +32,7 @@ st.markdown("""
             display: flex; 
             justify-content: center; 
             padding: 0px !important; 
-            margin-top: -80px !important; /* Ajuste negativo para compensar el contenedor */
+            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
             margin-bottom: 10px;
         }
         .sidebar-logo img { max-width: 85%; height: auto; }

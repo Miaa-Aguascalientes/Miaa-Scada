@@ -311,38 +311,31 @@ def formato_hora(decimal):
         horas = int(float(decimal))
         minutos = int((float(decimal) - horas) * 60)
         return f"{horas:02d}:{minutos:02d}"
-    except:
-        return "00:00"
+    except: return "00:00"
 
-# 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
+# 2. FUNCIÓN PARA ICONO PARPADEANTE (8px)
 def get_blink_icon(color):
     return f"""
-    <div style="
-        width: 8px; height: 8px; 
-        background-color: {color}; 
-        border-radius: 50%; 
-        box-shadow: 0 0 8px {color};
-        animation: blinker 1s linear infinite;">
-    </div>
-    <style>
-    @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
-    </style>
+    <div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
+    <style> @keyframes blinker {{ 50% {{ opacity: 0.2; }} }} </style>
     """
 
-# 3. RENDERIZADO DE POLIGONOS (SECTORES)
+# 3. RENDERIZADO DE SECTORES
 for s in sectores:
-    folium.GeoJson(
-        json.loads(s['geo']), 
-        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-        tooltip=f"Sector: {s['sector']}"
-    ).add_to(m)
+    try:
+        folium.GeoJson(
+            json.loads(s['geo']), 
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+            tooltip=f"Sector: {s['sector']}"
+        ).add_to(m)
+    except: continue
 
 # 4. RENDERIZADO DE POZOS
 for id_p, info in mapa_pozos_dict.items():
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     
-    # Extracción de datos y fechas (Tu diseño original)
+    # Datos y fechas
     q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
     p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
     sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -350,7 +343,6 @@ for id_p, info in mapa_pozos_dict.items():
     tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
     col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
     
-    # Horarios formateados
     h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
     h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
     h_arr_fmt = formato_hora(h_arr_val)
@@ -359,13 +351,14 @@ for id_p, info in mapa_pozos_dict.items():
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-    # TU DISEÑO ORIGINAL RESTAURADO (Con MTS y 00:00)
+    # DISEÑO ORIGINAL RESTAURADO CON FECHAS COMPLETAS (Día/Mes/Año)
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
         <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
+        
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
             <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
@@ -377,6 +370,7 @@ for id_p, info in mapa_pozos_dict.items():
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
             </div>
         </div>
+
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
             <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
@@ -396,6 +390,7 @@ for id_p, info in mapa_pozos_dict.items():
                 <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
             </div>
         </div>
+
         <div style="margin-bottom: 12px;">
             <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
             <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
@@ -420,6 +415,7 @@ for id_p, info in mapa_pozos_dict.items():
                     <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
                 </tr>
             </table>
+            
             <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
             <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
                 <span>▶️ Arranque: <b>{h_arr_fmt}</b></span>
@@ -433,22 +429,22 @@ for id_p, info in mapa_pozos_dict.items():
     </div>
     """
 
-    # CAPA DE TEXTO (A la derecha y transparente al clic)
+    # CAPA DE TEXTO (Nombre a la derecha)
     folium.Marker(
         location=info['coord'],
         icon=folium.DivIcon(
             icon_size=(150,36),
-            icon_anchor=(-12, 10), # Desplazado a la derecha
-            html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
+            icon_anchor=(-15, 12), # Desplazado a la derecha
+            html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 2px 2px #000; pointer-events: none;">{id_p}</div>'
         )
     ).add_to(m)
 
-    # CAPA DEL MARCADOR (Con el popup original)
+    # CAPA DEL MARCADOR (Clicable)
     if info.get('blink'):
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-            popup=folium.Popup(html_popup, max_width=450)
+            popup=folium.Popup(html_popup, max_width=500)
         ).add_to(m)
     else:
         folium.CircleMarker(
@@ -459,7 +455,7 @@ for id_p, info in mapa_pozos_dict.items():
             fill_color=info['color_final'],
             fill_opacity=1,
             weight=1,
-            popup=folium.Popup(html_popup, max_width=450)
+            popup=folium.Popup(html_popup, max_width=500)
         ).add_to(m)
 
 folium_static(m, width=None, height=750)

@@ -304,6 +304,15 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
+def formato_hora(decimal):
+    try:
+        if decimal == "N/A" or decimal is None: return "00:00"
+        horas = int(float(decimal))
+        minutos = int((float(decimal) - horas) * 60)
+        return f"{horas:02d}:{minutos:02d}"
+    except:
+        return "00:00"
+
 # Función para el punto parpadeante (Falla Com y Apagados)
 def get_blink_icon(color):
     return f"""
@@ -344,8 +353,13 @@ for id_p, info in mapa_pozos_dict.items():
     dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
     tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
     col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-    h_arr, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
-    h_par, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+    
+# Formateo de Horas a 00:00
+    h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+    h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+    h_arr_fmt = formato_hora(h_arr_val)
+    h_par_fmt = formato_hora(h_par_val)
+    
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 

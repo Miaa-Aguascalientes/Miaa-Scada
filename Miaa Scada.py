@@ -8,6 +8,8 @@ import psycopg2
 import json
 import urllib.parse
 from datetime import datetime
+import plotly.graph_objects as go  # <--- AÑADIR ESTA LÍNEA
+...
 
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
@@ -155,7 +157,47 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# --- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---
+@st.cache_data(ttl=300)
+def cargar_historico_detallado(id_pozo):
+    engine = get_mysql_scada_engine()
+    if not engine or id_pozo not in mapa_pozos_dict: return pd.DataFrame()
+    
+    info = mapa_pozos_dict[id_pozo]
+    # Mapeamos los tags a nombres legibles para la gráfica
+    tags_map = {
+        info['caudal']: 'Caudal (l/s)',
+        info['presion']: 'Presión (Kg/cm²)',
+        info['sumergencia']: 'Sumergencia (m)',
+        info['voltajes_l'][0]: 'Volt L1',
+        info['voltajes_l'][1]: 'Volt L2',
+        info['voltajes_l'][2]: 'Volt L3',
+        info['amperajes_l'][0]: 'Amp L1',
+        info['amperajes_l'][1]: 'Amp L2',
+        info['amperajes_l'][2]: 'Amp L3'
+    }
+    
+    # Limpiamos tags inválidos o '0'
+    tags_validos = [str(t) for t in tags_map.keys() if t and str(t) not in ['0', 'Sin telemetria']]
+    if not tags_validos: return pd.DataFrame()
+
+    tags_str = "', '".join(tags_validos)
+    query = f"""
+        SELECT h.FECHA, r.NAME, h.VALUE 
+        FROM VfiTagNumHistory h 
+        JOIN VfiTagRef r ON h.GATEID = r.GATEID 
+        WHERE r.NAME IN ('{tags_str}') 
+        AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+        ORDER BY h.FECHA ASC
+    """
+    df = pd.read_sql(query, engine)
+    if df.empty: return df
+    
+    # Transformamos los datos para Plotly
+    df['NAME'] = df['NAME'].map(tags_map)
+    df_pivot = df.pivot(index='FECHA', columns='NAME', values='VALUE').interpolate()
+    return df_pivot
+
+# 5--------------------------------------------------- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---------------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
@@ -246,6 +288,29 @@ for id_p, info in mapa_pozos_dict.items():
                 'blink': True
             })
             pozos_off.append(id_p)
+
+# --- 5.5 LÓGICA DE NAVEGACIÓN (PANTALLA DE GRÁFICAS) ---
+    if "pozo" in st.query_params:
+    pozo_id = st.query_params["pozo"]
+    
+    # Botón para regresar al mapa (limpia la URL)
+    if st.button("⬅️ Volver al Mapa Principal"):
+        st.query_params.clear()
+        st.rerun()
+        
+    st.title(f"📊 Análisis Detallado: {pozo_id}")
+    
+    df_plot = cargar_historico_detallado(pozo_id)
+    
+    if not df_plot.empty:
+        fig = go.Figure()
+        # ... (Aquí va todo el código de Plotly que me pasaste) ...
+        
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error(f"No se encontraron datos históricos recientes para el Pozo {pozo_id}")
+        
+    st.stop() # CRÍTICO: Detiene la ejecución para que no cargue el mapa abajo
             
 # 6 -------------------------------------------------------------------------------SECCION 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
@@ -350,7 +415,45 @@ for id_p, info in mapa_pozos_dict.items():
 
     v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
     a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+    
+def cargar_historico_detallado(id_pozo):
+    engine = get_mysql_scada_engine()
+    if not engine: return pd.DataFrame()
+    
+    info = mapa_pozos_dict.get(id_pozo)
+    if not info: return pd.DataFrame()
 
+    # Mapeo de tags según tu estructura de base de datos
+    tags_map = {
+        info['caudal']: 'Caudal (l/s)',
+        info['presion']: 'Presión (Kg/cm²)',
+        info['sumergencia']: 'Sumergencia (m)',
+        info['nivel_dinamico']: 'Nivel Dinámico (m)',
+        info['voltajes_l'][0]: 'Volt L1',
+        info['voltajes_l'][1]: 'Volt L2',
+        info['voltajes_l'][2]: 'Volt L3',
+        info['amperajes_l'][0]: 'Amp L1',
+        info['amperajes_l'][1]: 'Amp L2',
+        info['amperajes_l'][2]: 'Amp L3'
+    }
+    
+    tags_str = "', '".join([t for t in tags_map.keys() if t and str(t) != '0'])
+    
+    query = f"""
+        SELECT h.FECHA, r.NAME, h.VALUE 
+        FROM VfiTagNumHistory h 
+        JOIN VfiTagRef r ON h.GATEID = r.GATEID 
+        WHERE r.NAME IN ('{tags_str}') 
+        AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        ORDER BY h.FECHA ASC
+    """
+    df = pd.read_sql(query, engine)
+    
+    # Renombrar tags a nombres legibles y pivotar
+    df['NAME'] = df['NAME'].map(tags_map)
+    return df.pivot(index='FECHA', columns='NAME', values='VALUE').interpolate()
+    
+    url_grafica = f"/?pozo={urllib.parse.quote(id_p)}"
     # DISEÑO ORIGINAL RESTAURADO CON FECHAS COMPLETAS (Día/Mes/Año)
     html_popup = f"""
     <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">

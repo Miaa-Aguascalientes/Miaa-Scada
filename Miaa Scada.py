@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import folium_static
+from streamlit_folium import st_folium, folium_static
 from folium.plugins import Fullscreen
 from sqlalchemy import create_engine
 import psycopg2
@@ -234,6 +235,15 @@ with st.sidebar:
 # --- 7. MAPA ---
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=13, tiles="CartoDB dark_matter")
 col_mapa, _ = st.columns([10, 0.01])
+# --- 7. RENDERIZADO DEL MAPA ---
+# En lugar de folium_static, usamos st_folium
+st_folium(
+    m, 
+    width=None,           # Deja que el contenedor mande
+    height=750,           # Altura fija para evitar saltos
+    use_container_width=True, # ESTA ES LA CLAVE
+    returned_objects=[]   # Optimiza el rendimiento al no devolver datos del mapa
+)
 Fullscreen().add_to(m)
 
 # RENDERIZADO DE POLIGONOS (SECTORES)

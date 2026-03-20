@@ -155,11 +155,12 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# 5----------------------------------------------------- 5. PROCESAMIENTO (CON AJUSTE DE ZONA HORARIA MEXICO) -------------------------------------------------------------------------------------------------------------
+# 5--------------------------------------------------- 5. PROCESAMIENTO (ZONA HORARIA MÉXICO + LÓGICA ESTRICTA + PARPADEO) ---
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
+# Inicialización de listas y contadores
 pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
 total_q, total_p = 0.0, 0.0
 
@@ -170,49 +171,53 @@ ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
     
+    # 1. FILTRO: SIN TELEMETRÍA CONFIGURADA
     if bomba_val == "Sin telemetria":
         info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # OBTENER VOLTAJE L1
+    # 2. VALIDACIÓN DE COMUNICACIÓN (Basado en Voltaje L1)
     tag_l1 = info['voltajes_l'][0]
     _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
     
     es_falla_com = False
     if fecha_str != "N/A":
         try:
-            # Convertimos fecha del SCADA
+            # Convertimos fecha del SCADA (ej. "20/03 08:29") al año actual
             fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
             
-            # Diferencia real
+            # Calculamos horas de antigüedad
             diff = ahora - fecha_dt
             horas_atras = diff.total_seconds() / 3600
             
-            # SI EL DATO ES DE HACE MÁS DE 4 HORAS REALES
+            # Si el dato es de hace más de 4 horas reales -> Falla
             if horas_atras > 4:
                 es_falla_com = True
         except:
-            es_falla_com = True
+            es_falla_com = True # Error en formato de fecha se considera falla
     else:
-        es_falla_com = True
+        es_falla_com = True # Sin fecha es falla directa
 
-    # ASIGNACIÓN
+    # 3. ASIGNACIÓN DE ESTADOS Y PARPADEO (BLINK)
     if es_falla_com:
+        # FALLA DE COMUNICACIÓN: Naranja + Parpadeo
         info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
-        # Solo entra aquí si el dato es de hace menos de 4 horas
+        # Si hay comunicación reciente, revisamos si la bomba está encendida o apagada
         val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
         q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
         p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
         
         if val_bba == 1:
+            # OPERANDO: Verde + Fijo
             info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
             pozos_on.append(id_p)
             total_q += q_val
             total_p += p_val
         else:
+            # APAGADO: Rojo + Parpadeo
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
             

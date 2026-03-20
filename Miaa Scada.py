@@ -129,15 +129,16 @@ def cargar_datos_scada(mapa_pozos):
     try:
         tags_str = "', '".join(list(set(all_tags)))
         
-        # Intentamos con 'TagName' que es el estándar en muchas versiones de VFI
-        # Si no es TagName, prueba con 'Tag'
+        # Si dices que las columnas son las mismas, el nombre del campo debe ser NAME
+        # Eliminamos el JOIN y consultamos directo a la nueva tabla
         query = f"""
-            SELECT TagName as NAME, VALUE, FECHA 
+            SELECT NAME, VALUE, FECHA 
             FROM VfiTagNumHistory_Ultimo 
-            WHERE TagName IN ('{tags_str}')
+            WHERE NAME IN ('{tags_str}')
         """
         df = pd.read_sql(query, engine)
         
+        # Retornamos el diccionario con el formato que ya usa tu script
         return {
             row['NAME']: (
                 row['VALUE'], 
@@ -145,13 +146,7 @@ def cargar_datos_scada(mapa_pozos):
             ) for _, row in df.iterrows()
         }
     except Exception as e:
-        # Si falla, mostramos los nombres reales de las columnas para corregir rápido
-        st.error(f"Error en la tabla: {e}")
-        try:
-            columns_query = "SHOW COLUMNS FROM VfiTagNumHistory_Ultimo"
-            cols = pd.read_sql(columns_query, engine)
-            st.write("Las columnas reales de tu tabla son:", cols['Field'].tolist())
-        except: pass
+        st.error(f"Error al leer VfiTagNumHistory_Ultimo: {e}")
         return {}
 
 @st.cache_data(ttl=3600)

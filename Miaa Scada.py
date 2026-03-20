@@ -392,7 +392,7 @@ for id_p, info in mapa_pozos_dict.items():
         icon=folium.DivIcon(
             icon_size=(150,36),
             icon_anchor=(0,0),
-            html=f'<div style="font-size: 14px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
+            html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; position: absolute; left: 12px; top: -10px; white-space: nowrap;">{id_p}</div>'
         )
     ).add_to(m)
 

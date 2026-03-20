@@ -370,7 +370,7 @@ for id_p, info in mapa_pozos_dict.items():
 # Dibujamos el marcador con tu RADIO 3
     folium.CircleMarker(
         location=info['coord'],
-        radius=3, 
+        radius=5, 
         color=info['color_final'],
         fill=True,
         fill_color=info['color_final'],

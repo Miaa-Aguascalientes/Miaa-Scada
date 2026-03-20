@@ -338,4 +338,4 @@ for id_p, info in mapa_pozos_dict.items():
         )
     ).add_to(m)
 
-folium_static(m, width=1300, height=800)
+folium_static(m, width=None, height=750)

@@ -155,7 +155,7 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-# --- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---
+# 5------------------------------------------- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---------------------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
@@ -304,21 +304,23 @@ with st.sidebar:
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-script_parpadeo = """
-<script>
-setInterval(function() {
-    var elementos = document.querySelectorAll('.blink_me');
-    elementos.forEach(function(el) {
-        if (el.style.visibility === 'hidden') {
-            el.style.visibility = 'visible';
-        } else {
-            el.style.visibility = 'hidden';
-        }
-    });
-}, 800);
-</script>
+estilo_final = """
+<style>
+@keyframes blinker_miaa {
+    0% { opacity: 1.0; }
+    50% { opacity: 0.0; }
+    100% { opacity: 1.0; }
+}
+
+/* Este selector es infalible: busca el color de relleno directamente en el SVG */
+path.leaflet-interactive[fill="#FF0000"], 
+path.leaflet-interactive[fill="#FFA500"],
+.blink_me {
+    animation: blinker_miaa 0.8s linear infinite !important;
+}
+</style>
 """
-m.get_root().html.add_child(folium.Element(script_parpadeo))
+m.get_root().header.add_child(folium.Element(estilo_final))
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
 for s in sectores:

@@ -308,10 +308,10 @@ Fullscreen().add_to(m)
 def get_blink_icon(color):
     return f"""
     <div style="
-        width: 12px; height: 12px; 
+        width: 8px; height: 8px; 
         background-color: {color}; 
         border-radius: 50%; 
-        box-shadow: 0 0 12px {color};
+        box-shadow: 0 0 8px {color};
         animation: blinker 1s linear infinite;">
     </div>
     <style>

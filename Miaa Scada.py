@@ -159,21 +159,18 @@ with st.sidebar:
     for p in sorted(pozos_on): st.write(f"🟢 {p}")
     st.markdown(f"<div class='section-header' style='background:#b71c1c;'>Bombas OFF ({len(pozos_off)})</div>", unsafe_allow_html=True)
     for p in sorted(pozos_off): st.write(f"🔴 {p}")
-    if pozos_sin_telemetria:
-        st.markdown(f"<div class='section-header' style='background:#424242;'>Sin Telemetría ({len(pozos_sin_telemetria)})</div>", unsafe_allow_html=True)
-        for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
 
 # --- 7. MAPA ---
 m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
 Fullscreen().add_to(m)
 
-# Grupos de Capas
-fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos")
-fg_on = folium.FeatureGroup(name="Pozos Operando")
-fg_off = folium.FeatureGroup(name="Pozos Apagados")
-fg_st = folium.FeatureGroup(name="Pozos Sin Telemetría")
+# GRUPOS DE CAPAS
+fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos").add_to(m)
+fg_on = folium.FeatureGroup(name="Pozos Operando").add_to(m)
+fg_off = folium.FeatureGroup(name="Pozos Apagados").add_to(m)
+fg_st = folium.FeatureGroup(name="Pozos Sin Telemetría").add_to(m)
 
-# RENDER SECTORES (Fondo)
+# A. SECTORES (Fondo)
 for s in sectores:
     folium.GeoJson(
         json.loads(s['geo']), 
@@ -181,11 +178,9 @@ for s in sectores:
         tooltip=f"Sector: {s['sector']}"
     ).add_to(fg_sectores)
 
-# RENDER POZOS
+# B. POZOS (Superior)
 for id_p, info in mapa_pozos_dict.items():
-    is_st = (info['status_label'] == 'SIN TELEMETRÍA')
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
-    
     q, f_q = d(info['caudal'])
     p, f_p = d(info['presion'])
     sumer, f_s = d(info['sumergencia'])
@@ -203,36 +198,27 @@ for id_p, info in mapa_pozos_dict.items():
             <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
             <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
         </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
-            </div>
+        <div style="margin-bottom: 10px;">
+            <div style="font-size: 10px; color: #888;">HIDRÁULICA</div>
+            <div style="font-size: 11px;">💧 Caudal: <b>{q:.2f} L/s</b> <span style="color:#FFFF00; font-size:8px;">({f_q})</span></div>
+            <div style="font-size: 11px;">🚀 Presión: <b>{p:.2f} kg</b> <span style="color:#FFFF00; font-size:8px;">({f_p})</span></div>
         </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-            <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                <span>📏 Sumer: <b>{sumer:.1f} m</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
-            </div>
-            <div style="display: flex; align-items: baseline; font-size: 11px;">
-                <span>🔋 Tanque: <b>{tanq:.1f} %</b></span>
-                <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
-            </div>
+        <div style="margin-bottom: 10px;">
+            <div style="font-size: 10px; color: #888;">NIVELES</div>
+            <div style="font-size: 11px;">📏 Sumer: <b>{sumer:.1f}m</b> | 🏗️ Col: <b>{col:.1f}m</b></div>
+            <div style="font-size: 11px;">🔋 Tanque: <b>{tanq:.1f}%</b> <span style="color:#FFFF00; font-size:8px;">({f_t})</span></div>
         </div>
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
-                <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th style="text-align:left;">Fase</th><th>Voltaje</th><th>Amp</th></tr>
-                <tr><td>L1-L2</td><td><b>{v[0][0]:.1f}V</b></td><td><b>{a[0][0]:.1f}A</b></td></tr>
-                <tr><td>L2-L3</td><td><b>{v[1][0]:.1f}V</b></td><td><b>{a[1][0]:.1f}A</b></td></tr>
-                <tr><td>L1-L3</td><td><b>{v[2][0]:.1f}V</b></td><td><b>{a[2][0]:.1f}A</b></td></tr>
+        <div style="margin-bottom: 10px;">
+            <div style="font-size: 10px; color: #888;">ELÉCTRICO</div>
+            <table style="width:100%; font-size:10px; border-collapse: collapse;">
+                <tr style="color:#00d4ff; border-bottom:1px solid #333;"><td>Fase</td><td>Volt</td><td>Amp</td></tr>
+                <tr><td>L1-L2</td><td>{v[0][0]:.1f}V</td><td>{a[0][0]:.1f}A</td></tr>
+                <tr><td>L2-L3</td><td>{v[1][0]:.1f}V</td><td>{a[1][0]:.1f}A</td></tr>
+                <tr><td>L1-L3</td><td>{v[2][0]:.1f}V</td><td>{a[2][0]:.1f}A</td></tr>
             </table>
+        </div>
+        <div style="font-size: 10px; border-top:1px solid #333; padding-top:5px;">
+            ▶️ Arr: <b>{h_arr:.1f}</b> | ⏹️ Paro: <b>{h_par:.1f}</b>
         </div>
     </div>
     """
@@ -253,6 +239,7 @@ for id_p, info in mapa_pozos_dict.items():
     elif info['status_label'] == 'APAGADO': marker.add_to(fg_off)
     else: marker.add_to(fg_st)
 
+    # Nombres siempre visibles
     folium.map.Marker(
         location=info['coord'],
         icon=folium.DivIcon(
@@ -262,12 +249,7 @@ for id_p, info in mapa_pozos_dict.items():
         )
     ).add_to(m)
 
-# Añadir grupos y control
-fg_sectores.add_to(m)
-fg_on.add_to(m)
-fg_off.add_to(m)
-fg_st.add_to(m)
-
+# CONTROL DE CAPAS A LA DERECHA
 LayerControl(position='topright', collapsed=False).add_to(m)
 
 folium_static(m, width=1300, height=800)

@@ -115,6 +115,8 @@ def cargar_mapa_pozos_desde_db():
 def cargar_datos_scada(mapa_pozos):
     engine = get_mysql_scada_engine()
     if not engine: return {}
+    
+    # Recopilamos todos los tags necesarios en una sola lista
     all_tags = []
     for p in mapa_pozos.values():
         for k, v in p.items():
@@ -122,13 +124,29 @@ def cargar_datos_scada(mapa_pozos):
                 all_tags.extend([str(tag) for tag in v if tag and str(tag) not in ['0', 'Sin telemetria']])
             elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): 
                 all_tags.append(v)
+    
     if not all_tags: return {}
+    
     try:
+        # Usamos tu nueva tabla que ya tiene los valores calculados
         tags_str = "', '".join(list(set(all_tags)))
-        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM vfitagnumhistory h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM vfitagnumhistory WHERE GATEID = h.GATEID)"
+        query = f"""
+            SELECT NAME, VALUE, FECHA 
+            FROM VfiTagNumHistory_Ultimo 
+            WHERE NAME IN ('{tags_str}')
+        """
         df = pd.read_sql(query, engine)
-        return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
-    except: return {}
+        
+        # Diccionario optimizado: {nombre_tag: (valor, fecha_formateada)}
+        return {
+            row['NAME']: (
+                row['VALUE'], 
+                row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A"
+            ) for _, row in df.iterrows()
+        }
+    except Exception as e:
+        st.error(f"Error al leer la tabla de últimos valores: {e}")
+        return {}
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():

@@ -383,4 +383,4 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-    folium_static(m, width=None, height=750)
+    folium_static(m, width=None, height=550)

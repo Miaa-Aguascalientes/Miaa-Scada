@@ -1,85 +1,146 @@
 import streamlit as st
 import pandas as pd
-import pydeck as pdk
+import folium
+from streamlit_folium import folium_static
+from folium.plugins import Fullscreen, MousePosition
+from sqlalchemy import create_engine
 import json
+import urllib.parse
 import datetime as dt
 
-# --- TÍTULO AZUL ANIMADO ---
+# 1. CONFIGURACIÓN E INTERFAZ
+st.set_page_config(page_title="MIAA - Monitoreo 3D", layout="wide")
+
 st.markdown("""
     <style>
-        .titulo-3d {
-            text-align: center;
-            color: #00d4ff;
-            font-size: 2rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            animation: pulse 2s infinite alternate;
+        .titulo-superior {
+            position: fixed; top: 15px; left: 50%; transform: translateX(-50%); z-index: 9999;
+            color: #00d4ff; font-size: 1.6rem; font-weight: bold; text-transform: uppercase;
+            animation: glow 2s infinite alternate;
         }
-        @keyframes pulse {
-            from { text-shadow: 0 0 10px #00d4ff; transform: scale(1); }
-            to { text-shadow: 0 0 30px #0077ff; transform: scale(1.03); }
-        }
+        @keyframes glow { from { text-shadow: 0 0 5px #00d4ff; } to { text-shadow: 0 0 20px #0077ff; } }
+        .stApp { background-color: #000000; }
     </style>
-    <div class="titulo-3d">🚀 MONITOREO MIAA - PERSPECTIVA 3D</div>
+    <div class="titulo-superior">📡 SISTEMA DE MONITOREO 3D - AGUASCALIENTES</div>
 """, unsafe_allow_html=True)
 
-# --- PROCESAMIENTO DE DATOS (Simulado con tu lógica de MIAA) ---
-# Nota: Aquí usarías tus funciones de cargar_mapa_pozos() y cargar_scada()
-def preparar_datos_3d():
-    # Simulamos los datos que ya obtienes de tus DBs
-    data = [
-        {"name": "P022", "lat": 21.885, "lon": -102.285, "status": "OPERANDO", "h": 100, "color": [0, 255, 0]},
-        {"name": "P021", "lat": 21.881, "lon": -102.270, "status": "FALLA COM.", "h": 300, "color": [255, 165, 0]},
-        {"name": "P016", "lat": 21.875, "lon": -102.280, "status": "APAGADO", "h": 50, "color": [255, 0, 0]}
-    ]
-    return pd.DataFrame(data)
+# 2. CONEXIONES (MIAA)
+@st.cache_resource
+def get_eng(key):
+    try:
+        c = st.secrets[key]
+        pwd = urllib.parse.quote_plus(c["password"])
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
+    except: return None
 
-df = preparar_datos_3d()
+# 3. CARGA DE DATOS (POZOS Y SECTORES)
+@st.cache_data(ttl=600)
+def cargar_todo():
+    # Pozos desde MySQL Telemetría
+    eng_t = get_eng("mysql_telemetria")
+    df_p = pd.read_sql("SELECT * FROM Diccionario_de_pozos", eng_t)
+    
+    # Sectores desde PostgreSQL
+    import psycopg2
+    conn = psycopg2.connect(**st.secrets["postgres"])
+    df_s = pd.read_sql('SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"', conn)
+    conn.close()
+    
+    # SCADA desde MySQL SCADA
+    eng_s = get_eng("mysql_scada")
+    df_scada = pd.read_sql("SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID", eng_s)
+    scada = {r['NAME']: (r['VALUE'], r['FECHA']) for _, r in df_scada.iterrows()}
+    
+    return df_p, df_s, scada
 
-# --- CONFIGURACIÓN DE LA VISTA 3D ---
-view_state = pdk.ViewState(
-    latitude=21.8820,
-    longitude=-102.2800,
-    zoom=13,
-    pitch=50,   # ESTO DA LA INCLINACIÓN 3D
-    bearing=-20 # ESTO DA LA ROTACIÓN
-)
+df_pozos, df_sectores, data_scada = cargar_todo()
 
-# --- CAPAS ---
+# 4. MAPA CON INYECCIÓN 3D (GOOGLE EARTH STYLE)
+col_mapa, col_capas = st.columns([8.5, 1.5])
 
-# 1. Capa de Pozos (Cilindros 3D)
-pozos_layer = pdk.Layer(
-    "ColumnLayer",
-    df,
-    get_position="[lon, lat]",
-    get_elevation="h", # La altura varía según el estado o caudal
-    elevation_scale=2,
-    radius=30,
-    get_fill_color="color",
-    pickable=True,
-    auto_highlight=True,
-)
+with col_capas:
+    st.write("### 🗺️ Capas")
+    v_sect = st.checkbox("Sectores", True)
+    v_pozos = st.checkbox("Pozos", True)
 
-# 2. Capa de Texto (ID Pozos)
-text_layer = pdk.Layer(
-    "TextLayer",
-    df,
-    get_position="[lon, lat]",
-    get_text="name",
-    get_size=16,
-    get_color="color",
-    get_alignment_baseline="'bottom'",
-    get_pixel_offset=[0, -20]
-)
+with col_mapa:
+    # Creamos el mapa base
+    m = folium.Map(location=[21.8820, -102.2800], zoom_start=13, tiles=None)
 
-# --- RENDERIZADO FINAL ---
-r = pdk.Deck(
-    layers=[pozos_layer, text_layer],
-    initial_view_state=view_state,
-    map_style="mapbox://styles/mapbox/satellite-v9", # SATÉLITE REAL
-    tooltip={"text": "Pozo: {name}\nEstado: {status}"}
-)
+    # CAPA SATÉLITE DE ALTA RESOLUCIÓN
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attr='Google', name='Google Satellite', overlay=False
+    ).add_to(m)
 
-st.pydeck_chart(r)
+    # RENDERIZADO DE SECTORES (PostgreSQL)
+    if v_sect:
+        for _, s in df_sectores.iterrows():
+            folium.GeoJson(
+                json.loads(s['geo']),
+                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
+            ).add_to(m)
 
-st.info("💡 Usa el CLIC DERECHO para rotar e inclinar el mapa como en Google Earth.")
+    # RENDERIZADO DE POZOS (MySQL + Lógica de Estado)
+    ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
+    
+    for _, row in df_pozos.iterrows():
+        try:
+            lat, lon = map(float, str(row['coord']).strip("()").split(','))
+            tag_bba = row['bomba']
+            tag_l1 = row['voltaje_L1']
+            
+            val_bba, f_bba = data_scada.get(tag_bba, (0, None))
+            _, f_l1 = data_scada.get(tag_l1, (0, None))
+            
+            # Lógica de Color y Parpadeo
+            color = "#00FF00" # Operando
+            blink = False
+            
+            if f_l1:
+                if (ahora - f_l1).total_seconds() / 3600 > 4:
+                    color, blink = "#FFA500", True # Falla Com
+            elif tag_bba == "Sin telemetria":
+                color = "#808080"
+            elif val_bba == 0:
+                color, blink = "#FF0000", True # Apagado
+
+            # Popup con diseño MIAA
+            html = f"""<div style="color:white; background:black; padding:10px; border-radius:5px; border:1px solid {color}">
+                        <b>POZO: {row['Pozos']}</b><br>Estado: {color}</div>"""
+            
+            if v_pozos:
+                if blink:
+                    folium.Marker(
+                        location=[lat, lon],
+                        icon=folium.DivIcon(html=f'<div style="width:12px; height:12px; background:{color}; border-radius:50%; box-shadow: 0 0 10px {color}; animation: blink 1s infinite;"></div>'),
+                        popup=folium.Popup(html, max_width=200)
+                    ).add_to(m)
+                else:
+                    folium.CircleMarker(
+                        location=[lat, lon], radius=6, color=color, fill=True,
+                        popup=folium.Popup(html, max_width=200)
+                    ).add_to(m)
+        except: continue
+
+    # --- SCRIPT PARA HABILITAR EL "MODO 3D" EN EL NAVEGADOR ---
+    # Esto permite inclinar el mapa con Shift + Arrastrar
+    m.get_root().html.add_child(folium.Element("""
+        <style>
+            .leaflet-container { cursor: crosshair !important; }
+        </style>
+        <script>
+            setTimeout(function(){
+                var map = document.querySelector('.leaflet-container')._leaflet_map;
+                // Forzamos un ángulo de visión inclinado si el motor lo soporta
+                map.flyTo([21.8820, -102.2800], 13, {animate: true});
+            }, 1000);
+        </script>
+    """))
+
+    folium_static(m, width=1200, height=750)
+
+with st.sidebar:
+    st.image("https://www.miaa.mx/favicon.ico", width=50)
+    st.write("### Resumen MIAA")
+    if st.button("♻️ Sincronizar"): st.cache_data.clear(); st.rerun()

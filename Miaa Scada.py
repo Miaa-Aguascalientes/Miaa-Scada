@@ -316,33 +316,27 @@ with st.sidebar:
                 st.write(f"⚪ {p}")
 
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
-# DASHBOARD
 st.markdown("""
     <style>
-        /* ... tus otros estilos ... */
-
         .titulo-superior {
-            position: fixed;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999999;
-            color: white;
-            font-size: 1.2rem;
+            position: absolute; /* Cambiado de fixed a absolute */
+            top: -45px;
+            left: 20px;
+            z-index: 1000;
+            color: #00d4ff;
+            font-size: 1.4rem;
             font-weight: bold;
-            line-height: normal;
-            pointer-events: none;
-            white-space: nowrap;
+            text-shadow: 2px 2px 4px #000;
         }
 
         .map-container {
-            border: 4px solid #1f4068; 
-            border-radius: 12px;
-            padding: 10px;
-            background-color: #050505;
-            box-shadow: 0 0 25px rgba(0, 212, 255, 0.3);
-            margin-top: 60px; /* Espacio para que el título no tape el mapa */
-            margin-bottom: 20px;
+            position: relative;
+            border: 2px solid #1f4068; 
+            border-radius: 10px;
+            padding: 5px;
+            background-color: #000000;
+            box-shadow: inset 0 0 15px rgba(0, 212, 255, 0.2), 0 0 20px rgba(0, 0, 0, 0.5);
+            margin-top: 50px;
         }
     </style>
 """, unsafe_allow_html=True)

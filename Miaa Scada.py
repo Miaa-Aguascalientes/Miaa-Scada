@@ -321,12 +321,12 @@ st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes<
 
 # Dentro del bloque st.markdown(""" <style> ... """)
 .map-container {
-    border: 2px solid #1f4068; /* Borde base azul oscuro */
+    border: 4px solid #1f4068; /* Borde grueso azul oscuro */
     border-radius: 10px;
-    padding: 10px;
-    background: linear-gradient(145deg, #0b1a29, #050505);
-    box-shadow: 0 0 20px rgba(0, 212, 255, 0.2); /* Resplandor sutil azul */
-    margin-top: 10px;
+    padding: 8px;
+    background-color: #0b1a29;
+    box-shadow: 0 0 25px rgba(0, 212, 255, 0.4); /* Resplandor neón */
+    margin-top: 20px;
 }
 
 col_mapa, col_capas = st.columns([8.5, 1.5])

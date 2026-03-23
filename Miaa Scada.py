@@ -378,19 +378,19 @@ with col_mapa:
         """
 
     # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
-    if ver_sectores:
+if ver_sectores:
         for s in sectores:
             nombre_sector = s['sector']
-            
-            # Construimos la URL actual añadiendo el parámetro del sector
-            # Target="_blank" asegura que se abra en una pestaña nueva
-            url_detalle = f"/?sector_id={urllib.parse.quote(str(nombre_sector))}"
+            # Codificamos el nombre para que sea una URL segura
+            nombre_url = urllib.parse.quote(str(nombre_sector))
+            url_detalle = f"./?sector_id={nombre_url}"
             
             html_sector = f"""
-                <div style="font-family: sans-serif; color: white; background: #0b1a29; padding: 10px; border-radius: 5px;">
-                    <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {nombre_sector}</h4>
-                    <p style="font-size: 12px;">Presión técnica y datos catastrales disponibles en el panel de detalle.</p>
-                    <a href="{url_detalle}" target="_blank" style="
+                <div style="font-family: sans-serif; color: white; background: #0b1a29; padding: 10px; border-radius: 5px; border: 1px solid #00d4ff;">
+                    <h4 style="margin: 0; color: #00d4ff;">Sector: {nombre_sector}</h4>
+                    <hr style="border: 0.5px solid #333;">
+                    <p style="font-size: 12px;">Ver telemetría y presión técnica.</p>
+                    <a href="{url_detalle}" target="_self" style="
                         display: block; 
                         text-align: center;
                         background-color: #00d4ff; 
@@ -398,9 +398,8 @@ with col_mapa:
                         padding: 8px; 
                         text-decoration: none; 
                         border-radius: 4px; 
-                        font-weight: bold;
-                        margin-top: 10px;">
-                        📊 Ver Detalles del Sector
+                        font-weight: bold;">
+                        Consultar Sector
                     </a>
                 </div>
             """

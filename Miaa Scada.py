@@ -172,18 +172,6 @@ def cargar_sectores_poligonos():
         return []
 
 
-@st.cache_data(ttl=3600)
-def cargar_sectores_poligonos():
-    conn = get_postgres_conn()
-    if not conn: return []
-    try:
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df.to_dict('records')
-    except: 
-        return []
-
 # --- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---
 
 # 1. Carga de datos base

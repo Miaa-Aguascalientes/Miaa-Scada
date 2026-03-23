@@ -10,7 +10,7 @@ import urllib.parse
 from datetime import datetime
 import datetime as dt
 
-# 1. CONFIGURACIÓN DE PÁGINA
+# 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
     page_icon="https://www.miaa.mx/favicon.ico", 
@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS (Incluye Animación de Título y Parpadeo)
+# 2-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
         .titulo-superior {
@@ -46,6 +46,8 @@ st.markdown("""
         .sidebar-logo { display: flex; justify-content: center; padding: 0px !important; margin-top: -70px !important; margin-bottom: 10px; }
         .sidebar-logo img { max-width: 85%; height: auto; }
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -121,7 +123,7 @@ def cargar_sectores_poligonos():
         return df.to_dict('records')
     except: return []
 
-# 5. PROCESAMIENTO (Lógica de estados y parpadeo)
+# 5. PROCESAMIENTO
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
@@ -160,156 +162,104 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# 6. SIDEBAR COMPLETO
+# 6. SIDEBAR
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
-    with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
-        st.markdown(f"**SCADA:** {'OK' if get_mysql_scada_engine() else 'ERROR'}")
-        st.markdown(f"**Telemetría:** {'OK' if get_mysql_telemetria_engine() else 'ERROR'}")
-        st.markdown(f"**PostgreSQL:** {'OK' if get_postgres_conn() else 'ERROR'}")
-
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
         st.cache_resource.clear()
         st.rerun()
 
-    st.markdown(f'<div class="resumen-card"><h4 style="color:#00d4ff;">RESUMEN GLOBAL</h4><p>Caudal: <b>{total_q:.2f} l/s</b></p><p>Presión: <b>{total_p/max(len(pozos_on),1):.2f} Kg</b></p></div>', unsafe_allow_html=True)
-    
-    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})"):
-        for p in sorted(pozos_on): st.write(f"🟢 {p}")
-    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})"):
-        for p in sorted(pozos_off): st.write(f"🔴 {p}")
-    if pozos_falla_com:
-        with st.expander(f"🟠 Falla de Com. (+4h) ({len(pozos_falla_com)})"):
-            for p in sorted(pozos_falla_com): st.write(f"🟠 {p}")
-
-# 7. MAPA Y PESTAÑAS DINÁMICAS
+# 7. MAPA Y TABS
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
-nombres_tabs = ["🗺️ Mapa de Monitoreo", "📊 Información de Sectores"]
-if "sector_seleccionado" in st.session_state:
-    nombres_tabs.append(f"🔍 Detalle: {st.session_state.sector_seleccionado}")
+tab_mapa, tab_info_sectores = st.tabs(["🗺️ Mapa de Monitoreo", "📊 Información de Sectores"])
 
-tabs = st.tabs(nombres_tabs)
+with tab_mapa:
+    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
+    Fullscreen().add_to(m)
 
-with tabs[0]:
-    col_mapa, col_capas = st.columns([8.5, 1.5])
-    with col_capas:
-        st.markdown("### 🗺️ Capas")
-        ver_sectores = st.checkbox("Sectores", value=True)
-        ver_pozos = st.checkbox("Pozos", value=True)
-        ver_etiquetas = st.checkbox("ID Pozos", value=True)
+    # RENDERIZAR SECTORES CON BOTÓN EN POPUP
+    for s in sectores:
+        nombre_sec = s['sector']
+        # Este es el botón que abre una página nueva (puedes cambiar '#' por la URL real de tu detalle)
+        html_boton_sector = f"""
+        <div style="color: black; font-family: sans-serif; min-width: 150px;">
+            <h4 style="margin: 0 0 10px 0;">Sector: {nombre_sec}</h4>
+            <a href="https://miaa.mx/detalle_sector?id={nombre_sec}" target="_blank" 
+               style="text-decoration: none; background: #00d4ff; color: black; padding: 8px 12px; border-radius: 5px; font-weight: bold; display: block; text-align: center;">
+               Ver Detalle en Nueva Página
+            </a>
+        </div>
+        """
+        folium.GeoJson(
+            json.loads(s['geo']), 
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+            highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
+            popup=folium.Popup(html_boton_sector, max_width=300)
+        ).add_to(m)
 
-    with col_mapa:
-        m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
-        Fullscreen().add_to(m)
+    # RENDERIZAR POZOS (Popup Completo Restaurado)
+    for id_p, info in mapa_pozos_dict.items():
+        d = lambda tag: data_scada.get(tag, (0, "N/A"))
+        is_st = (info['status_label'] == 'SIN TELEMETRÍA')
+        
+        q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+        p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+        sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+        dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+        tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+        col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
+        h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+        h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+        v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+        a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        def get_blink_icon(color):
-            return f"""<div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
-            <style>@keyframes blinker {{ 50% {{ opacity: 0.2; }} }}</style>"""
+        def formato_hora(decimal):
+            try:
+                if decimal == "N/A" or decimal is None: return "00:00"
+                h, m = int(float(decimal)), int((float(decimal) - int(float(decimal))) * 60)
+                return f"{h:02d}:{m:02d}"
+            except: return "00:00"
 
-        if ver_sectores:
-            for s in sectores:
-                folium.GeoJson(json.loads(s['geo']), 
-                    style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-                    highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
-                    tooltip=f"Sector: {s['sector']}"
-                ).add_to(m)
-
-        for id_p, info in mapa_pozos_dict.items():
-            d = lambda tag: data_scada.get(tag, (0, "N/A"))
-            is_st = (info['status_label'] == 'SIN TELEMETRÍA')
-            
-            # --- DATOS COMPLETOS DEL POPUP (RESTAURADOS DEL RESPALDO) ---
-            q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
-            p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
-            sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
-            dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
-            tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
-            col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-            
-            def formato_hora(decimal):
-                try:
-                    if decimal == "N/A" or decimal is None: return "00:00"
-                    h = int(float(decimal))
-                    m = int((float(decimal) - h) * 60)
-                    return f"{h:02d}:{m:02d}"
-                except: return "00:00"
-
-            h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
-            h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
-
-            v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
-            a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
-
-            html_popup = f"""
-            <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
-                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
-                    <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
-                    <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
-                </div>
-                <div style="margin-bottom: 12px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>💧 Caudal: <b>{q:.2f} L/s</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
-                    </div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px;">
-                        <span>🚀 Presión: <b>{p:.2f} kg</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
-                    </div>
-                </div>
-                <div style="margin-bottom: 12px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;"><span>📏 Sumergencia: <b>{sumer:.1f} m</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span></div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;"><span>📉 Dinámico: <b>{dinam:.1f} m</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span></div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;"><span>🏗️ Columna: <b>{col:.1f} m</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span></div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px;"><span>🔋 Tanque: <b>{tanq:.1f} mts</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span></div>
-                </div>
-                <div style="margin-bottom: 12px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-                    <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
-                        <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                            <th style="padding: 4px;">Fase</th><th style="padding: 4px;">Voltaje / Act.</th><th style="padding: 4px;">Amp / Act.</th>
-                        </tr>
-                        <tr style="border-bottom: 1px solid #222;"><td style="padding: 6px 4px;">L1-L2</td><td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px;">{v[0][1]}</span></td><td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px;">{a[0][1]}</span></td></tr>
-                        <tr style="border-bottom: 1px solid #222;"><td style="padding: 6px 4px;">L2-L3</td><td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px;">{v[1][1]}</span></td><td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px;">{a[1][1]}</span></td></tr>
-                        <tr><td style="padding: 6px 4px;">L1-L3</td><td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px;">{v[2][1]}</span></td><td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px;">{a[2][1]}</span></td></tr>
-                    </table>
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;"><span>▶️ Arranque: <b>{formato_hora(h_arr_val)}</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_h_arr}</span></div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px;"><span>⏹️ Paro: <b>{formato_hora(h_par_val)}</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_h_par}</span></div>
-                </div>
+        html_popup = f"""
+        <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+                <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
             </div>
-            """
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: #888;">HIDRÁULICA</div>
+                <div style="display: flex; font-size: 11px;">💧 Caudal: <b>{q:.2f} L/s</b><span style="color:#FFFF00; margin-left:auto;">{f_q}</span></div>
+                <div style="display: flex; font-size: 11px;">🚀 Presión: <b>{p:.2f} kg</b><span style="color:#FFFF00; margin-left:auto;">{f_p}</span></div>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; color: #888;">NIVELES</div>
+                <div style="display: flex; font-size: 11px;">📏 Sumergencia: <b>{sumer:.1f} m</b><span style="color:#FFFF00; margin-left:auto;">{f_s}</span></div>
+                <div style="display: flex; font-size: 11px;">📉 Dinámico: <b>{dinam:.1f} m</b><span style="color:#FFFF00; margin-left:auto;">{f_d}</span></div>
+                <div style="display: flex; font-size: 11px;">🏗️ Columna: <b>{col:.1f} m</b><span style="color:#FFFF00; margin-left:auto;">{f_col}</span></div>
+                <div style="display: flex; font-size: 11px;">🔋 Tanque: <b>{tanq:.1f} m</b><span style="color:#FFFF00; margin-left:auto;">{f_t}</span></div>
+            </div>
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th>Fase</th><th>Voltaje</th><th>Amp</th></tr>
+                <tr><td>L1-L2</td><td>{v[0][0]:.1f}V</td><td>{a[0][0]:.1f}A</td></tr>
+                <tr><td>L2-L3</td><td>{v[1][0]:.1f}V</td><td>{a[1][0]:.1f}A</td></tr>
+                <tr><td>L1-L3</td><td>{v[2][0]:.1f}V</td><td>{a[2][0]:.1f}A</td></tr>
+            </table>
+            <div style="margin-top: 10px; font-size: 10px;">
+                ▶️ Arranque: <b>{formato_hora(h_arr_val)}</b> | ⏹️ Paro: <b>{formato_hora(h_par_val)}</b>
+            </div>
+        </div>
+        """
 
-            if ver_etiquetas:
-                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-12, 10), html=f'<div style="font-size:9px; font-weight:bold; color:{info["color_final"]}; text-shadow:1px 1px #000;">{id_p}</div>')).add_to(m)
-            
-            if ver_pozos:
-                if info.get('blink'):
-                    folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup, max_width=450)).add_to(m)
-                else:
-                    folium.CircleMarker(location=info['coord'], radius=4, color=info['color_final'], fill=True, fill_opacity=1, popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+        folium.Marker(
+            location=info['coord'],
+            icon=folium.DivIcon(html=f'<div style="font-size:9px; color:{info["color_final"]};">{id_p}</div>' if not info.get('blink') else ""),
+            popup=folium.Popup(html_popup, max_width=450)
+        ).add_to(m)
 
-        folium_static(m, width=None, height=750)
+    folium_static(m, width=None, height=750)
 
-with tabs[1]:
-    st.markdown("### 📋 Listado de Sectores")
-    if sectores:
-        df_sec = pd.DataFrame(sectores)[['sector']]
-        seleccion = st.dataframe(df_sec, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
-        if seleccion and seleccion["selection"]["rows"]:
-            st.session_state.sector_seleccionado = df_sec.iloc[seleccion["selection"]["rows"][0]]['sector']
-            st.rerun()
-
-if "sector_seleccionado" in st.session_state:
-    with tabs[2]:
-        sec_id = st.session_state.sector_seleccionado
-        st.markdown(f"## 🔍 Detalle: {sec_id}")
-        if st.button("Cerrar Detalle"):
-            del st.session_state.sector_seleccionado
-            st.rerun()
-        geo_data = next((s['geo'] for s in sectores if s['sector'] == sec_id), None)
-        if geo_data:
-            m_mini = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
-            folium.GeoJson(json.loads(geo_data), style_function=lambda x: {'color': 'orange', 'weight': 2}).add_to(m_mini)
-            folium_static(m_mini, width=700, height=400)
+with tab_info_sectores:
+    st.write("### Listado de Sectores")
+    st.dataframe(pd.DataFrame(sectores)[['sector']], use_container_width=True)

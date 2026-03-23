@@ -374,8 +374,21 @@ with col_mapa:
         for s in sectores:
             folium.GeoJson(
                 json.loads(s['geo']), 
-                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-                tooltip=f"Sector: {s['sector']}"
+                # Estilo base: Azul con baja opacidad
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#00d4ff', 
+                    'weight': 1, 
+                    'fillOpacity': 0.1
+                },
+                # Estilo al pasar el mouse: Aumenta grosor y opacidad
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
+                tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
             ).add_to(m)
 
     # 4. RENDERIZADO DE POZOS

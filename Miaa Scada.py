@@ -306,7 +306,7 @@ Fullscreen().add_to(m)
 
     # 2. Definir los grupos de capas (esto permite el encendido/apagado)
     fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos (QGIS)", show=True)
-    fg_medidores = folium.FeatureGroup(name="Pozos", show=True)
+    fg_pozos = folium.FeatureGroup(name="Pozos", show=True)
 
 # 1. FUNCIÓN PARA HORARIO 00:00
 def formato_hora(decimal):

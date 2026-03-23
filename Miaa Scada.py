@@ -8,6 +8,7 @@ import psycopg2
 import json
 import urllib.parse
 from datetime import datetime
+import datetime as dt
 
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
@@ -171,27 +172,12 @@ def cargar_sectores_poligonos():
     except: 
         return []
 
-
-@st.cache_data(ttl=3600)
-def cargar_sectores_poligonos():
-    conn = get_postgres_conn()
-    if not conn: return []
-    try:
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df.to_dict('records')
-    except: 
-        return []
-
 # --- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---
 
-# 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-# 2. Inicialización de listas y contadores para el resumen
 pozos_on = []
 pozos_off = []
 pozos_sin_telemetria = []
@@ -199,15 +185,11 @@ pozos_falla_com = []
 total_q = 0.0
 total_p = 0.0
 
-# 3. Ajuste de Hora Local (Aguascalientes UTC-6)
-# Esto evita que datos recientes se marquen como falla por el desfase del servidor
-import datetime as dt
 ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
 
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
     
-    # A. FILTRO INICIAL: SIN TELEMETRÍA
     if bomba_val == "Sin telemetria":
         info.update({
             'status_label': 'SIN TELEMETRÍA', 
@@ -217,34 +199,23 @@ for id_p, info in mapa_pozos_dict.items():
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # B. VALIDACIÓN DE COMUNICACIÓN (SOLO L1)
-    # Buscamos el tag de la línea 1 de voltaje configurado en el diccionario
     tag_l1 = info['voltajes_l'][0]
     _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
     
     es_falla_com = False
     if fecha_str != "N/A":
         try:
-            # Convertimos la fecha del SCADA (ej. "20/03 08:29") usando el año actual
             fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
-            
-            # Calculamos la antigüedad del dato en horas
             diff = ahora - fecha_dt
             horas_atras = diff.total_seconds() / 3600
-            
-            # Si el último dato de L1 es de hace más de 4 horas -> FALLA COM.
             if horas_atras > 4:
                 es_falla_com = True
         except:
-            # Si hay error al procesar la fecha, se marca como falla por precaución
             es_falla_com = True
     else:
-        # Si no hay fecha registrada para L1, no hay comunicación
         es_falla_com = True
 
-    # C. ASIGNACIÓN DE ESTADO FINAL Y PARPADEO
     if es_falla_com:
-        # FALLA DE COMUNICACIÓN: Naranja y Parpadea
         info.update({
             'status_label': 'FALLA COM.', 
             'color_final': '#FFA500', 
@@ -252,13 +223,11 @@ for id_p, info in mapa_pozos_dict.items():
         })
         pozos_falla_com.append(id_p)
     else:
-        # Si hay comunicación (< 4h), evaluamos si la bomba está encendida
         val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
         q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
         p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
         
         if val_bba == 1:
-            # OPERANDO: Verde y Fijo
             info.update({
                 'status_label': 'OPERANDO', 
                 'color_final': '#00FF00', 
@@ -268,7 +237,6 @@ for id_p, info in mapa_pozos_dict.items():
             total_q += q_val
             total_p += p_val
         else:
-            # APAGADO: Rojo y Parpadea
             info.update({
                 'status_label': 'APAGADO', 
                 'color_final': '#FF0000', 
@@ -278,7 +246,6 @@ for id_p, info in mapa_pozos_dict.items():
             
 # 6 -------------------------------------------------------------------------------SECCION 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
-    # Contenedor del logo con ajustes forzados hacia arriba
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     
     with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
@@ -307,30 +274,25 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-# Sección de Bombas ON
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
         for p in sorted(pozos_on): 
             st.write(f"🟢 {p}")
     
-    # Sección de Bombas OFF
     with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
         for p in sorted(pozos_off): 
             st.write(f"🔴 {p}")
 
-    # Nueva Sección: Falla de Comunicación
     if pozos_falla_com:
         with st.expander(f"⚠️ Falla de Com. (+4h) ({len(pozos_falla_com)})", expanded=False):
             for p in sorted(pozos_falla_com):
                 st.write(f"🟠 {p}")
     
-    # Sección Sin Telemetría
     if pozos_sin_telemetria:
         with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
-# DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
@@ -341,10 +303,34 @@ with col_capas:
     ver_etiquetas = st.checkbox("ID Pozos", value=True)
 
 with col_mapa:
-    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
+    # --- ACTUALIZACIÓN A VISTA 3D (GOOGLE SATELLITE / TERRAIN) ---
+    # Se añade la capa de Google para simular profundidad y terreno
+    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles=None)
+    
+    # Capa Satelital 3D (Google)
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attr='Google Satélite',
+        name='Vista Satelital 3D',
+        overlay=False,
+        control=True
+    ).add_to(m)
+
+    # Capa Híbrida (Google con Etiquetas)
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        attr='Google Híbrido',
+        name='Vista Satelital con Etiquetas',
+        overlay=False,
+        control=True
+    ).add_to(m)
+
+    # Capa Oscura original por si el usuario la prefiere
+    folium.TileLayer("CartoDB dark_matter", name="Vista Nocturna").add_to(m)
+    
+    folium.LayerControl().add_to(m)
     Fullscreen().add_to(m)
 
-    # 1. FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
         try:
             if decimal == "N/A" or decimal is None: return "00:00"
@@ -354,7 +340,6 @@ with col_mapa:
         except:
             return "00:00"
 
-    # 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
     def get_blink_icon(color):
         return f"""
         <div style="
@@ -369,7 +354,6 @@ with col_mapa:
         </style>
         """
 
-    # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
     if ver_sectores:
         for s in sectores:
             folium.GeoJson(
@@ -378,12 +362,10 @@ with col_mapa:
                 tooltip=f"Sector: {s['sector']}"
             ).add_to(m)
 
-    # 4. RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
         
-        # Extracción de datos y fechas (Tu diseño original)
         q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
         p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
         sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -391,7 +373,6 @@ with col_mapa:
         tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
         col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
         
-        # Horarios formateados
         h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
         h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
         h_arr_fmt = formato_hora(h_arr_val)
@@ -400,7 +381,6 @@ with col_mapa:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # TU DISEÑO ORIGINAL RESTAURADO (Con MTS y 00:00)
         html_popup = f"""
         <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -474,7 +454,6 @@ with col_mapa:
         </div>
         """
 
-        # CAPA DE TEXTO (Etiquetas ID Pozos)
         if ver_etiquetas:
             folium.Marker(
                 location=info['coord'],
@@ -485,7 +464,6 @@ with col_mapa:
                 )
             ).add_to(m)
 
-        # CAPA DEL MARCADOR (Puntos/Blinkers)
         if ver_pozos:
             if info.get('blink'):
                 folium.Marker(
@@ -505,6 +483,4 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-    # Renderizado final del mapa
     folium_static(m, width=None, height=750)
-

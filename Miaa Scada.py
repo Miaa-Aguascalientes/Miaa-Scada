@@ -38,19 +38,30 @@ st.markdown("""
         }
 
         @keyframes glow {
-            from { text-shadow: 0 0 5px #00d4ff; transform: translateX(-50%) scale(1); }
-            to { text-shadow: 0 0 15px #0077ff; transform: translateX(-50%) scale(1.02); }
+            from { text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff; transform: translateX(-50%) scale(1); }
+            to { text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff; transform: translateX(-50%) scale(1.02); }
         }
     
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
         [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        .sidebar-logo { display: flex; justify-content: center; margin-top: -70px !important; margin-bottom: 10px; }
+        
+        .sidebar-logo { 
+            display: flex; 
+            justify-content: center; 
+            padding: 0px !important; 
+            margin-top: -70px !important; 
+            margin-bottom: 10px;
+        }
         .sidebar-logo img { max-width: 85%; height: auto; }
+        
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
         .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
         .status-err { background-color: #b71c1c; color: #ef9a9a; }
+        
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -82,6 +93,7 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
+        # Consulta para traer los polígonos desde PostgreSQL
         query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
@@ -158,21 +170,22 @@ for id_p, info in mapa_pozos_dict.items():
         pozos_falla_com.append(id_p)
     else:
         val_bba = data_scada.get(info['bomba'], (0, "N/A"))[0]
+        q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
+        p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
         if val_bba == 1:
             info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
             pozos_on.append(id_p)
-            total_q += data_scada.get(info['caudal'], (0,0))[0]
-            total_p += data_scada.get(info['presion'], (0,0))[0]
+            total_q += q_val
+            total_p += p_val
         else:
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# Lógica de Vista Detalle (URL Params)
+# Lógica de Vista Detalle (Solo si se activa por parámetro URL)
 query_params = st.query_params
 if "sector_id" in query_params:
-    st.title(f"Vista Detallada: {query_params['sector_id']}")
-    st.info("Cargando datos técnicos del sector...")
-    if st.button("⬅️ Volver al Mapa General"):
+    st.title(f"Detalle Sector: {query_params['sector_id']}")
+    if st.button("⬅️ Volver al Mapa"):
         st.query_params.clear()
         st.rerun()
     st.stop()
@@ -187,7 +200,7 @@ with st.sidebar:
             return f'<span class="status-tag {cls}">{status}</span>'
         st.markdown(f"**SCADA:** {get_tag('OK' if get_mysql_scada_engine() else 'ERROR')}", unsafe_allow_html=True)
         st.markdown(f"**Telemetría:** {get_tag('OK' if get_mysql_telemetria_engine() else 'ERROR')}", unsafe_allow_html=True)
-        st.markdown(f"**GIS:** {get_tag('OK' if get_postgres_conn() else 'ERROR')}", unsafe_allow_html=True)
+        st.markdown(f"**PostgreSQL:** {get_tag('OK' if get_postgres_conn() else 'ERROR')}", unsafe_allow_html=True)
 
     if st.button("♻️ Actualizar Datos Real-Time", use_container_width=True):
         st.cache_data.clear()
@@ -195,26 +208,22 @@ with st.sidebar:
 
     st.markdown(f'<div class="resumen-card"><h4 style="color:#00d4ff; margin:0;">RESUMEN GLOBAL</h4><p>Caudal: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p><p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg</b></p></div>', unsafe_allow_html=True)
     
-    with st.expander(f"🟢 OPERANDO ({len(pozos_on)})", expanded=False):
-        for p in sorted(pozos_on): st.markdown(f"<small>🟢 Pozo {p}</small>", unsafe_allow_html=True)
-    with st.expander(f"🔴 APAGADOS ({len(pozos_off)})", expanded=False):
-        for p in sorted(pozos_off): st.markdown(f"<small>🔴 Pozo {p}</small>", unsafe_allow_html=True)
+    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
+        for p in sorted(pozos_on): st.write(f"🟢 {p}")
+    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
+        for p in sorted(pozos_off): st.write(f"🔴 {p}")
     if pozos_falla_com:
-        with st.expander(f"⚠️ FALLA COMUNICACIÓN ({len(pozos_falla_com)})", expanded=False):
-            for p in sorted(pozos_falla_com): st.markdown(f"<small>🟠 Pozo {p}</small>", unsafe_allow_html=True)
-    if pozos_sin_telemetria:
-        with st.expander(f"⚪ SIN TELEMETRÍA ({len(pozos_sin_telemetria)})", expanded=False):
-            for p in sorted(pozos_sin_telemetria): st.markdown(f"<small>⚪ Pozo {p}</small>", unsafe_allow_html=True)
+        with st.expander(f"⚠️ Falla de Com. (+4h) ({len(pozos_falla_com)})", expanded=False):
+            for p in sorted(pozos_falla_com): st.write(f"🟠 {p}")
 
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
-st.markdown('<div class="titulo-superior">Sistema de Monitoreo - Pozos Aguascalientes</div>', unsafe_allow_html=True)
+st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 col_mapa, col_capas = st.columns([8.5, 1.5])
-
 with col_capas:
     st.markdown("### 🗺️ Capas")
-    ver_sectores = st.checkbox("Sectores Hidráulicos", value=True)
+    ver_sectores = st.checkbox("Sectores", value=True)
     ver_pozos = st.checkbox("Pozos", value=True)
-    ver_etiquetas = st.checkbox("Etiquetas ID", value=True)
+    ver_etiquetas = st.checkbox("ID Pozos", value=True)
 
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
@@ -226,13 +235,16 @@ with col_mapa:
             return f"{h:02d}:{int((float(decimal)-h)*60):02d}"
         except: return "00:00"
 
-    # RENDERIZADO DE SECTORES (CON TARGET BLANK PARA NUEVA PESTAÑA)
+    def get_blink_icon(color):
+        return f'<div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div><style>@keyframes blinker {{ 50% {{ opacity: 0.2; }} }}</style>'
+
+    # RENDERIZADO DE SECTORES (CON CORRECCIÓN DE VISIBILIDAD Y NUEVA PESTAÑA)
     if ver_sectores:
         for s in sectores:
             try:
                 nombre_s = s['sector']
                 url_s = f"./?sector_id={urllib.parse.quote(str(nombre_s))}"
-                # CORRECCIÓN AQUÍ: target="_blank"
+                # Botón con target="_blank" para abrir en pestaña nueva
                 pop_html = f"""
                 <div style="background:#0b1a29; padding:10px; border-radius:5px; border:1px solid #00d4ff; width:200px;">
                     <h4 style="color:#00d4ff; margin:0;">Sector: {nombre_s}</h4>
@@ -243,19 +255,24 @@ with col_mapa:
                 folium.GeoJson(
                     json.loads(s['geo']), 
                     style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-                    highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.3},
+                    highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
                     popup=folium.Popup(pop_html, max_width=250)
                 ).add_to(m)
             except: continue
 
-    # RENDERIZADO DE POZOS (DISEÑO ORIGINAL)
+    # RENDERIZADO DE POZOS (POPUP ORIGINAL RESTAURADO)
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
         q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
         p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+        sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+        dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+        tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+        
         v = [d(t) for t in info['voltajes_l']]
         a = [d(t) for t in info['amperajes_l']]
+        h_arr, h_par = formato_hora(d(info['h_arranque'])[0]), formato_hora(d(info['h_paro'])[0])
 
         html_popup = f"""
         <div style="background:#050505; color:white; padding:15px; border-radius:12px; width:380px; border:1px solid {info['color_final']}; font-family:sans-serif;">
@@ -263,20 +280,31 @@ with col_mapa:
                 <b style="color:#00d4ff; font-size:16px;">POZO {id_p}</b>
                 <span style="font-size:10px; background:{info['color_final']}; color:black; padding:2px 8px; border-radius:4px; font-weight:bold;">{info['status_label']}</span>
             </div>
-            <div style="margin-bottom:12px;"><div style="font-size:10px; color:#888;">HIDRÁULICA</div>
+            <div style="margin-bottom:12px;">
+                <div style="font-size:10px; color:#888;">HIDRÁULICA</div>
                 <div style="display:flex; font-size:11px;"><span>💧 Caudal: <b>{q:.2f} L/s</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_q}</span></div>
                 <div style="display:flex; font-size:11px;"><span>🚀 Presión: <b>{p:.2f} kg</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_p}</span></div>
             </div>
-            <table style="width:100%; font-size:10px; border-collapse:collapse;">
-                <tr style="color:#00d4ff; border-bottom:1px solid #333;"><th style="text-align:left;">Fase</th><th>Voltaje</th><th>Amp</th></tr>
-                <tr style="border-bottom:1px solid #222;"><td>L1-L2</td><td><b>{v[0][0]:.1f}V</b></td><td><b>{a[0][0]:.1f}A</b></td></tr>
-                <tr><td>L2-L3</td><td><b>{v[1][0]:.1f}V</b></td><td><b>{a[1][0]:.1f}A</b></td></tr>
+            <div style="margin-bottom:12px;">
+                <div style="font-size:10px; color:#888;">NIVELES</div>
+                <div style="display:flex; font-size:11px;"><span>📏 Sumergencia: <b>{sumer:.1f} m</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_s}</span></div>
+                <div style="display:flex; font-size:11px;"><span>🔋 Tanque: <b>{tanq:.1f} mts</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_t}</span></div>
+            </div>
+            <table style="width:100%; font-size:10px; border-collapse:collapse; margin-bottom:10px;">
+                <tr style="color:#00d4ff; border-bottom:1px solid #333;"><th style="text-align:left;">Fase</th><th>Voltaje / Act.</th><th>Amp / Act.</th></tr>
+                <tr style="border-bottom:1px solid #222;"><td>L1-L2</td><td><b>{v[0][0]:.1f}V</b> <span style="font-size:8px;">{v[0][1]}</span></td><td><b>{a[0][0]:.1f}A</b> <span style="font-size:8px;">{a[0][1]}</span></td></tr>
+                <tr style="border-bottom:1px solid #222;"><td>L2-L3</td><td><b>{v[1][0]:.1f}V</b> <span style="font-size:8px;">{v[1][1]}</span></td><td><b>{a[1][0]:.1f}A</b> <span style="font-size:8px;">{a[1][1]}</span></td></tr>
             </table>
+            <div style="font-size:10px; color:#888; border-top:1px solid #222; padding-top:5px;">HORARIOS</div>
+            <div style="display:flex; font-size:11px;"><span>▶️ Arranque: <b>{h_arr}</b></span> | <span>⏹️ Paro: <b>{h_par}</b></span></div>
         </div>
         """
         if ver_etiquetas:
             folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-12,10), html=f'<div style="font-size:9px; font-weight:bold; color:{info["color_final"]}; text-shadow:1px 1px #000;">{id_p}</div>')).add_to(m)
         if ver_pozos:
-            folium.CircleMarker(location=info['coord'], radius=5, color=info['color_final'], fill=True, fill_opacity=1, weight=1, popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+            if info.get('blink'):
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+            else:
+                folium.CircleMarker(location=info['coord'], radius=4, color=info['color_final'], fill=True, fill_color=info['color_final'], fill_opacity=1, weight=1, popup=folium.Popup(html_popup, max_width=450)).add_to(m)
 
     folium_static(m, width=None, height=750)

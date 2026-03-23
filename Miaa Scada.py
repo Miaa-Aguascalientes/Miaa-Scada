@@ -410,41 +410,36 @@ with col_mapa:
 
 # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para incluir Popup con Botón
 # Dentro del bucle de sectores en la Sección 7
+# --- EN TU ARCHIVO ACTUAL (Miaa Scada - respaldo.py) ---
+
 if ver_sectores:
     for s in sectores:
-        # Usamos query params: ?sector=Nombre_Sector
-        # Nota: Asegúrate de que la URL apunte a tu página de detalles
-        url_detalles = f"https://tu-app.streamlit.app/Detalle_Sector?sector={urllib.parse.quote(s['sector'])}"
+        # 1. Creamos la URL que apunta a tu misma app pero con el parámetro del sector
+        # Asegúrate de que 'tu-app.streamlit.app' sea la URL real de tu despliegue
+        base_url = "https://tu-app.streamlit.app" 
+        url_detalles = f"{base_url}/?sector={urllib.parse.quote(s['sector'])}"
         
+        # 2. HTML del Botón para el Popup
         html_sector = f"""
-        <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px;">
+        <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
             <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
+            <p style="font-size: 11px; color: #ccc;">Haga clic para ver pozos y datos técnicos.</p>
             <a href="{url_detalles}" target="_blank" 
-               style="display: inline-block; padding: 8px 16px; background-color: #00d4ff; color: black; 
-                      text-decoration: none; border-radius: 5px; font-weight: bold;">
-               🔍 Abrir Análisis
+               style="display: inline-block; padding: 8px 15px; background-color: #00d4ff; color: black; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 12px;">
+               📊 ANALIZAR SECTOR
             </a>
         </div>
         """
-            
-            folium.GeoJson(
-                json.loads(s['geo']), 
-                style_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#00d4ff', 
-                    'weight': 1, 
-                    'fillOpacity': 0.1
-                },
-                highlight_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#ffffff', 
-                    'weight': 3, 
-                    'fillOpacity': 0.4
-                },
-                # Añadimos el Popup aquí
-                popup=folium.Popup(html_sector, max_width=250),
-                tooltip=folium.Tooltip(f"Sector: {s['sector']} (Click para más)", sticky=True)
-            ).add_to(m)
+        
+        folium.GeoJson(
+            json.loads(s['geo']), 
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+            highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
+            # AÑADIMOS EL POPUP AQUÍ
+            popup=folium.Popup(html_sector, max_width=250),
+            tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
+        ).add_to(m)
 
     # 4. RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():

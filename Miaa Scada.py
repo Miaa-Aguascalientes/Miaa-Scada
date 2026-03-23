@@ -314,16 +314,24 @@ with col_mapa:
                 <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
                 <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
                     <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                        <th style="padding: 4px;">Fase</th><th style="padding: 4px;">Voltaje</th><th style="padding: 4px;">Amp</th>
+                        <th style="padding: 4px;">Fase</th>
+                        <th style="padding: 4px;">Voltaje / Act.</th>
+                        <th style="padding: 4px;">Amp / Act.</th>
                     </tr>
                     <tr style="border-bottom: 1px solid #222;">
-                        <td style="padding: 6px 4px;">L1-L2</td><td><b>{v[0][0]:.1f}V</b></td><td><b>{a[0][0]:.1f}A</b></td>
+                        <td style="padding: 6px 4px;">L1-L2</td>
+                        <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
+                        <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
                     </tr>
                     <tr style="border-bottom: 1px solid #222;">
-                        <td style="padding: 6px 4px;">L2-L3</td><td><b>{v[1][0]:.1f}V</b></td><td><b>{a[1][0]:.1f}A</b></td>
+                        <td style="padding: 6px 4px;">L2-L3</td>
+                        <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
+                        <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
                     </tr>
                     <tr>
-                        <td style="padding: 6px 4px;">L1-L3</td><td><b>{v[2][0]:.1f}V</b></td><td><b>{a[2][0]:.1f}A</b></td>
+                        <td style="padding: 6px 4px;">L1-L3</td>
+                        <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
+                        <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
                     </tr>
                 </table>
                 <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>

@@ -321,7 +321,12 @@ with st.sidebar:
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
-tab_mapa, tab_info_sectores = st.tabs(["🗺️ Mapa de Monitoreo", "📊 Información de Sectores"])
+nombres_tabs = ["🗺️ Mapa de Monitoreo", "📊 Información de Sectores"]
+# Verificar si hay un sector seleccionado para añadir la tercera pestaña
+if "sector_seleccionado" in st.session_state:
+    nombres_tabs.append(f"🔍 Detalle: {st.session_state.sector_seleccionado}")
+
+tabs = st.tabs(nombres_tabs)
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
 with col_capas:

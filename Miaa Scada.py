@@ -447,6 +447,103 @@ with col_mapa:
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
         # HTML del Popup del Pozo
+# 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
+# DASHBOARD
+st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
+
+col_mapa, col_capas = st.columns([8.5, 1.5])
+
+with col_capas:
+    st.markdown("### 🗺️ Capas")
+    ver_sectores = st.checkbox("Sectores", value=True)
+    ver_pozos = st.checkbox("Pozos", value=True)
+    ver_etiquetas = st.checkbox("ID Pozos", value=True)
+
+with col_mapa:
+    # Configuración inicial del mapa
+    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
+    Fullscreen().add_to(m)
+
+    # --- A. FUNCIONES AUXILIARES DE RENDERIZADO ---
+    def formato_hora(decimal):
+        try:
+            if decimal == "N/A" or decimal is None: return "00:00"
+            horas = int(float(decimal))
+            minutos = int((float(decimal) - horas) * 60)
+            return f"{horas:02d}:{minutos:02d}"
+        except: return "00:00"
+
+    def get_blink_icon(color):
+        return f"""
+        <div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; 
+                    box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
+        <style> @keyframes blinker {{ 50% {{ opacity: 0.2; }} }} </style>
+        """
+
+    # --- B. RENDERIZADO DE SECTORES (CAPA INFERIOR) ---
+    if ver_sectores:
+        for s in sectores:
+            nom = s.get('sector', 'N/A')
+            # Extraer datos de Postgres (asegurando coincidencia de mayúsculas/minúsculas)
+            pozos_lista = s.get('Pozos_Sector') or s.get('pozos_sector', 'Sin datos')
+            pob = s.get('Poblacion') or s.get('poblacion', 0)
+            cons = s.get('Cons_m3') or s.get('cons_m3', 0)
+            fugas = s.get('Fugas_Tot') or s.get('fugas_tot', 0)
+            balance = s.get('Balance_Estimado') or s.get('balance_estimado', 0)
+
+            html_popup_sector = f"""
+            <div style="font-family: 'Segoe UI', sans-serif; min-width: 240px; background-color: #050505; color: white; padding: 12px; border-radius: 8px; border: 1px solid #00d4ff;">
+                <h4 style="margin: 0 0 10px 0; color: #00d4ff; border-bottom: 1px solid #333;">Sector {nom}</h4>
+                <table style="width: 100%; font-size: 12px; border-collapse: collapse; margin-bottom: 10px;">
+                    <tr><td style="color: #888; padding: 2px 0;">👥 Población:</td><td style="text-align: right;"><b>{pob:,}</b></td></tr>
+                    <tr><td style="color: #888; padding: 2px 0;">💧 Consumo:</td><td style="text-align: right;"><b>{cons:,} m³</b></td></tr>
+                    <tr><td style="color: #888; padding: 2px 0;">🚨 Fugas Totales:</td><td style="text-align: right; color: #ff4b4b;"><b>{fugas}</b></td></tr>
+                    <tr><td style="color: #888; padding: 2px 0;">📈 Balance:</td><td style="text-align: right; color: #00ff00;"><b>{balance}%</b></td></tr>
+                </table>
+                <div style="margin-bottom: 12px; font-size: 11px; color: #aaa; background: #111; padding: 5px; border-radius: 4px;">
+                    <b>Pozos:</b> {pozos_lista}
+                </div>
+                <a href="/Detalle_Sector?sector={urllib.parse.quote(nom)}" target="_blank" style="text-decoration: none;">
+                    <button style="background-color: #00d4ff; color: black; border: none; padding: 8px; border-radius: 4px; 
+                                   cursor: pointer; font-weight: bold; width: 100%; font-size: 11px;">
+                        🚀 ABRIR TABLERO DETALLADO
+                    </button>
+                </a>
+            </div>
+            """
+
+            folium.GeoJson(
+                json.loads(s['geo']),
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1, 'interactive': True
+                },
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.3
+                },
+                tooltip=folium.Tooltip(f"Sector: {nom}", sticky=True),
+                popup=folium.Popup(html_popup_sector, max_width=320)
+            ).add_to(m)
+
+    # --- C. RENDERIZADO DE POZOS (CAPA SUPERIOR) ---
+    for id_p, info in mapa_pozos_dict.items():
+        d = lambda tag: data_scada.get(tag, (0, "N/A"))
+        is_st = (info['status_label'] == 'SIN TELEMETRÍA')
+        
+        # Extracción de Telemetría
+        q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+        p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+        sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+        dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+        tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+        col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
+        
+        h_arr_fmt = formato_hora(d(info['h_arranque'])[0]) if not is_st else "00:00"
+        h_par_fmt = formato_hora(d(info['h_paro'])[0]) if not is_st else "00:00"
+        
+        v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+        a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+
+        # HTML del Popup del Pozo
         html_popup_pozo = f"""
         <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -519,6 +616,34 @@ with col_mapa:
             </div>
         </div>
         """
+
+        # Capa de Texto (Etiquetas ID)
+        if ver_etiquetas:
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(
+                    icon_anchor=(-12, 10),
+                    html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
+                )
+            ).add_to(m)
+
+        # Capa de Marcadores
+        if ver_pozos:
+            if info.get('blink'):
+                folium.Marker(
+                    location=info['coord'],
+                    icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                    popup=folium.Popup(html_popup_pozo, max_width=400)
+                ).add_to(m)
+            else:
+                folium.CircleMarker(
+                    location=info['coord'], radius=4, color=info['color_final'],
+                    fill=True, fill_color=info['color_final'], fill_opacity=1,
+                    popup=folium.Popup(html_popup_pozo, max_width=400)
+                ).add_to(m)
+
+    # --- D. RENDERIZADO FINAL ---
+    folium_static(m, width=None, height=750)
 
         # Capa de Texto (Etiquetas ID)
         if ver_etiquetas:

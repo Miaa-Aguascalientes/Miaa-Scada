@@ -159,30 +159,29 @@ def cargar_datos_scada(mapa_pozos):
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except: return {}
 
+@st.cache_data(ttl=3600)
+def cargar_sectores_poligonos():
+    conn = get_postgres_conn()
+    if not conn: return []
+    try:
+        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return df.to_dict('records')
+    except: 
+        return []
+
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Usamos comillas dobles exactas para los nombres de columna de Postgres
-        query = """
-            SELECT 
-                sector, 
-                "Pozos_Sector", 
-                "Poblacion",
-                "Cons_m3", 
-                "Fugas_Tot", 
-                "Balance_Estimado",
-                ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
-            FROM "Sectorizacion"."Sectores_hidr"
-        """
+        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
-        # Verificación interna: si el DF está vacío o las columnas no coinciden
         return df.to_dict('records')
-    except Exception as e:
-        st.error(f"Error en Postgres: {e}")
+    except: 
         return []
 
 # --- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---
@@ -331,19 +330,21 @@ with st.sidebar:
                 st.write(f"⚪ {p}")
 
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
+# DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
 with col_capas:
     st.markdown("### 🗺️ Capas")
-    ver_sectores = st.checkbox("Sectores", value=True, key="chk_sectores")
-    ver_pozos = st.checkbox("Pozos", value=True, key="chk_pozos")
-    ver_etiquetas = st.checkbox("ID Pozos", value=True, key="chk_etiquetas")
+    ver_sectores = st.checkbox("Sectores", value=True)
+    ver_pozos = st.checkbox("Pozos", value=True)
+    ver_etiquetas = st.checkbox("ID Pozos", value=True)
 
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
+    # 1. FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
         try:
             if decimal == "N/A" or decimal is None: return "00:00"
@@ -353,59 +354,49 @@ with col_mapa:
         except:
             return "00:00"
 
+    # 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
     def get_blink_icon(color):
         return f"""
-        <div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; 
-        box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
-        <style>@keyframes blinker {{ 50% {{ opacity: 0.2; }} }}</style>
+        <div style="
+            width: 8px; height: 8px; 
+            background-color: {color}; 
+            border-radius: 50%; 
+            box-shadow: 0 0 8px {color};
+            animation: blinker 1s linear infinite;">
+        </div>
+        <style>
+        @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
+        </style>
         """
 
-    # --- RENDERIZADO DE SECTORES (CON POPUP Y CONTORNO) ---
+    # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
     if ver_sectores:
         for s in sectores:
-            # Extraemos datos de la fila de la DB (usando los nombres de tu imagen de QGIS)
-            nom_sector = s.get('sector', 'S/N')
-            pob = s.get('Poblacion', 0)
-            cons = s.get('Cons_m3', 0)
-            fugas = s.get('Fugas_Tot', 0)
-            balance = s.get('Balance_Estimado', 0)
-            lista_pozos = s.get('Pozos_Sector', 'Sin datos')
-
-            html_sector = f"""
-            <div style="background: #050505; color: white; padding: 12px; border-radius: 8px; width: 250px; border: 1px solid #00d4ff; font-family: sans-serif;">
-                <b style="color: #00d4ff; font-size: 14px; border-bottom: 1px solid #333; display: block; padding-bottom: 5px; margin-bottom: 8px;">Sector {nom_sector}</b>
-                <div style="font-size: 11px; line-height: 1.6;">
-                    👥 <b>Población:</b> <span style="float: right;">{pob:,}</span><br>
-                    💧 <b>Consumo:</b> <span style="float: right;">{cons:,} m³</span><br>
-                    🚨 <b>Fugas Totales:</b> <span style="float: right; color: #ff4b4b;">{fugas}</span><br>
-                    📈 <b>Balance:</b> <span style="float: right; color: #00ff00;">{balance}%</span><br>
-                    <hr style="border: 0; border-top: 1px solid #333; margin: 8px 0;">
-                    <b>Pozos:</b> <span style="font-size: 10px; color: #aaa;">{lista_pozos}</span>
-                </div>
-                <button style="margin-top: 10px; width: 100%; background: #00d4ff; border: none; color: black; font-weight: bold; padding: 5px; border-radius: 4px; cursor: pointer;">
-                    🚀 ABRIR TABLERO DETALLADO
-                </button>
-            </div>
-            """
-
             folium.GeoJson(
                 json.loads(s['geo']), 
+                # Estilo base: Azul con baja opacidad
                 style_function=lambda x: {
                     'fillColor': '#00d4ff', 
-                    'color': 'white',      # Contorno blanco como en tu imagen
-                    'weight': 2,           # Grosor del contorno
-                    'fillOpacity': 0.15
+                    'color': '#00d4ff', 
+                    'weight': 1, 
+                    'fillOpacity': 0.1
                 },
-                tooltip=f"Sector: {nom_sector}",
-                popup=folium.Popup(html_sector, max_width=300)
+                # Estilo al pasar el mouse: Aumenta grosor y opacidad
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
+                tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
             ).add_to(m)
 
-    # --- RENDERIZADO DE POZOS ---
+    # 4. RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
         
-        # Procesamiento de datos hidráulicos y eléctricos
+        # Extracción de datos y fechas (Tu diseño original)
         q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
         p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
         sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -413,6 +404,7 @@ with col_mapa:
         tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
         col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
         
+        # Horarios formateados
         h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
         h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
         h_arr_fmt = formato_hora(h_arr_val)
@@ -421,8 +413,8 @@ with col_mapa:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # Popup del Pozo (Tu diseño solicitado)
-        html_popup_pozo = f"""
+        # TU DISEÑO ORIGINAL RESTAURADO (Con MTS y 00:00)
+        html_popup = f"""
         <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
                 <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
@@ -495,6 +487,7 @@ with col_mapa:
         </div>
         """
 
+        # CAPA DE TEXTO (Etiquetas ID Pozos)
         if ver_etiquetas:
             folium.Marker(
                 location=info['coord'],
@@ -505,13 +498,13 @@ with col_mapa:
                 )
             ).add_to(m)
 
+        # CAPA DEL MARCADOR (Puntos/Blinkers)
         if ver_pozos:
-            popup_obj = folium.Popup(html_popup_pozo, max_width=450)
             if info.get('blink'):
                 folium.Marker(
                     location=info['coord'],
                     icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                    popup=popup_obj
+                    popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
             else:
                 folium.CircleMarker(
@@ -522,7 +515,9 @@ with col_mapa:
                     fill_color=info['color_final'],
                     fill_opacity=1,
                     weight=1,
-                    popup=popup_obj
+                    popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
+    # Renderizado final del mapa
     folium_static(m, width=None, height=750)
+

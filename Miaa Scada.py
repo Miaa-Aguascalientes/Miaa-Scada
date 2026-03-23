@@ -9,6 +9,55 @@ import json
 import urllib.parse
 from datetime import datetime
 
+# --- AL INICIO DE TU ARCHIVO (Después de los imports) ---
+
+# 0. DETECTAR SI ES UNA VISTA DE DETALLE DE SECTOR
+query_params = st.query_params
+sector_id = query_params.get("sector")
+
+if sector_id:
+    # --- MODO: VISTA DE SECTOR ESPECÍFICO ---
+    st.set_page_config(page_title=f"MIAA - Sector {sector_id}", layout="wide")
+    st.title(f"📍 Detalle Técnico - Sector {sector_id}")
+    
+    # 1. Consultar PostgreSQL para traer las 24 columnas (según tu imagen)
+    conn = get_postgres_conn()
+    query_sql = f"SELECT *, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM \"Sectorizacion\".\"Sectores_hidr\" WHERE sector = '{sector_id}'"
+    df_detalle = pd.read_sql(query_sql, conn)
+    conn.close()
+    
+    if not df_detalle.empty:
+        row = df_detalle.iloc[0]
+        
+        # 2. Mostrar métricas rápidas de la base de datos (Ejemplo con 3 de las 24 columnas)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Producción", f"{row['Vol_Prod']} m³")
+        c2.metric("Consumo", f"{row['Cons_m3']} m³")
+        c3.metric("Fugas", row['Fugas_Tot'])
+        c4.metric("Balance", row['Balance_Estimado'])
+        
+        # 3. Filtrar Pozos asociados a este sector
+        # Usamos la columna 'Pozos_Sector' de tu imagen para encontrar los pozos en el mapa_pozos_dict
+        lista_pozos_sector = str(row['Pozos_Sector']).split(',') # Asumiendo que vienen separados por coma
+        pozos_filtrados = {k: v for k, v in mapa_pozos_dict_principal.items() if k in lista_pozos_sector}
+
+        # 4. Renderizar el Mapa con el Polígono Único
+        m_sep = folium.Map(location=list(mapa_pozos_dict_principal.values())[0]['coord'], zoom_start=14, tiles="CartoDB dark_matter")
+        
+        # Dibujar el sector seleccionado
+        folium.GeoJson(
+            json.loads(row['geo']),
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.3}
+        ).add_to(m_sep)
+        
+        # Dibujar solo los pozos de este sector
+        for id_p, info in pozos_filtrados.items():
+            folium.CircleMarker(location=info['coord'], radius=6, color=info['color_final'], fill=True).add_to(m_sep)
+            
+        folium_static(m_sep, width=1200)
+        
+        st.stop() # IMPORTANTE: Esto detiene la ejecución aquí para que no cargue el mapa global abajo
+
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
@@ -360,23 +409,23 @@ with col_mapa:
         """
 
 # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para incluir Popup con Botón
-    if ver_sectores:
-        for s in sectores:
-            # Definimos la URL a la que quieres redirigir (puedes dinamizarla con s['sector'])
-            url_destino = f"https://tu-sitio-analisis.com/sector/{s['sector']}"
-            
-            # Creamos el HTML del popup con un botón estilizado
-            html_sector = f"""
-            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px;">
-                <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
-                <p style="font-size: 12px; color: #ccc;">Presione el botón para ver el análisis detallado de este sector.</p>
-                <a href="{url_destino}" target="_blank" 
-                   style="display: inline-block; padding: 8px 16px; background-color: #00d4ff; color: black; 
-                          text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 5px;">
-                   📊 Ver Detalles
-                </a>
-            </div>
-            """
+# Dentro del bucle de sectores en la Sección 7
+if ver_sectores:
+    for s in sectores:
+        # Usamos query params: ?sector=Nombre_Sector
+        # Nota: Asegúrate de que la URL apunte a tu página de detalles
+        url_detalles = f"https://tu-app.streamlit.app/Detalle_Sector?sector={urllib.parse.quote(s['sector'])}"
+        
+        html_sector = f"""
+        <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px;">
+            <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
+            <a href="{url_detalles}" target="_blank" 
+               style="display: inline-block; padding: 8px 16px; background-color: #00d4ff; color: black; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold;">
+               🔍 Abrir Análisis
+            </a>
+        </div>
+        """
             
             folium.GeoJson(
                 json.loads(s['geo']), 

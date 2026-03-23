@@ -9,20 +9,6 @@ import json
 import urllib.parse
 from datetime import datetime
 
-# Detectar si hay un sector seleccionado en la URL
-query_params = st.query_params
-sector_seleccionado = query_params.get("sector")
-
-if sector_seleccionado:
-    if st.button("⬅️ Volver al Mapa"):
-        st.query_params.clear()
-        st.rerun()
-    
-    st.title(f"Detalles del Sector: {sector_seleccionado}")
-    # Aquí puedes agregar tablas, gráficos o KPIs específicos del sector
-    st.info(f"Mostrando información detallada para el sector {sector_seleccionado}...")
-    st.stop() # Detiene la ejecución para que no cargue el mapa principal
-
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
@@ -374,44 +360,23 @@ with col_mapa:
     # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
     if ver_sectores:
         for s in sectores:
-            nom_sector = s.get('sector', 'S/N')
-            
-            # Construcción del HTML para el Popup del Sector
-            html_sector = f"""
-            <div style="background: #050505; color: white; padding: 12px; border-radius: 8px; width: 220px; border: 1px solid #00d4ff; font-family: sans-serif;">
-                <b style="color: #00d4ff; font-size: 14px; border-bottom: 1px solid #333; display: block; padding-bottom: 5px; margin-bottom: 8px;">Sector {nom_sector}</b>
-                <div style="font-size: 11px; line-height: 1.5; margin-bottom: 10px;">
-                    👥 <b>Población:</b> {s.get('Poblacion', 0):,}<br>
-                    💧 <b>Consumo:</b> {s.get('Cons_m3', 0):,} m³<br>
-                    🚨 <b>Fugas:</b> {s.get('Fugas_Tot', 0)}<br>
-                    📊 <b>Balance:</b> {s.get('Balance_Estimado', 0)}%
-                </div>
-                <a href="/?sector={nom_sector}" target="_self" style="
-                    display: block; 
-                    text-align: center; 
-                    background: #00d4ff; 
-                    color: black; 
-                    text-decoration: none; 
-                    font-weight: bold; 
-                    font-size: 10px;
-                    padding: 8px; 
-                    border-radius: 4px;">
-                    🚀 ABRIR DETALLE DEL SECTOR
-                </a>
-            </div>
-            """
-
             folium.GeoJson(
                 json.loads(s['geo']), 
+                # Estilo base: Azul con baja opacidad
                 style_function=lambda x: {
                     'fillColor': '#00d4ff', 
-                    'color': 'white',      # Contorno blanco como pediste
-                    'weight': 2,           # Grosor del contorno
-                    'fillOpacity': 0.15
+                    'color': '#00d4ff', 
+                    'weight': 1, 
+                    'fillOpacity': 0.1
                 },
-                highlight_function=lambda x: {'fillOpacity': 0.4, 'weight': 3},
-                tooltip=f"Sector: {nom_sector}",
-                popup=folium.Popup(html_sector, max_width=300)
+                # Estilo al pasar el mouse: Aumenta grosor y opacidad
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
+                tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
             ).add_to(m)
 
     # 4. RENDERIZADO DE POZOS

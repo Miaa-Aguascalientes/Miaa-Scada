@@ -318,26 +318,27 @@ with st.sidebar:
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        .titulo-superior {
-            position: absolute; /* Cambiado de fixed a absolute */
-            top: -45px;
-            left: 20px;
-            z-index: 1000;
+        /* Título Estilizado */
+        .titulo-mapa {
             color: #00d4ff;
-            font-size: 1.4rem;
+            font-size: 24px;
             font-weight: bold;
-            text-shadow: 2px 2px 4px #000;
+            margin-bottom: 10px;
+            text-shadow: 1px 1px 2px black;
+        }
+        
+        /* Marco del Mapa */
+        .map-border {
+            border: 2px solid #1f4068;
+            border-radius: 10px;
+            padding: 4px;
+            background-color: #0b1a29;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
         }
 
-        .map-container {
-            position: relative;
-            border: 2px solid #1f4068; 
-            border-radius: 10px;
-            padding: 5px;
-            background-color: #000000;
-            box-shadow: inset 0 0 15px rgba(0, 212, 255, 0.2), 0 0 20px rgba(0, 0, 0, 0.5);
-            margin-top: 50px;
-        }
+        /* Ajustes de Streamlit */
+        .stApp { background-color: #000000; color: white; }
+        [data-testid="stSidebar"] { background-color: #0b1a29; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -351,10 +352,11 @@ with col_capas:
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
-    st.markdown('<div class="titulo-superior">ESTADO OPERATIVO DE POZOS - AGUASCALIENTES</div>', unsafe_allow_html=True)
     
-    # El contenedor del mapa
-    st.markdown('<div class="map-container">', unsafe_allow_html=True)
+    st.markdown('<div class="titulo-mapa">🛰️ ESTADO OPERATIVO - ACUÍFERO AGUASCALIENTES</div>', unsafe_allow_html=True)
+    
+    # Contenedor del mapa con el marco
+    st.markdown('<div class="map-border">', unsafe_allow_html=True)
     folium_static(m, width=None, height=750)
     st.markdown('</div>', unsafe_allow_html=True)
     

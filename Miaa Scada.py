@@ -20,6 +20,21 @@ st.set_page_config(
 # 2-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
+
+        .titulo-superior {
+            position: fixed;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999999;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            line-height: normal;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+    
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
         

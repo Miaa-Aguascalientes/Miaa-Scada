@@ -9,6 +9,20 @@ import json
 import urllib.parse
 from datetime import datetime
 
+# Detectar si hay un sector seleccionado en la URL
+query_params = st.query_params
+sector_seleccionado = query_params.get("sector")
+
+if sector_seleccionado:
+    if st.button("⬅️ Volver al Mapa"):
+        st.query_params.clear()
+        st.rerun()
+    
+    st.title(f"Detalles del Sector: {sector_seleccionado}")
+    # Aquí puedes agregar tablas, gráficos o KPIs específicos del sector
+    st.info(f"Mostrando información detallada para el sector {sector_seleccionado}...")
+    st.stop() # Detiene la ejecución para que no cargue el mapa principal
+
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 

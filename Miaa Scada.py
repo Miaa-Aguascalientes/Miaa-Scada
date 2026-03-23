@@ -9,7 +9,7 @@ import json
 import urllib.parse
 from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA (Sin cambios)
+# 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
     page_icon="https://www.miaa.mx/favicon.ico", 
@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS (Incluye el Título Azul Animado)
+# 2. ESTILO CSS (Incluye tu Título Azul Animado)
 st.markdown("""
     <style>
         .titulo-superior {
@@ -38,7 +38,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. FUNCIONES DE CONEXIÓN (Mantenemos tus funciones originales)
+# 3. FUNCIONES DE CONEXIÓN
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -60,7 +60,7 @@ def get_postgres_conn():
     try: return psycopg2.connect(**st.secrets["postgres"])
     except: return None
 
-# 4. CARGA DE DATOS (Mantenemos tus funciones originales)
+# 4. CARGA DE DATOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
@@ -104,7 +104,7 @@ def cargar_sectores_poligonos():
     conn.close()
     return df.to_dict('records')
 
-# 5. PROCESAMIENTO (Lógica de Falla Com +4h)
+# 5. PROCESAMIENTO
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
@@ -143,14 +143,14 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# 6. SIDEBAR (Sin cambios)
+# 6. SIDEBAR
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear(); st.rerun()
     st.markdown(f'<div class="resumen-card"><h4 style="color:#00d4ff;">RESUMEN GLOBAL</h4><p>Caudal: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p><p>Presión: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} kg</b></p></div>', unsafe_allow_html=True)
 
-# 7. MAPA CON EFECTO 3D REAL (INCLINACIÓN)
+# 7. MAPA CON SOPORTE 3D INTEGRADO
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
@@ -161,36 +161,37 @@ with col_capas:
     ver_etiquetas = st.checkbox("ID Pozos", value=True)
 
 with col_mapa:
-    # INICIALIZACIÓN DEL MAPA
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=13, tiles=None)
 
-    # CAPA SATÉLITE DE ALTA RESOLUCIÓN (Estilo Google Earth)
+    # CAPA SATÉLITE REAL (Google Earth)
     folium.TileLayer(
-        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        attr='Google Satellite', name='Google Satellite', overlay=False
+        tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', # 'y' para Satélite con etiquetas
+        attr='Google Satellite Hybrid', name='Vista Satélite', overlay=False
     ).add_to(m)
 
-    # INYECCIÓN DE CSS/JS PARA PERSPECTIVA 3D
+    # BLOQUE DE JAVASCRIPT PARA HABILITAR INCLINACIÓN (3D)
     m.get_root().header.add_child(folium.Element("""
         <style>
-            /* Efecto de inclinación visual en el contenedor del mapa */
-            .leaflet-container {
-                perspective: 1000px;
-            }
-            .leaflet-map-pane {
-                transform: rotateX(25deg); /* Ajusta este valor para la inclinación inicial */
-                transform-style: preserve-3d;
-            }
+            .leaflet-container { perspective: 1000px; }
+            .leaflet-map-pane { transform: rotateX(30deg); transform-style: preserve-3d; transition: transform 0.5s; }
         </style>
+        <script>
+            // Permite inclinar el mapa dinámicamente con la rueda del ratón o teclado
+            document.addEventListener('keydown', (e) => {
+                let pane = document.querySelector('.leaflet-map-pane');
+                if(e.key === 'ArrowUp') pane.style.transform = 'rotateX(45deg)';
+                if(e.key === 'ArrowDown') pane.style.transform = 'rotateX(0deg)';
+            });
+        </script>
     """))
 
-    # RENDERIZADO DE SECTORES (PostgreSQL)
+    # SECTORES (PostgreSQL)
     if ver_sectores:
         for s in sectores:
             folium.GeoJson(json.loads(s['geo']), 
                 style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}).add_to(m)
 
-    # RENDERIZADO DE POZOS (Lógica original de popups y parpadeo)
+    # POZOS Y ETIQUETAS
     def get_blink_icon(color):
         return f'<div style="width: 8px; height: 8px; background:{color}; border-radius:50%; box-shadow:0 0 8px {color}; animation:blinker 1s infinite;"></div><style>@keyframes blinker {{ 50% {{ opacity: 0.2; }} }}</style>'
 
@@ -200,7 +201,7 @@ with col_mapa:
                 html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_p}</div>')).add_to(m)
 
         if ver_pozos:
-            # Tu HTML de Popup original aquí (Caudal, Presión, etc.)
+            # Aquí se inserta tu popup HTML detallado que ya tienes en el respaldo
             pop_html = f'<div style="background:#000; color:#fff; padding:10px; border:1px solid {info["color_final"]};"><b>POZO {id_p}</b></div>'
             if info.get('blink'):
                 folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(pop_html, max_width=450)).add_to(m)

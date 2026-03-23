@@ -360,19 +360,52 @@ with col_mapa:
         <style>@keyframes blinker {{ 50% {{ opacity: 0.2; }} }}</style>
         """
 
+    # --- RENDERIZADO DE SECTORES (CON POPUP Y CONTORNO) ---
     if ver_sectores:
         for s in sectores:
+            # Extraemos datos de la fila de la DB (usando los nombres de tu imagen de QGIS)
+            nom_sector = s.get('sector', 'S/N')
+            pob = s.get('Poblacion', 0)
+            cons = s.get('Cons_m3', 0)
+            fugas = s.get('Fugas_Tot', 0)
+            balance = s.get('Balance_Estimado', 0)
+            lista_pozos = s.get('Pozos_Sector', 'Sin datos')
+
+            html_sector = f"""
+            <div style="background: #050505; color: white; padding: 12px; border-radius: 8px; width: 250px; border: 1px solid #00d4ff; font-family: sans-serif;">
+                <b style="color: #00d4ff; font-size: 14px; border-bottom: 1px solid #333; display: block; padding-bottom: 5px; margin-bottom: 8px;">Sector {nom_sector}</b>
+                <div style="font-size: 11px; line-height: 1.6;">
+                    👥 <b>Población:</b> <span style="float: right;">{pob:,}</span><br>
+                    💧 <b>Consumo:</b> <span style="float: right;">{cons:,} m³</span><br>
+                    🚨 <b>Fugas Totales:</b> <span style="float: right; color: #ff4b4b;">{fugas}</span><br>
+                    📈 <b>Balance:</b> <span style="float: right; color: #00ff00;">{balance}%</span><br>
+                    <hr style="border: 0; border-top: 1px solid #333; margin: 8px 0;">
+                    <b>Pozos:</b> <span style="font-size: 10px; color: #aaa;">{lista_pozos}</span>
+                </div>
+                <button style="margin-top: 10px; width: 100%; background: #00d4ff; border: none; color: black; font-weight: bold; padding: 5px; border-radius: 4px; cursor: pointer;">
+                    🚀 ABRIR TABLERO DETALLADO
+                </button>
+            </div>
+            """
+
             folium.GeoJson(
                 json.loads(s['geo']), 
-                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-                tooltip=f"Sector: {s['sector']}"
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': 'white',      # Contorno blanco como en tu imagen
+                    'weight': 2,           # Grosor del contorno
+                    'fillOpacity': 0.15
+                },
+                tooltip=f"Sector: {nom_sector}",
+                popup=folium.Popup(html_sector, max_width=300)
             ).add_to(m)
 
+    # --- RENDERIZADO DE POZOS ---
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
         
-        # Procesamiento de datos
+        # Procesamiento de datos hidráulicos y eléctricos
         q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
         p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
         sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -388,7 +421,7 @@ with col_mapa:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # VARIABLE DEL POPUP (Asegúrate de que esta identación sea exacta)
+        # Popup del Pozo (Tu diseño solicitado)
         html_popup_pozo = f"""
         <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">

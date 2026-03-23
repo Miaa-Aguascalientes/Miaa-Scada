@@ -9,6 +9,8 @@ import json
 import urllib.parse
 from datetime import datetime
 
+
+    
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
@@ -317,6 +319,21 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
+# Obtener parámetros de la URL
+query_params = st.query_params
+
+if "sector_id" in query_params:
+    sector_seleccionado = query_params["sector_id"]
+    st.title(f"Detalle del Sector: {sector_seleccionado}")
+    
+    # Aquí puedes hacer una consulta específica a Postgres para mostrar tablas/gráficos
+    st.info(f"Mostrando información técnica para el sector {sector_seleccionado}...")
+    
+    if st.button("⬅️ Volver al Mapa"):
+        st.query_params.clear()
+        st.rerun()
+    st.stop() # Detiene la ejecución del resto del script (el mapa) para mostrar solo la info
+
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
@@ -360,23 +377,47 @@ with col_mapa:
     # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
     if ver_sectores:
         for s in sectores:
+            nombre_sector = s['sector']
+            
+            # Construimos la URL actual añadiendo el parámetro del sector
+            # Target="_blank" asegura que se abra en una pestaña nueva
+            url_detalle = f"/?sector_id={urllib.parse.quote(str(nombre_sector))}"
+            
+            html_sector = f"""
+                <div style="font-family: sans-serif; color: white; background: #0b1a29; padding: 10px; border-radius: 5px;">
+                    <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {nombre_sector}</h4>
+                    <p style="font-size: 12px;">Presión técnica y datos catastrales disponibles en el panel de detalle.</p>
+                    <a href="{url_detalle}" target="_blank" style="
+                        display: block; 
+                        text-align: center;
+                        background-color: #00d4ff; 
+                        color: black; 
+                        padding: 8px; 
+                        text-decoration: none; 
+                        border-radius: 4px; 
+                        font-weight: bold;
+                        margin-top: 10px;">
+                        📊 Ver Detalles del Sector
+                    </a>
+                </div>
+            """
+            
             folium.GeoJson(
                 json.loads(s['geo']), 
-                # Estilo base: Azul con baja opacidad
                 style_function=lambda x: {
                     'fillColor': '#00d4ff', 
                     'color': '#00d4ff', 
                     'weight': 1, 
                     'fillOpacity': 0.1
                 },
-                # Estilo al pasar el mouse: Aumenta grosor y opacidad
                 highlight_function=lambda x: {
                     'fillColor': '#00d4ff', 
                     'color': '#ffffff', 
                     'weight': 3, 
                     'fillOpacity': 0.4
                 },
-                tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
+                tooltip=folium.Tooltip(f"Sector: {nombre_sector}", sticky=True),
+                popup=folium.Popup(html_sector, max_width=250)
             ).add_to(m)
 
     # 4. RENDERIZADO DE POZOS

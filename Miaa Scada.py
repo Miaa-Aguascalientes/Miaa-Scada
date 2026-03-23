@@ -8,6 +8,7 @@ import psycopg2
 import json
 import urllib.parse
 from datetime import datetime
+from folium.plugins import Fullscreen, MousePosition # Añade MousePosition aquí
 
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
@@ -343,6 +344,20 @@ with col_capas:
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
+
+    # --- PEGA ESTO AQUÍ PARA LAS COORDENADAS ---
+    formatter = "function(num) {return L.Util.formatNum(num, 5);};"
+    MousePosition(
+        position='bottomright',
+        separator=' | ',
+        empty_string='NaN',
+        lng_first=True,
+        num_digits=20,
+        prefix='Coords:',
+        lat_formatter=formatter,
+        lng_formatter=formatter,
+    ).add_to(m)
+    # ------------------------------------------
 
     # 1. FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):

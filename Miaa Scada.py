@@ -48,6 +48,16 @@ st.markdown("""
               transform: translateX(-50%) scale(1.02);
           }
         }
+
+        /* ELIMINAR EL RECUADRO DE SELECCIÓN EN LOS POLÍGONOS AL HACER CLIC */
+        path.leaflet-interactive:focus {
+            outline: none !important;
+        }
+        path.leaflet-interactive {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+        }
     
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
@@ -369,19 +379,18 @@ with col_mapa:
         </style>
         """
 
-    # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
+# 3. RENDERIZADO DE POLIGONOS (SECTORES)
     if ver_sectores:
         for s in sectores:
             folium.GeoJson(
                 json.loads(s['geo']), 
-                # Estilo base: Azul con baja opacidad
                 style_function=lambda x: {
                     'fillColor': '#00d4ff', 
                     'color': '#00d4ff', 
                     'weight': 1, 
-                    'fillOpacity': 0.1
+                    'fillOpacity': 0.1,
+                    'interactive': True  # Asegura interactividad
                 },
-                # Estilo al pasar el mouse: Aumenta grosor y opacidad
                 highlight_function=lambda x: {
                     'fillColor': '#00d4ff', 
                     'color': '#ffffff', 

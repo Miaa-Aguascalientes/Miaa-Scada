@@ -334,19 +334,16 @@ with st.sidebar:
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
-
 with col_capas:
     st.markdown("### 🗺️ Capas")
-    # Agregamos 'key' para evitar el error de DuplicateElementId
-    ver_sectores = st.checkbox("Sectores", value=True, key="map_sectores")
-    ver_pozos = st.checkbox("Pozos", value=True, key="map_pozos")
-    ver_etiquetas = st.checkbox("ID Pozos", value=True, key="map_labels")
+    ver_sectores = st.checkbox("Sectores", value=True, key="chk_sectores")
+    ver_pozos = st.checkbox("Pozos", value=True, key="chk_pozos")
+    ver_etiquetas = st.checkbox("ID Pozos", value=True, key="chk_etiquetas")
 
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # 1. FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
         try:
             if decimal == "N/A" or decimal is None: return "00:00"
@@ -356,75 +353,42 @@ with col_mapa:
         except:
             return "00:00"
 
-    # 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
     def get_blink_icon(color):
         return f"""
-        <div style="
-            width: 8px; height: 8px; 
-            background-color: {color}; 
-            border-radius: 50%; 
-            box-shadow: 0 0 8px {color};
-            animation: blinker 1s linear infinite;">
-        </div>
-        <style>
-        @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
-        </style>
+        <div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; 
+        box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
+        <style>@keyframes blinker {{ 50% {{ opacity: 0.2; }} }}</style>
         """
 
-    # --- A. RENDERIZADO DE SECTORES ---
     if ver_sectores:
         for s in sectores:
-            nom = s.get('sector', 'N/A')
-            pob = s.get('poblacion') or s.get('Poblacion', 0)
-            cons = s.get('cons_m3') or s.get('Cons_m3', 0)
-            fugas = s.get('fugas_tot') or s.get('Fugas_Tot', 0)
-            bal = s.get('balance_estimado') or s.get('Balance_Estimado', 0)
-            pz_list = s.get('pozos_sector', s.get('Pozos_Sector', 'Sin datos'))
-
-            html_popup_sector = f"""
-            <div style="font-family: 'Segoe UI', sans-serif; min-width: 240px; background-color: #050505; color: white; padding: 12px; border-radius: 8px; border: 1px solid #00d4ff;">
-                <h4 style="margin: 0 0 10px 0; color: #00d4ff; border-bottom: 1px solid #333;">Sector {nom}</h4>
-                <table style="width: 100%; font-size: 12px; border-collapse: collapse; margin-bottom: 10px;">
-                    <tr><td style="color: #888;">👥 Población:</td><td style="text-align: right;"><b>{pob:,}</b></td></tr>
-                    <tr><td style="color: #888;">💧 Consumo:</td><td style="text-align: right;"><b>{cons:,} m³</b></td></tr>
-                    <tr><td style="color: #888;">🚨 Fugas:</td><td style="text-align: right; color: #ff4b4b;"><b>{fugas}</b></td></tr>
-                    <tr><td style="color: #888;">📈 Balance:</td><td style="text-align: right; color: #00ff00;"><b>{bal}%</b></td></tr>
-                </table>
-                <div style="margin-bottom: 12px; font-size: 11px; color: #aaa; background: #111; padding: 5px; border-radius: 4px;">
-                    <b>Pozos:</b> {pz_list}
-                </div>
-                <a href="/Detalle_Sector?sector={urllib.parse.quote(nom)}" target="_blank" style="text-decoration: none;">
-                    <button style="background-color: #00d4ff; color: black; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">
-                        🚀 ABRIR TABLERO
-                    </button>
-                </a>
-            </div>
-            """
             folium.GeoJson(
-                json.loads(s['geo']),
+                json.loads(s['geo']), 
                 style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-                highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.3},
-                popup=folium.Popup(html_popup_sector, max_width=300)
+                tooltip=f"Sector: {s['sector']}"
             ).add_to(m)
 
-    # --- B. RENDERIZADO DE POZOS ---
     for id_p, info in mapa_pozos_dict.items():
-        d = lambda tag: data_scada.get(tag, (0.0, "N/A"))
+        d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
         
-        # Extracción de datos
+        # Procesamiento de datos
         q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
         p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
         sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
         dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
         tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
         col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-        h_arr_fmt = formato_hora(d(info['h_arranque'])[0]) if not is_st else "00:00"
-        h_par_fmt = formato_hora(d(info['h_paro'])[0]) if not is_st else "00:00"
+        
+        h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+        h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+        h_arr_fmt = formato_hora(h_arr_val)
+        h_par_fmt = formato_hora(h_par_val)
+
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # HTML POPUP POZO (Corregido el nombre de variable)
+        # VARIABLE DEL POPUP (Asegúrate de que esta identación sea exacta)
         html_popup_pozo = f"""
         <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -499,16 +463,33 @@ with col_mapa:
         """
 
         if ver_etiquetas:
-            folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-12, 10),
-            html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>')).add_to(m)
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(
+                    icon_size=(150,36),
+                    icon_anchor=(-12, 10),
+                    html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
+                )
+            ).add_to(m)
 
         if ver_pozos:
+            popup_obj = folium.Popup(html_popup_pozo, max_width=450)
             if info.get('blink'):
-                folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                              popup=folium.Popup(html_popup_pozo, max_width=450)).add_to(m)
+                folium.Marker(
+                    location=info['coord'],
+                    icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                    popup=popup_obj
+                ).add_to(m)
             else:
-                folium.CircleMarker(location=info['coord'], radius=4, color=info['color_final'], fill=True, 
-                                    fill_color=info['color_final'], fill_opacity=1, 
-                                    popup=folium.Popup(html_popup_pozo, max_width=450)).add_to(m)
+                folium.CircleMarker(
+                    location=info['coord'],
+                    radius=4,
+                    color=info['color_final'],
+                    fill=True,
+                    fill_color=info['color_final'],
+                    fill_opacity=1,
+                    weight=1,
+                    popup=popup_obj
+                ).add_to(m)
 
     folium_static(m, width=None, height=750)

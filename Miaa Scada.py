@@ -10,7 +10,7 @@ import urllib.parse
 from datetime import datetime
 import datetime as dt
 
-# 1. CONFIGURACIÓN DE PÁGINA
+# 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
     page_icon="https://www.miaa.mx/favicon.ico", 
@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. ESTILO CSS
+# 2-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
         .titulo-superior {
@@ -43,13 +43,19 @@ st.markdown("""
         .stApp { background-color: #000000; color: white; }
         [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
         [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
+        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
         .sidebar-logo { display: flex; justify-content: center; padding: 0px !important; margin-top: -70px !important; margin-bottom: 10px; }
         .sidebar-logo img { max-width: 85%; height: auto; }
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
+        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
+        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
+        .status-err { background-color: #b71c1c; color: #ef9a9a; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. FUNCIONES DE CONEXIÓN
+# 3--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ----------------------------------------------------------------------------------------------------------
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -71,7 +77,7 @@ def get_postgres_conn():
     try: return psycopg2.connect(**st.secrets["postgres"])
     except: return None
 
-# 4. CARGA DE DATOS
+# 4-------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
@@ -121,7 +127,7 @@ def cargar_sectores_poligonos():
         return df.to_dict('records')
     except: return []
 
-# 5. PROCESAMIENTO
+# 5------------------------------------------------------------------------------- 5. PROCESAMIENTO ----------------------------------------------------------------------------------------------------------
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
@@ -135,6 +141,7 @@ for id_p, info in mapa_pozos_dict.items():
         info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
         continue
+
     tag_l1 = info['voltajes_l'][0]
     _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
     es_falla_com = False
@@ -159,26 +166,43 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# 6. SIDEBAR
+# 6------------------------------------------------------------------------------- 6. SIDEBAR ----------------------------------------------------------------------------------------------------------
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
+    with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
+        st.markdown(f"**SCADA:** {'OK' if get_mysql_scada_engine() else 'ERROR'}")
+        st.markdown(f"**Telemetría:** {'OK' if get_mysql_telemetria_engine() else 'ERROR'}")
+        st.markdown(f"**PostgreSQL:** {'OK' if get_postgres_conn() else 'ERROR'}")
+
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
         st.cache_resource.clear()
         st.rerun()
-    st.markdown(f'<div class="resumen-card"><h4 style="color:#00d4ff;">RESUMEN GLOBAL</h4><p>Caudal: <b>{total_q:.2f} l/s</b></p><p>Presión: <b>{total_p/max(len(pozos_on),1):.2f} Kg</b></p></div>', unsafe_allow_html=True)
 
-# 7. MANEJO DE PESTAÑAS DINÁMICAS
+    st.markdown(f'<div class="resumen-card"><h4 style="color:#00d4ff;">RESUMEN GLOBAL</h4><p>Caudal: <b>{total_q:.2f} l/s</b></p><p>Presión: <b>{total_p/max(len(pozos_on),1):.2f} Kg</b></p></div>', unsafe_allow_html=True)
+    
+    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})"):
+        for p in sorted(pozos_on): st.write(f"🟢 {p}")
+    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})"):
+        for p in sorted(pozos_off): st.write(f"🔴 {p}")
+    if pozos_falla_com:
+        with st.expander(f"🟠 Falla de Com. (+4h) ({len(pozos_falla_com)})"):
+            for p in sorted(pozos_falla_com): st.write(f"🟠 {p}")
+    if pozos_sin_telemetria:
+        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})"):
+            for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
+
+# 7------------------------------------------------------------------------------- 7. DASHBOARD Y TABS ----------------------------------------------------------------------------------------------------------
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
-# Definir pestañas base
+# LÓGICA DE PESTAÑAS DINÁMICAS
 nombres_tabs = ["🗺️ Mapa de Monitoreo", "📊 Información de Sectores"]
-# Verificar si hay un sector seleccionado para añadir la tercera pestaña
 if "sector_seleccionado" in st.session_state:
     nombres_tabs.append(f"🔍 Detalle: {st.session_state.sector_seleccionado}")
 
 tabs = st.tabs(nombres_tabs)
 
+# --- TAB 1: MAPA ---
 with tabs[0]:
     col_mapa, col_capas = st.columns([8.5, 1.5])
     with col_capas:
@@ -186,9 +210,15 @@ with tabs[0]:
         ver_sectores = st.checkbox("Sectores", value=True)
         ver_pozos = st.checkbox("Pozos", value=True)
         ver_etiquetas = st.checkbox("ID Pozos", value=True)
+
     with col_mapa:
         m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
         Fullscreen().add_to(m)
+
+        def get_blink_icon(color):
+            return f"""<div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
+            <style>@keyframes blinker {{ 50% {{ opacity: 0.2; }} }}</style>"""
+
         if ver_sectores:
             for s in sectores:
                 folium.GeoJson(json.loads(s['geo']), 
@@ -196,49 +226,60 @@ with tabs[0]:
                     highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
                     tooltip=f"Sector: {s['sector']}"
                 ).add_to(m)
-        # (Aquí iría el renderizado de pozos igual que en tu código original para no saturar esta respuesta)
+
+        for id_p, info in mapa_pozos_dict.items():
+            d = lambda tag: data_scada.get(tag, (0, "N/A"))
+            is_st = (info['status_label'] == 'SIN TELEMETRÍA')
+            q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+            p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+            v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+            a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+
+            html_popup = f"""<div style="background:#050505; color:white; padding:15px; border-radius:12px; width:380px; border:1px solid {info['color_final']}; font-family:sans-serif;">
+                <b style="color:#00d4ff;">POZO {id_p}</b> <span style="background:{info['color_final']}; color:black; padding:2px 5px; border-radius:4px; float:right;">{info['status_label']}</span><br><br>
+                💧 Caudal: <b>{q:.2f} L/s</b> <span style="color:#FFFF00; font-size:10px;">{f_q}</span><br>
+                🚀 Presión: <b>{p:.2f} kg</b> <span style="color:#FFFF00; font-size:10px;">{f_p}</span><br>
+                <hr>L1: {v[0][0]:.1f}V / {a[0][0]:.1f}A<br>L2: {v[1][0]:.1f}V / {a[1][0]:.1f}A<br>L3: {v[2][0]:.1f}V / {a[2][0]:.1f}A</div>"""
+
+            if ver_etiquetas:
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-12, 10), html=f'<div style="font-size:9px; font-weight:bold; color:{info["color_final"]};">{id_p}</div>')).add_to(m)
+            
+            if ver_pozos:
+                if info.get('blink'):
+                    folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+                else:
+                    folium.CircleMarker(location=info['coord'], radius=4, color=info['color_final'], fill=True, fill_opacity=1, popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+
         folium_static(m, width=None, height=750)
 
+# --- TAB 2: LISTADO INTERACTIVO ---
 with tabs[1]:
-    st.markdown("### 📋 Listado de Sectores Hidrométricos")
-    st.info("Haz clic en una fila para ver el detalle del sector.")
-    
+    st.markdown("### 📋 Listado de Sectores")
+    st.info("Haz clic en una fila para ver el detalle en la nueva pestaña.")
     if sectores:
-        df_sectores = pd.DataFrame(sectores)[['sector']]
-        # Usamos la nueva funcionalidad de selección de Streamlit
-        seleccion = st.dataframe(
-            df_sectores, 
-            use_container_width=True, 
-            hide_index=True,
-            on_select="rerun",
-            selection_mode="single-row"
-        )
+        df_sec = pd.DataFrame(sectores)[['sector']]
+        seleccion = st.dataframe(df_sec, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
         
-        # Si el usuario selecciona una fila, guardamos el nombre en el estado de la sesión
         if seleccion and seleccion["selection"]["rows"]:
             idx = seleccion["selection"]["rows"][0]
-            nombre_sector = df_sectores.iloc[idx]['sector']
-            st.session_state.sector_seleccionado = nombre_sector
+            st.session_state.sector_seleccionado = df_sec.iloc[idx]['sector']
             st.rerun()
 
-# Si existe la pestaña de detalle, la rellenamos
+# --- TAB 3: DETALLE DINÁMICO ---
 if "sector_seleccionado" in st.session_state:
     with tabs[2]:
         sec_id = st.session_state.sector_seleccionado
-        st.markdown(f"## 🔍 Información Detallada: {sec_id}")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Estado del Sector", "ESTABLE", help="Indicador simulado")
-            st.write("**Descripción:** Información técnica recuperada de PostgreSQL.")
-            if st.button("Cerrar Detalle"):
+        st.markdown(f"## 🔍 Detalle: {sec_id}")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("Datos Técnicos")
+            st.write(f"Sector seleccionado para análisis profundo.")
+            if st.button("❌ Cerrar pestaña de detalle"):
                 del st.session_state.sector_seleccionado
                 st.rerun()
-        with col2:
-            st.subheader("Ubicación")
-            # Mostrar un mapa pequeño solo del sector seleccionado
+        with c2:
             geo_data = next((s['geo'] for s in sectores if s['sector'] == sec_id), None)
             if geo_data:
                 m_mini = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
-                folium.GeoJson(json.loads(geo_data), style_function=lambda x: {'fillColor': 'orange', 'color': 'white', 'weight': 2}).add_to(m_mini)
-                folium_static(m_mini, width=500, height=300)
+                folium.GeoJson(json.loads(geo_data), style_function=lambda x: {'color': 'orange', 'weight': 2}).add_to(m_mini)
+                folium_static(m_mini, width=500, height=350)

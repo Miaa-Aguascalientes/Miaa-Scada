@@ -5,192 +5,114 @@ from sqlalchemy import create_engine
 import psycopg2
 import json
 import urllib.parse
-from datetime import datetime
 import datetime as dt
 
-# 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
-st.set_page_config(
-    page_title="MIAA - Relieve 3D", 
-    page_icon="https://www.miaa.mx/favicon.ico", 
-    layout="wide", 
-    initial_sidebar_state="expanded"
-)
+# 1. CONFIGURACIÓN
+st.set_page_config(page_title="MIAA - Ciudad 3D", layout="wide")
 
-# 2-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
-st.markdown("""
-    <style>
-        .titulo-superior {
-            position: fixed;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999999;
-            color: #00d4ff;
-            font-size: 1.5rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            white-space: nowrap;
-            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-            animation: glow 2s ease-in-out infinite alternate;
-        }
-        @keyframes glow {
-            from { text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff; transform: translateX(-50%) scale(1); }
-            to { text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff; transform: translateX(-50%) scale(1.02); }
-        }
-        .stApp { background-color: #000000; color: white; }
-        [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
-        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        .sidebar-logo { display: flex; justify-content: center; padding: 0px !important; margin-top: -70px !important; margin-bottom: 10px; }
-        .sidebar-logo img { max-width: 85%; height: auto; }
-    </style>
-""", unsafe_allow_html=True)
-
-# 3--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ----------------------------------------------------------------------------------------------------------
+# 2. CARGA DE DATOS (Usando tu lógica de respaldo)
 @st.cache_resource
-def get_mysql_scada_engine():
-    try:
-        c = st.secrets["mysql_scada"]
-        pwd = urllib.parse.quote_plus(c["password"])
-        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-    except: return None
+def get_engines():
+    c_tele = st.secrets["mysql_telemetria"]
+    pwd_tele = urllib.parse.quote_plus(c_tele["password"])
+    engine_tele = create_engine(f"mysql+mysqlconnector://{c_tele['user']}:{pwd_tele}@{c_tele['host']}/{c_tele['database']}")
+    
+    c_scada = st.secrets["mysql_scada"]
+    pwd_scada = urllib.parse.quote_plus(c_scada["password"])
+    engine_scada = create_engine(f"mysql+mysqlconnector://{c_scada['user']}:{pwd_scada}@{c_scada['host']}/{c_scada['database']}")
+    return engine_tele, engine_scada
 
-@st.cache_resource
-def get_mysql_telemetria_engine():
-    try:
-        c = st.secrets["mysql_telemetria"]
-        pwd = urllib.parse.quote_plus(c["password"])
-        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-    except: return None
-
-@st.cache_resource
-def get_postgres_conn():
-    try: return psycopg2.connect(**st.secrets["postgres"])
-    except: return None
-
-# 4-------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
-def cargar_pozos_dataframe():
-    engine = get_mysql_telemetria_engine()
-    if not engine: return pd.DataFrame()
-    try:
-        df = pd.read_sql("SELECT * FROM Diccionario_de_pozos", engine)
-        def extraer_coords(c):
-            try:
-                parts = str(c).replace('(', '').replace(')', '').split(',')
-                return float(parts[0]), float(parts[1])
-            except: return None, None
-        df['lat'], df['lon'] = zip(*df['coord'].apply(extraer_coords))
-        return df.dropna(subset=['lat', 'lon'])
-    except: return pd.DataFrame()
+def cargar_datos_completos():
+    eng_tele, eng_scada = get_engines()
+    # Pozos
+    df = pd.read_sql("SELECT * FROM Diccionario_de_pozos", eng_tele)
+    def extraer_coords(c):
+        try:
+            parts = str(c).replace('(','').replace(')','').split(',')
+            return float(parts[0]), float(parts[1])
+        except: return None, None
+    df['lat'], df['lon'] = zip(*df['coord'].apply(extraer_coords))
+    df = df.dropna(subset=['lat', 'lon'])
+    
+    # SCADA (Últimos valores)
+    query_scada = "SELECT r.NAME, h.VALUE FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID"
+    df_scada = pd.read_sql(query_scada, eng_scada)
+    scada_map = dict(zip(df_scada['NAME'], df_scada['VALUE']))
+    return df, scada_map
 
-@st.cache_data(ttl=3600)
-def cargar_sectores_geojson():
-    conn = get_postgres_conn()
-    if not conn: return None
+df_p, scada_values = cargar_datos_completos()
+
+# 3. PROCESAMIENTO DE COLORES (OPERANDO/APAGADO)
+def definir_estilo(row):
+    val = scada_values.get(str(row['bomba']), 0)
+    if val == 1: return [0, 255, 0, 255] # Verde
+    return [255, 0, 0, 255] # Rojo
+
+df_p['color'] = df_p.apply(definir_estilo, axis=1)
+
+# 4. CARGA DE SECTORES (PostgreSQL)
+@st.cache_data
+def cargar_sectores():
     try:
+        conn = psycopg2.connect(**st.secrets["postgres"])
         query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
-        df = pd.read_sql(query, conn)
+        df_s = pd.read_sql(query, conn)
         conn.close()
-        features = [{"type": "Feature", "geometry": json.loads(row['geo']), "properties": {"sector": row['sector']}} for _, row in df.iterrows()]
-        return {"type": "FeatureCollection", "features": features}
-    except: return None
+        return [{"type": "Feature", "geometry": json.loads(r['geo'])} for _, r in df_s.iterrows()]
+    except: return []
 
-def cargar_datos_scada_df(df_pozos):
-    engine = get_mysql_scada_engine()
-    if not engine or df_pozos.empty: return {}
-    tags = []
-    for col in ['bomba', 'caudal', 'presion', 'voltaje_L1']:
-        tags.extend(df_pozos[col].astype(str).tolist())
-    tags = list(set([t for t in tags if t and t not in ['0', 'Sin telemetria', 'None']]))
-    try:
-        tags_str = "', '".join(tags)
-        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}')"
-        df = pd.read_sql(query, engine)
-        return {row['NAME']: (row['VALUE'], row['FECHA']) for _, row in df.iterrows()}
-    except: return {}
+sectores_features = cargar_sectores()
 
-# 5-------------------------------------------------------------------------------- 5. PROCESAMIENTO ----------------------------------------------------------------------------------------------------------
-df_p = cargar_pozos_dataframe()
-sectores_geo = cargar_sectores_geojson()
-scada_dict = cargar_datos_scada_df(df_p)
-ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
+# 5. RENDERIZADO DEL MAPA 3D CON CIUDAD VISIBLE
+st.markdown('<h2 style="text-align:center; color:#00d4ff;">VISOR URBANO MIAA 3D</h2>', unsafe_allow_html=True)
 
-def calcular_estado(row):
-    bomba_tag = str(row['bomba'])
-    l1_tag = str(row['voltaje_L1'])
-    if bomba_tag == "Sin telemetria": return [128, 128, 128, 200], "SIN TELEMETRÍA"
-    val_l1, fecha_l1 = scada_dict.get(l1_tag, (0, None))
-    if not fecha_l1 or (ahora - fecha_l1).total_seconds() / 3600 > 4: return [255, 165, 0, 255], "FALLA COM."
-    val_bba, _ = scada_dict.get(bomba_tag, (0, None))
-    if val_bba == 1: return [0, 255, 0, 255], "OPERANDO"
-    else: return [255, 0, 0, 255], "APAGADO"
-
-if not df_p.empty:
-    res = df_p.apply(lambda r: pd.Series(calcular_estado(r)), axis=1)
-    df_p['color_rgb'] = res[0]
-    df_p['status_label'] = res[1]
-
-# 6 ------------------------------------------------------------------------------- 6. SIDEBAR ------------------------------------------------------------------------------------------
-with st.sidebar:
-    st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
-    if st.button("♻️ Actualizar Datos", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-
-# 7--------------------------------------------------------------------------------- 7. MAPA 3D REAL CON PYDECK -------------------------------------------------------------------------------------------------------------
-st.markdown('<div class="titulo-superior">Monitoreo MIAA 3D</div>', unsafe_allow_html=True)
-
-# Vista inicial inclinada para el relieve
 view_state = pdk.ViewState(
     latitude=21.8820,
     longitude=-102.2800,
-    zoom=12,
-    pitch=50,
+    zoom=13,
+    pitch=60, # Inclinación para ver relieve
     bearing=-10
 )
 
-capas = []
-
-# CAPA SECTORES
-if sectores_geo:
-    capas.append(pdk.Layer(
+capas = [
+    # CAPA DE CIUDAD / SECTORES (Muy transparente para no tapar calles)
+    pdk.Layer(
         "GeoJsonLayer",
-        sectores_geo,
-        opacity=0.1,
+        sectores_features,
+        opacity=0.05,
+        stroked=True,
+        filled=True,
         get_fill_color=[0, 212, 255],
         get_line_color=[0, 212, 255],
         line_width_min_pixels=1,
-    ))
+    ),
+    # CAPA DE POZOS (Puntos de operación)
+    pdk.Layer(
+        "ScatterplotLayer",
+        df_p,
+        get_position=['lon', 'lat'],
+        get_color='color',
+        get_radius=40,
+        pickable=True,
+    ),
+    # CAPA DE ETIQUETAS (Nombres de los pozos)
+    pdk.Layer(
+        "TextLayer",
+        df_p,
+        get_position=['lon', 'lat'],
+        get_text='Pozos',
+        get_size=12,
+        get_color=[255, 255, 255],
+        offset_y=-10
+    )
+]
 
-# CAPA POZOS (PUNTOS QUE INDICAN ESTADO)
-capas.append(pdk.Layer(
-    "ScatterplotLayer",
-    df_p,
-    get_position=['lon', 'lat'],
-    get_color='color_rgb',
-    get_radius=80,
-    pickable=True,
-) )
-
-# CAPA ETIQUETAS
-capas.append(pdk.Layer(
-    "TextLayer",
-    df_p,
-    get_position=['lon', 'lat'],
-    get_text='Pozos',
-    get_size=15,
-    get_color=[255, 255, 255],
-    get_alignment_baseline="'bottom'",
-    offset_y=-10
-))
-
-# RENDERIZADO CON MAPA DE CALLES Y RELIEVE (v11 es el más estable)
+# EL DECK QUE FUERZA LA VISIBILIDAD DE LA CIUDAD
 st.pydeck_chart(pdk.Deck(
-    map_style='mapbox://styles/mapbox/dark-v10', # Calles visibles en modo oscuro
+    # Estilo de mapa que muestra calles, edificios y nombres detallados
+    map_style='mapbox://styles/mapbox/navigation-night-v1', 
     initial_view_state=view_state,
     layers=capas,
-    tooltip={"text": "Pozo: {Pozos}\nEstado: {status_label}"}
+    tooltip={"text": "Pozo: {Pozos}"}
 ))
-
-st.info("💡 Para ver el relieve, mantén presionado **CTRL + Click derecho** y arrastra el mouse hacia arriba.")

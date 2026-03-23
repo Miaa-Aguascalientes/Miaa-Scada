@@ -27,12 +27,26 @@ st.markdown("""
             left: 50%;
             transform: translateX(-50%);
             z-index: 9999999;
-            color: white;
-            font-size: 1.2rem;
+            color: #00d4ff; /* Azul vivo / Cyan */
+            font-size: 1.5rem;
             font-weight: bold;
-            line-height: normal;
-            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
             white-space: nowrap;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+            /* Animación de pulso */
+            animation: glow 2s ease-in-out infinite alternate;
+          }
+
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
+                transform: translateX(-50%) scale(1);
+          }
+            to {
+              text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
+              transform: translateX(-50%) scale(1.02);
+          }
         }
     
         .stApp { background-color: #000000; color: white; }

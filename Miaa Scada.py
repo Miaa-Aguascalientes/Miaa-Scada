@@ -318,31 +318,42 @@ with st.sidebar:
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        /* Título Estilizado */
         .titulo-mapa {
             color: #00d4ff;
             font-size: 24px;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             text-shadow: 1px 1px 2px black;
         }
         
-        /* Marco del Mapa */
         .map-border {
             border: 2px solid #1f4068;
-            border-radius: 10px;
-            padding: 4px;
-            background-color: #0b1a29;
-            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+            border-radius: 12px;
+            padding: 10px;
+            background-color: #050505;
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.3);
         }
-
-        /* Ajustes de Streamlit */
-        .stApp { background-color: #000000; color: white; }
-        [data-testid="stSidebar"] { background-color: #0b1a29; }
     </style>
 """, unsafe_allow_html=True)
 
+# --- FUNCIONES AUXILIARES ---
+def formato_hora(decimal):
+    try:
+        if decimal == "N/A" or decimal is None: return "00:00"
+        horas = int(float(decimal))
+        minutos = int((float(decimal) - horas) * 60)
+        return f"{horas:02d}:{minutos:02d}"
+    except: return "00:00"
+
+def get_blink_icon(color):
+    return f"""
+    <div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; 
+                box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
+    <style> @keyframes blinker {{ 50% {{ opacity: 0.2; }} }} </style>
+    """
+
 col_mapa, col_capas = st.columns([8.5, 1.5])
+
 with col_capas:
     st.markdown("### 🗺️ Capas")
     ver_sectores = st.checkbox("Sectores", value=True)
@@ -350,42 +361,13 @@ with col_capas:
     ver_etiquetas = st.checkbox("ID Pozos", value=True)
 
 with col_mapa:
-    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
-    Fullscreen().add_to(m)
-    
     st.markdown('<div class="titulo-mapa">🛰️ ESTADO OPERATIVO - ACUÍFERO AGUASCALIENTES</div>', unsafe_allow_html=True)
     
-    # Contenedor del mapa con el marco
-    st.markdown('<div class="map-border">', unsafe_allow_html=True)
-    folium_static(m, width=None, height=750)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # 1. FUNCIÓN PARA HORARIO 00:00
-    def formato_hora(decimal):
-        try:
-            if decimal == "N/A" or decimal is None: return "00:00"
-            horas = int(float(decimal))
-            minutos = int((float(decimal) - horas) * 60)
-            return f"{horas:02d}:{minutos:02d}"
-        except:
-            return "00:00"
+    # 1. Crear el objeto mapa
+    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
+    Fullscreen().add_to(m)
 
-    # 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
-    def get_blink_icon(color):
-        return f"""
-        <div style="
-            width: 8px; height: 8px; 
-            background-color: {color}; 
-            border-radius: 50%; 
-            box-shadow: 0 0 8px {color};
-            animation: blinker 1s linear infinite;">
-        </div>
-        <style>
-        @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
-        </style>
-        """
-
-    # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
+    # 2. Renderizado de Sectores
     if ver_sectores:
         for s in sectores:
             folium.GeoJson(
@@ -394,10 +376,67 @@ with col_mapa:
                 tooltip=f"Sector: {s['sector']}"
             ).add_to(m)
 
-    # 4. RENDERIZADO DE POZOS
+    # 3. Renderizado de Pozos (CON POPUP COMPLETO RESTAURADO)
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
+        
+        # Extracción completa de variables
+        q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+        p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+        sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+        dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+        tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+        col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
+        
+        h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+        h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+        h_arr_fmt, h_par_fmt = formato_hora(h_arr_val), formato_hora(h_par_val)
+
+        v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+        a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+
+        # Popup con tu diseño original de tablas y colores
+        html_popup = f"""
+        <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+                <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+            </div>
+            <div style="font-size: 11px; margin-bottom: 10px;">
+                💧 Caudal: <b>{q:.2f} L/s</b> <span style="color:#FFFF00; font-size:9px;">({f_q})</span><br>
+                🚀 Presión: <b>{p:.2f} kg</b> <span style="color:#FFFF00; font-size:9px;">({f_p})</span><br>
+                📏 Sumergencia: <b>{sumer:.1f} m</b> | 📉 Dinámico: <b>{dinam:.1f} m</b><br>
+                🏗️ Columna: <b>{col:.1f} m</b> | 🔋 Tanque: <b>{tanq:.1f} mts</b>
+            </div>
+            <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
+                <tr style="color: #00d4ff; border-bottom: 1px solid #333;">
+                    <th>Fase</th><th>Voltaje</th><th>Amp</th>
+                </tr>
+                <tr><td>L1</td><td><b>{v[0][0]:.1f}V</b></td><td><b>{a[0][0]:.1f}A</b></td></tr>
+                <tr><td>L2</td><td><b>{v[1][0]:.1f}V</b></td><td><b>{a[1][0]:.1f}A</b></td></tr>
+                <tr><td>L3</td><td><b>{v[2][0]:.1f}V</b></td><td><b>{a[2][0]:.1f}A</b></td></tr>
+            </table>
+            <div style="font-size: 10px; border-top: 1px solid #333; padding-top: 5px;">
+                ▶️ Arr: <b>{h_arr_fmt}</b> | ⏹️ Par: <b>{h_par_fmt}</b>
+            </div>
+        </div>
+        """
+
+        # Capas de Mapa
+        if ver_etiquetas:
+            folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-12, 10), html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_p}</div>')).add_to(m)
+
+        if ver_pozos:
+            if info.get('blink'):
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+            else:
+                folium.CircleMarker(location=info['coord'], radius=4, color=info['color_final'], fill=True, fill_color=info['color_final'], popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+
+    # 4. Renderizado Final con Marco
+    st.markdown('<div class="map-border">', unsafe_allow_html=True)
+    folium_static(m, width=None, height=750)
+    st.markdown('</div>', unsafe_allow_html=True)
         
         # Extracción de datos y fechas (Tu diseño original)
         q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")

@@ -511,7 +511,46 @@ with col_mapa:
     # Renderizado final del mapa
     folium_static(m, width=None, height=750)
 
-with tab_info_sectores:
-    st.markdown("## 📊 Detalle de Sectores")
+with tabs[1]:
+    st.markdown("### 📋 Listado de Sectores Hidrométricos")
+    st.info("Haz clic en una fila para ver el detalle del sector.")
+    
     if sectores:
-        st.dataframe(pd.DataFrame(sectores)[['sector']], use_container_width=True)
+        df_sectores = pd.DataFrame(sectores)[['sector']]
+        # Usamos la nueva funcionalidad de selección de Streamlit
+        seleccion = st.dataframe(
+            df_sectores, 
+            use_container_width=True, 
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row"
+        )
+        
+        # Si el usuario selecciona una fila, guardamos el nombre en el estado de la sesión
+        if seleccion and seleccion["selection"]["rows"]:
+            idx = seleccion["selection"]["rows"][0]
+            nombre_sector = df_sectores.iloc[idx]['sector']
+            st.session_state.sector_seleccionado = nombre_sector
+            st.rerun()
+
+# Si existe la pestaña de detalle, la rellenamos
+if "sector_seleccionado" in st.session_state:
+    with tabs[2]:
+        sec_id = st.session_state.sector_seleccionado
+        st.markdown(f"## 🔍 Información Detallada: {sec_id}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Estado del Sector", "ESTABLE", help="Indicador simulado")
+            st.write("**Descripción:** Información técnica recuperada de PostgreSQL.")
+            if st.button("Cerrar Detalle"):
+                del st.session_state.sector_seleccionado
+                st.rerun()
+        with col2:
+            st.subheader("Ubicación")
+            # Mostrar un mapa pequeño solo del sector seleccionado
+            geo_data = next((s['geo'] for s in sectores if s['sector'] == sec_id), None)
+            if geo_data:
+                m_mini = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
+                folium.GeoJson(json.loads(geo_data), style_function=lambda x: {'fillColor': 'orange', 'color': 'white', 'weight': 2}).add_to(m_mini)
+                folium_static(m_mini, width=500, height=300)

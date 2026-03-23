@@ -301,10 +301,6 @@ with st.sidebar:
                 st.write(f"⚪ {p}")
 
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
-
-# --- A. CREACIÓN DE COLUMNAS PARA EL PANEL DERECHO ---
-col_mapa, col_capas = st.columns([8.5, 1.5])
-
 with col_capas:
     st.markdown("### 🗺️ Capas")
     ver_sectores = st.checkbox("Sectores", value=True)

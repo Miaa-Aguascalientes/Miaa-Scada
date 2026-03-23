@@ -346,31 +346,6 @@ with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # 1. FUNCIÓN PARA HORARIO 00:00
-    def formato_hora(decimal):
-        try:
-            if decimal == "N/A" or decimal is None: return "00:00"
-            horas = int(float(decimal))
-            minutos = int((float(decimal) - horas) * 60)
-            return f"{horas:02d}:{minutos:02d}"
-        except:
-            return "00:00"
-
-    # 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
-    def get_blink_icon(color):
-        return f"""
-        <div style="
-            width: 8px; height: 8px; 
-            background-color: {color}; 
-            border-radius: 50%; 
-            box-shadow: 0 0 8px {color};
-            animation: blinker 1s linear infinite;">
-        </div>
-        <style>
-        @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
-        </style>
-        """
-
     # --- A. RENDERIZADO DE SECTORES ---
     if ver_sectores:
         for s in sectores:
@@ -431,69 +406,32 @@ with col_mapa:
                 <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
                 <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
             </div>
-            <div style="margin-bottom: 12px;">
-                <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                    <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
-                </div>
-                <div style="display: flex; align-items: baseline; font-size: 11px;">
-                    <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
-                </div>
+            
+            <div style="margin-bottom: 10px;">
+                <div style="font-size: 10px; color: #888;">HIDRÁULICA</div>
+                <div style="display: flex; font-size: 11px;"><span>💧 Caudal: <b>{q:.2f} L/s</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_q}</span></div>
+                <div style="display: flex; font-size: 11px;"><span>🚀 Presión: <b>{p:.2f} kg</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_p}</span></div>
             </div>
-            <div style="margin-bottom: 12px;">
-                <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                    <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
-                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
-                </div>
-                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                    <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
-                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
-                </div>
-                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                    <span>🏗️ Columna: <b>{col:.1f} m</b></span>
-                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
-                </div>
-                <div style="display: flex; align-items: baseline; font-size: 11px;">
-                    <span>🔋 Tanque: <b>{tanq:.1f} mts</b></span>
-                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
-                </div>
+
+            <div style="margin-bottom: 10px;">
+                <div style="font-size: 10px; color: #888;">NIVELES</div>
+                <div style="display: flex; font-size: 11px;"><span>📏 Sumergencia: <b>{sumer:.1f} m</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_s}</span></div>
+                <div style="display: flex; font-size: 11px;"><span>📉 Dinámico: <b>{dinam:.1f} m</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_d}</span></div>
+                <div style="display: flex; font-size: 11px;"><span>🔋 Tanque: <b>{tanq:.1f} mts</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_t}</span></div>
             </div>
-            <div style="margin-bottom: 12px;">
-                <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-                <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
-                    <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                        <th style="padding: 4px;">Fase</th>
-                        <th style="padding: 4px;">Voltaje / Act.</th>
-                        <th style="padding: 4px;">Amp / Act.</th>
-                    </tr>
-                    <tr style="border-bottom: 1px solid #222;">
-                        <td style="padding: 6px 4px;">L1-L2</td>
-                        <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
-                        <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid #222;">
-                        <td style="padding: 6px 4px;">L2-L3</td>
-                        <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
-                        <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 6px 4px;">L1-L3</td>
-                        <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
-                        <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
-                    </tr>
+
+            <div style="margin-bottom: 10px;">
+                <div style="font-size: 10px; color: #888;">ELÉCTRICO</div>
+                <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                    <tr style="color: #00d4ff; border-bottom: 1px solid #333;"><th style="text-align:left;">Fase</th><th>Voltaje</th><th>Amp.</th></tr>
+                    <tr style="border-bottom: 1px solid #222;"><td>L1-L2</td><td><b>{v[0][0]:.1f}V</b></td><td><b>{a[0][0]:.1f}A</b></td></tr>
+                    <tr style="border-bottom: 1px solid #222;"><td>L2-L3</td><td><b>{v[1][0]:.1f}V</b></td><td><b>{a[1][0]:.1f}A</b></td></tr>
+                    <tr><td>L1-L3</td><td><b>{v[2][0]:.1f}V</b></td><td><b>{a[2][0]:.1f}A</b></td></tr>
                 </table>
-                <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-                <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                    <span>▶️ Arranque: <b>{h_arr_fmt}</b></span>
-                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
-                </div>
-                <div style="display: flex; align-items: baseline; font-size: 11px;">
-                    <span>⏹️ Paro: <b>{h_par_fmt}</b></span>
-                    <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
-                </div>
+            </div>
+
+            <div style="font-size: 10px; color: #888; border-top: 1px solid #222; padding-top: 5px;">
+                ▶️ Arr: <b>{h_arr_fmt}</b> | ⏹️ Paro: <b>{h_par_fmt}</b>
             </div>
         </div>
         """

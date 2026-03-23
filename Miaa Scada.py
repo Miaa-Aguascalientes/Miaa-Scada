@@ -317,17 +317,35 @@ with st.sidebar:
 
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 # DASHBOARD
-st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
+st.markdown("""
+    <style>
+        /* ... tus otros estilos ... */
 
-# Dentro del bloque st.markdown(""" <style> ... """)
-.map-container {
-    border: 4px solid #1f4068; /* Borde grueso azul oscuro */
-    border-radius: 10px;
-    padding: 8px;
-    background-color: #0b1a29;
-    box-shadow: 0 0 25px rgba(0, 212, 255, 0.4); /* Resplandor neón */
-    margin-top: 20px;
-}
+        .titulo-superior {
+            position: fixed;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999999;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            line-height: normal;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .map-container {
+            border: 4px solid #1f4068; 
+            border-radius: 12px;
+            padding: 10px;
+            background-color: #050505;
+            box-shadow: 0 0 25px rgba(0, 212, 255, 0.3);
+            margin-top: 60px; /* Espacio para que el título no tape el mapa */
+            margin-bottom: 20px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
 with col_capas:

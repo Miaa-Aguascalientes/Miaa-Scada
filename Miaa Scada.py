@@ -55,14 +55,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ----------------------------------------------------------------------------------------------------------
+# 3. FUNCIONES DE CONEXIÓN
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
         c = st.secrets["mysql_scada"]
         pwd = urllib.parse.quote_plus(c["password"])
-        engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        return engine
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except: return None
 
 @st.cache_resource
@@ -70,8 +69,7 @@ def get_mysql_telemetria_engine():
     try:
         c = st.secrets["mysql_telemetria"]
         pwd = urllib.parse.quote_plus(c["password"])
-        engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        return engine
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except: return None
 
 @st.cache_resource
@@ -79,7 +77,7 @@ def get_postgres_conn():
     try: return psycopg2.connect(**st.secrets["postgres"])
     except: return None
 
-# 4-------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
+# 4. CARGA DE DATOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
@@ -168,7 +166,7 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# 6. SIDEBAR
+# 6. SIDEBAR COMPLETO
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
@@ -183,10 +181,16 @@ with st.sidebar:
 
     st.markdown(f'<div class="resumen-card"><h4 style="color:#00d4ff;">RESUMEN GLOBAL</h4><p>Caudal: <b>{total_q:.2f} l/s</b></p><p>Presión: <b>{total_p/max(len(pozos_on),1):.2f} Kg</b></p></div>', unsafe_allow_html=True)
     
-    with st.expander(f"🟢 ON ({len(pozos_on)})"):
+    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})"):
         for p in sorted(pozos_on): st.write(f"🟢 {p}")
-    with st.expander(f"🔴 OFF ({len(pozos_off)})"):
+    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})"):
         for p in sorted(pozos_off): st.write(f"🔴 {p}")
+    if pozos_falla_com:
+        with st.expander(f"🟠 Falla de Com. (+4h) ({len(pozos_falla_com)})"):
+            for p in sorted(pozos_falla_com): st.write(f"🟠 {p}")
+    if pozos_sin_telemetria:
+        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})"):
+            for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
 
 # 7. DASHBOARD Y PESTAÑAS
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
@@ -205,32 +209,40 @@ with tab_mapa:
         m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
         Fullscreen().add_to(m)
 
-        def formato_hora(decimal):
-            try:
-                if decimal == "N/A" or decimal is None: return "00:00"
-                horas = int(float(decimal)); minutos = int((float(decimal) - horas) * 60)
-                return f"{horas:02d}:{minutos:02d}"
-            except: return "00:00"
+        def get_blink_icon(color):
+            return f"""
+            <div style="width: 8px; height: 8px; background-color: {color}; border-radius: 50%; box-shadow: 0 0 8px {color}; animation: blinker 1s linear infinite;"></div>
+            <style>@keyframes blinker {{ 50% {{ opacity: 0.2; }} }}</style>
+            """
 
         if ver_sectores:
             for s in sectores:
-                folium.GeoJson(json.loads(s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}, tooltip=f"Sector: {s['sector']}").add_to(m)
+                folium.GeoJson(
+                    json.loads(s['geo']), 
+                    style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+                    highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
+                    tooltip=f"Sector: {s['sector']}"
+                ).add_to(m)
 
         for id_p, info in mapa_pozos_dict.items():
             d = lambda tag: data_scada.get(tag, (0, "N/A"))
             is_st = (info['status_label'] == 'SIN TELEMETRÍA')
-            
             q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
             p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
             sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
             dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
             tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
             col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-            
-            # --- CORRECCIÓN DE VARIABLES AQUÍ ---
             h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
             h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
-            h_arr_fmt, h_par_fmt = formato_hora(h_arr_val), formato_hora(h_par_val)
+            
+            def formato_hora(decimal):
+                try:
+                    if decimal == "N/A" or decimal is None: return "00:00"
+                    h = int(float(decimal))
+                    m = int((float(decimal) - h) * 60)
+                    return f"{h:02d}:{m:02d}"
+                except: return "00:00"
 
             v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
             a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
@@ -244,31 +256,25 @@ with tab_mapa:
                 <div style="margin-bottom: 12px;">
                     <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
+                        <span>💧 Caudal: <b>{q:.2f} L/s</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px;">
-                        <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
+                        <span>🚀 Presión: <b>{p:.2f} kg</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
                     </div>
                 </div>
                 <div style="margin-bottom: 12px;">
                     <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
-                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
+                        <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
-                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
+                        <span>📉 Dinámico: <b>{dinam:.1f} m</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>🏗️ Columna: <b>{col:.1f} m</b></span>
-                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
+                        <span>🏗️ Columna: <b>{col:.1f} m</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px;">
-                        <span>🔋 Tanque: <b>{tanq:.1f} mts</b></span>
-                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
+                        <span>🔋 Tanque: <b>{tanq:.1f} mts</b></span><span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
                     </div>
                 </div>
                 <div style="margin-bottom: 12px;">
@@ -282,16 +288,21 @@ with tab_mapa:
                         <tr><td style="padding: 6px 4px;">L1-L3</td><td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px;">{v[2][1]}</span></td><td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px;">{a[2][1]}</span></td></tr>
                     </table>
                     <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;"><span>▶️ Ar: <b>{h_arr_fmt}</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_h_arr}</span></div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px;"><span>⏹️ Pa: <b>{h_par_fmt}</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_h_par}</span></div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;"><span>▶️ Ar: <b>{formato_hora(h_arr_val)}</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_h_arr}</span></div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px;"><span>⏹️ Pa: <b>{formato_hora(h_par_val)}</b></span><span style="color:#FFFF00; font-size:8px; margin-left:auto;">{f_h_par}</span></div>
                 </div>
             </div>
             """
 
             if ver_etiquetas:
                 folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_size=(150,36), icon_anchor=(-12, 10), html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_p}</div>')).add_to(m)
+            
+            # RESTAURACIÓN DEL PARPADEO (BLINK) SEGÚN TU LÓGICA
             if ver_pozos:
-                folium.CircleMarker(location=info['coord'], radius=4, color=info['color_final'], fill=True, fill_opacity=1, popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+                if info.get('blink'):
+                    folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup, max_width=450)).add_to(m)
+                else:
+                    folium.CircleMarker(location=info['coord'], radius=4, color=info['color_final'], fill=True, fill_opacity=1, popup=folium.Popup(html_popup, max_width=450)).add_to(m)
 
         folium_static(m, width=None, height=750)
 

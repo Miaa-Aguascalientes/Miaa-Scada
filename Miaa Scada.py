@@ -10,7 +10,7 @@ import datetime as dt
 
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
-    page_title="MIAA - Estado de Pozos 3D", 
+    page_title="MIAA - Estado de Pozos 3D Relieve", 
     page_icon="https://www.miaa.mx/favicon.ico", 
     layout="wide", 
     initial_sidebar_state="expanded"
@@ -126,12 +126,12 @@ ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
 def calcular_estado(row):
     bomba_tag = str(row['bomba'])
     l1_tag = str(row['voltaje_L1'])
-    if bomba_tag == "Sin telemetria": return [128, 128, 128], "SIN TELEMETRÍA" # Gris
+    if bomba_tag == "Sin telemetria": return [128, 128, 128], "SIN TELEMETRÍA" 
     val_l1, fecha_l1 = scada_dict.get(l1_tag, (0, None))
-    if not fecha_l1 or (ahora - fecha_l1).total_seconds() / 3600 > 4: return [255, 165, 0], "FALLA COM." # Naranja
+    if not fecha_l1 or (ahora - fecha_l1).total_seconds() / 3600 > 4: return [255, 165, 0], "FALLA COM." 
     val_bba, _ = scada_dict.get(bomba_tag, (0, None))
-    if val_bba == 1: return [0, 255, 0], "OPERANDO" # Verde
-    else: return [255, 0, 0], "APAGADO" # Rojo
+    if val_bba == 1: return [0, 255, 0], "OPERANDO" 
+    else: return [255, 0, 0], "APAGADO" 
 
 if not df_p.empty:
     res = df_p.apply(lambda r: pd.Series(calcular_estado(r)), axis=1)
@@ -145,62 +145,71 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
 
-# 7--------------------------------------------------------------------------------- 7. MAPA 3D CON CALLES Y PUNTOS -------------------------------------------------------------------------------------------------------------
-st.markdown('<div class="titulo-superior">Sistema MIAA 3D Real-Time</div>', unsafe_allow_html=True)
+# 7--------------------------------------------------------------------------------- 7. MAPA 3D CON RELIEVE Y CALLES -------------------------------------------------------------------------------------------------------------
+st.markdown('<div class="titulo-superior">Sistema MIAA - Relieve 3D</div>', unsafe_allow_html=True)
 
-# Vista inicial con inclinación para el 3D
+# Vista inicial con inclinación pronunciada para apreciar el relieve
 view_state = pdk.ViewState(
     latitude=21.8820,
     longitude=-102.2800,
-    zoom=13,
-    pitch=45,
+    zoom=12,
+    pitch=60, # Mayor inclinación para ver el terreno
     bearing=0
 )
 
 capas = []
 
-# CAPA DE SECTORES (Calles visibles debajo)
+# CAPA DE TERRENO (Relieve 3D) - Usa datos de elevación RGB de Mapbox
+capa_relieve = pdk.Layer(
+    "TerrainLayer",
+    elevation_decoder={"rScaler": 1, "gScaler": 0, "bScaler": 0, "offset": 0},
+    texture="https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", # Textura del mapa
+    elevation_data="https://assets.mapbox.com/raster-terrain-rgb/{z}/{x}/{y}.pngraw?access_token=" + st.secrets.get("mapbox_token", ""),
+)
+# Nota: Si no tienes mapbox_token en secrets, Pydeck usará el relieve por defecto del estilo del mapa.
+
+# CAPA DE SECTORES (Transparente para ver calles)
 if sectores_geo:
     capas.append(pdk.Layer(
         "GeoJsonLayer",
         sectores_geo,
-        opacity=0.15,
+        opacity=0.1,
         stroked=True,
         filled=True,
         get_fill_color=[0, 212, 255],
         get_line_color=[0, 212, 255],
-        get_line_width=1,
+        get_line_width=2,
     ))
 
-# CAPA DE PUNTOS DE LOS POZOS (Estado de operación)
+# CAPA DE PUNTOS DE LOS POZOS (Scatterplot) - Cambian de color según operación
 capas.append(pdk.Layer(
     "ScatterplotLayer",
     df_p,
     get_position=['lon', 'lat'],
     get_color='color_rgb',
-    get_radius=50,
+    get_radius=60,
     pickable=True,
-    opacity=0.8,
+    opacity=0.9,
     stroked=True,
-    line_width_min_pixels=2,
+    line_width_min_pixels=1,
     get_line_color=[255, 255, 255]
 ))
 
-# CAPA DE ETIQUETAS (Nombres de Pozos)
+# CAPA DE ETIQUETAS (Nombres)
 capas.append(pdk.Layer(
     "TextLayer",
     df_p,
     get_position=['lon', 'lat'],
     get_text='Pozos',
-    get_size=12,
+    get_size=15,
     get_color=[255, 255, 255],
     get_alignment_baseline="'bottom'",
     offset_y=-10
 ))
 
-# MAPA FINAL
+# MAPA FINAL CON ESTILO SATELITAL HÍBRIDO PARA VER CALLES Y RELIEVE
 st.pydeck_chart(pdk.Deck(
-    map_style='mapbox://styles/mapbox/navigation-night-v1', # Estilo que resalta calles y nombres
+    map_style='mapbox://styles/mapbox/satellite-streets-v11', # Satélite + Calles + Nombres
     initial_view_state=view_state,
     layers=capas,
     tooltip={

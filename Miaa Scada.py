@@ -320,14 +320,14 @@ with st.sidebar:
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
 # Dentro del bloque st.markdown(""" <style> ... """)
-        .map-container {
-            border: 2px solid #1f4068; /* Borde base azul oscuro */
-            border-radius: 10px;
-            padding: 10px;
-            background: linear-gradient(145deg, #0b1a29, #050505);
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2); /* Resplandor sutil azul */
-            margin-top: 10px;
-        }
+.map-container {
+    border: 2px solid #1f4068; /* Borde base azul oscuro */
+    border-radius: 10px;
+    padding: 10px;
+    background: linear-gradient(145deg, #0b1a29, #050505);
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.2); /* Resplandor sutil azul */
+    margin-top: 10px;
+}
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
 with col_capas:

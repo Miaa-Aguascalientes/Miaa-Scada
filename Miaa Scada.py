@@ -351,7 +351,13 @@ with col_capas:
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
-
+    st.markdown('<div class="titulo-superior">ESTADO OPERATIVO DE POZOS - AGUASCALIENTES</div>', unsafe_allow_html=True)
+    
+    # El contenedor del mapa
+    st.markdown('<div class="map-container">', unsafe_allow_html=True)
+    folium_static(m, width=None, height=750)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
     # 1. FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
         try:

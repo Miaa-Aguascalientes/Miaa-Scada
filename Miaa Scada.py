@@ -359,26 +359,42 @@ with col_mapa:
         </style>
         """
 
-    # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
+# 3. RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para incluir Popup con Botón
     if ver_sectores:
         for s in sectores:
+            # Definimos la URL a la que quieres redirigir (puedes dinamizarla con s['sector'])
+            url_destino = f"https://tu-sitio-analisis.com/sector/{s['sector']}"
+            
+            # Creamos el HTML del popup con un botón estilizado
+            html_sector = f"""
+            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px;">
+                <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
+                <p style="font-size: 12px; color: #ccc;">Presione el botón para ver el análisis detallado de este sector.</p>
+                <a href="{url_destino}" target="_blank" 
+                   style="display: inline-block; padding: 8px 16px; background-color: #00d4ff; color: black; 
+                          text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 5px;">
+                   📊 Ver Detalles
+                </a>
+            </div>
+            """
+            
             folium.GeoJson(
                 json.loads(s['geo']), 
-                # Estilo base: Azul con baja opacidad
                 style_function=lambda x: {
                     'fillColor': '#00d4ff', 
                     'color': '#00d4ff', 
                     'weight': 1, 
                     'fillOpacity': 0.1
                 },
-                # Estilo al pasar el mouse: Aumenta grosor y opacidad
                 highlight_function=lambda x: {
                     'fillColor': '#00d4ff', 
                     'color': '#ffffff', 
                     'weight': 3, 
                     'fillOpacity': 0.4
                 },
-                tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
+                # Añadimos el Popup aquí
+                popup=folium.Popup(html_sector, max_width=250),
+                tooltip=folium.Tooltip(f"Sector: {s['sector']} (Click para más)", sticky=True)
             ).add_to(m)
 
     # 4. RENDERIZADO DE POZOS

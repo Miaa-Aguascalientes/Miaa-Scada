@@ -1,146 +1,151 @@
 import streamlit as st
 import pandas as pd
-import folium
-from streamlit_folium import folium_static
-from folium.plugins import Fullscreen, MousePosition
+import pydeck as pdk
 from sqlalchemy import create_engine
+import psycopg2
 import json
 import urllib.parse
-import datetime as dt
+from datetime import datetime, timedelta
 
-# 1. CONFIGURACIÓN E INTERFAZ
+# 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="MIAA - Monitoreo 3D", layout="wide")
 
+# 2. TÍTULO AZUL VIVO Y ANIMADO (CSS)
 st.markdown("""
     <style>
         .titulo-superior {
-            position: fixed; top: 15px; left: 50%; transform: translateX(-50%); z-index: 9999;
-            color: #00d4ff; font-size: 1.6rem; font-weight: bold; text-transform: uppercase;
-            animation: glow 2s infinite alternate;
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999;
+            color: #00d4ff; font-size: 1.8rem; font-weight: bold; text-transform: uppercase;
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.7);
+            animation: pulse-blue 2s infinite alternate;
         }
-        @keyframes glow { from { text-shadow: 0 0 5px #00d4ff; } to { text-shadow: 0 0 20px #0077ff; } }
+        @keyframes pulse-blue {
+            from { transform: translateX(-50%) scale(1); text-shadow: 0 0 10px #00d4ff; }
+            to { transform: translateX(-50%) scale(1.05); text-shadow: 0 0 25px #0077ff; }
+        }
         .stApp { background-color: #000000; }
     </style>
-    <div class="titulo-superior">📡 SISTEMA DE MONITOREO 3D - AGUASCALIENTES</div>
+    <div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>
 """, unsafe_allow_html=True)
 
-# 2. CONEXIONES (MIAA)
+# 3. CONEXIONES A BASES DE DATA (MIAA)
 @st.cache_resource
-def get_eng(key):
+def get_mysql_engine(key):
     try:
         c = st.secrets[key]
         pwd = urllib.parse.quote_plus(c["password"])
         return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except: return None
 
-# 3. CARGA DE DATOS (POZOS Y SECTORES)
-@st.cache_data(ttl=600)
-def cargar_todo():
-    # Pozos desde MySQL Telemetría
-    eng_t = get_eng("mysql_telemetria")
-    df_p = pd.read_sql("SELECT * FROM Diccionario_de_pozos", eng_t)
+# 4. CARGA DE DATOS COMPLETA
+@st.cache_data(ttl=300)
+def cargar_datos_sistema():
+    # Cargar todos los pozos (MySQL)
+    eng_tele = get_mysql_engine("mysql_telemetria")
+    df_pozos = pd.read_sql("SELECT * FROM Diccionario_de_pozos", eng_tele)
     
-    # Sectores desde PostgreSQL
-    import psycopg2
-    conn = psycopg2.connect(**st.secrets["postgres"])
-    df_s = pd.read_sql('SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"', conn)
-    conn.close()
+    # Cargar Sectores (PostgreSQL)
+    conn_pg = psycopg2.connect(**st.secrets["postgres"])
+    df_sectores = pd.read_sql('SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"', conn_pg)
+    conn_pg.close()
     
-    # SCADA desde MySQL SCADA
-    eng_s = get_eng("mysql_scada")
-    df_scada = pd.read_sql("SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID", eng_s)
-    scada = {r['NAME']: (r['VALUE'], r['FECHA']) for _, r in df_scada.iterrows()}
+    # Cargar SCADA
+    eng_scada = get_mysql_engine("mysql_scada")
+    df_scada = pd.read_sql("SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID", eng_scada)
+    scada_data = {r['NAME']: (r['VALUE'], r['FECHA']) for _, r in df_scada.iterrows()}
     
-    return df_p, df_s, scada
+    return df_pozos, df_sectores, scada_data
 
-df_pozos, df_sectores, data_scada = cargar_todo()
+df_p, df_s, scada = cargar_datos_sistema()
 
-# 4. MAPA CON INYECCIÓN 3D (GOOGLE EARTH STYLE)
-col_mapa, col_capas = st.columns([8.5, 1.5])
+# 5. PROCESAMIENTO PARA 3D
+ahora = datetime.utcnow() - timedelta(hours=6)
+lista_pozos_3d = []
 
-with col_capas:
-    st.write("### 🗺️ Capas")
-    v_sect = st.checkbox("Sectores", True)
-    v_pozos = st.checkbox("Pozos", True)
-
-with col_mapa:
-    # Creamos el mapa base
-    m = folium.Map(location=[21.8820, -102.2800], zoom_start=13, tiles=None)
-
-    # CAPA SATÉLITE DE ALTA RESOLUCIÓN
-    folium.TileLayer(
-        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        attr='Google', name='Google Satellite', overlay=False
-    ).add_to(m)
-
-    # RENDERIZADO DE SECTORES (PostgreSQL)
-    if v_sect:
-        for _, s in df_sectores.iterrows():
-            folium.GeoJson(
-                json.loads(s['geo']),
-                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1}
-            ).add_to(m)
-
-    # RENDERIZADO DE POZOS (MySQL + Lógica de Estado)
-    ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
-    
-    for _, row in df_pozos.iterrows():
-        try:
-            lat, lon = map(float, str(row['coord']).strip("()").split(','))
-            tag_bba = row['bomba']
-            tag_l1 = row['voltaje_L1']
+for _, row in df_p.iterrows():
+    try:
+        coords = str(row['coord']).strip("()").split(',')
+        lat, lon = float(coords[0]), float(coords[1])
+        
+        # Lógica de estado y color
+        val_bba, _ = scada.get(row['bomba'], (0, None))
+        _, f_l1 = scada.get(row['voltaje_L1'], (0, None))
+        
+        color = [0, 255, 0, 200] # Verde (Operando)
+        elevacion = 50
+        
+        if f_l1 and (ahora - f_l1).total_seconds() / 3600 > 4:
+            color = [255, 165, 0, 255] # Naranja (Falla Com)
+            elevacion = 150 # Más alto para resaltar falla
+        elif val_bba == 0:
+            color = [255, 0, 0, 255] # Rojo (Apagado)
+            elevacion = 20
             
-            val_bba, f_bba = data_scada.get(tag_bba, (0, None))
-            _, f_l1 = data_scada.get(tag_l1, (0, None))
-            
-            # Lógica de Color y Parpadeo
-            color = "#00FF00" # Operando
-            blink = False
-            
-            if f_l1:
-                if (ahora - f_l1).total_seconds() / 3600 > 4:
-                    color, blink = "#FFA500", True # Falla Com
-            elif tag_bba == "Sin telemetria":
-                color = "#808080"
-            elif val_bba == 0:
-                color, blink = "#FF0000", True # Apagado
+        lista_pozos_3d.append({
+            "name": row['Pozos'], "lat": lat, "lon": lon,
+            "color": color, "elev": elevacion,
+            "info": f"Pozo: {row['Pozos']} | Bomba: {val_bba}"
+        })
+    except: continue
 
-            # Popup con diseño MIAA
-            html = f"""<div style="color:white; background:black; padding:10px; border-radius:5px; border:1px solid {color}">
-                        <b>POZO: {row['Pozos']}</b><br>Estado: {color}</div>"""
-            
-            if v_pozos:
-                if blink:
-                    folium.Marker(
-                        location=[lat, lon],
-                        icon=folium.DivIcon(html=f'<div style="width:12px; height:12px; background:{color}; border-radius:50%; box-shadow: 0 0 10px {color}; animation: blink 1s infinite;"></div>'),
-                        popup=folium.Popup(html, max_width=200)
-                    ).add_to(m)
-                else:
-                    folium.CircleMarker(
-                        location=[lat, lon], radius=6, color=color, fill=True,
-                        popup=folium.Popup(html, max_width=200)
-                    ).add_to(m)
-        except: continue
+df_final_pozos = pd.DataFrame(lista_pozos_3d)
 
-    # --- SCRIPT PARA HABILITAR EL "MODO 3D" EN EL NAVEGADOR ---
-    # Esto permite inclinar el mapa con Shift + Arrastrar
-    m.get_root().html.add_child(folium.Element("""
-        <style>
-            .leaflet-container { cursor: crosshair !important; }
-        </style>
-        <script>
-            setTimeout(function(){
-                var map = document.querySelector('.leaflet-container')._leaflet_map;
-                // Forzamos un ángulo de visión inclinado si el motor lo soporta
-                map.flyTo([21.8820, -102.2800], 13, {animate: true});
-            }, 1000);
-        </script>
-    """))
+# 6. RENDERIZADO DEL MAPA 3D (PYDECK)
+# Convertir sectores a formato GeoJSON para Pydeck
+geojson_sectores = {"type": "FeatureCollection", "features": [
+    {"type": "Feature", "geometry": json.loads(s['geo']), "properties": {"name": s['sector']}} 
+    for _, s in df_s.iterrows()
+]}
 
-    folium_static(m, width=1200, height=750)
+# Capa de Sectores (Planos en el suelo)
+capa_sectores = pdk.Layer(
+    "GeoJsonLayer",
+    geojson_sectores,
+    get_fill_color=[0, 212, 255, 30], # Azul MIAA transparente
+    get_line_color=[0, 212, 255, 100],
+    line_width_min_pixels=1,
+)
 
-with st.sidebar:
-    st.image("https://www.miaa.mx/favicon.ico", width=50)
-    st.write("### Resumen MIAA")
-    if st.button("♻️ Sincronizar"): st.cache_data.clear(); st.rerun()
+# Capa de Pozos (Columnas 3D)
+capa_pozos = pdk.Layer(
+    "ColumnLayer",
+    df_final_pozos,
+    get_position="[lon, lat]",
+    get_elevation="elev",
+    elevation_scale=1,
+    radius=25,
+    get_fill_color="color",
+    pickable=True,
+)
+
+# Capa de Etiquetas (Nombres de Pozos)
+capa_nombres = pdk.Layer(
+    "TextLayer",
+    df_final_pozos,
+    get_position="[lon, lat]",
+    get_text="name",
+    get_color="color",
+    get_size=12,
+    get_alignment_baseline="'bottom'",
+    get_pixel_offset=[0, -10]
+)
+
+# Configuración de cámara inicial (INCLINADA 3D)
+view_state = pdk.ViewState(
+    latitude=21.8820, longitude=-102.2800,
+    zoom=12, pitch=50, bearing=-10
+)
+
+# El Mapa Final
+r = pdk.Deck(
+    layers=[capa_sectores, capa_pozos, capa_nombres],
+    initial_view_state=view_state,
+    map_style="mapbox://styles/mapbox/satellite-v9", # SATÉLITE REAL
+    tooltip={"text": "{info}"}
+)
+
+st.pydeck_chart(r)
+
+st.sidebar.image("https://www.miaa.mx/logo.png", width=150)
+st.sidebar.write("### Instrucciones 3D")
+st.sidebar.info("Manten presionado CLICK DERECHO para rotar e inclinar la cámara.")

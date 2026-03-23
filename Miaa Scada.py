@@ -44,9 +44,6 @@ st.markdown("""
         .sidebar-logo { display: flex; justify-content: center; padding: 0px !important; margin-top: -70px !important; margin-bottom: 10px; }
         .sidebar-logo img { max-width: 85%; height: auto; }
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
-        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
-        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
-        .status-err { background-color: #b71c1c; color: #ef9a9a; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -96,15 +93,13 @@ def cargar_sectores_geojson():
         query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
-        # Convertir a formato GeoJSON FeatureCollection para Pydeck
         features = []
         for _, row in df.iterrows():
-            feature = {
+            features.append({
                 "type": "Feature",
                 "geometry": json.loads(row['geo']),
                 "properties": {"sector": row['sector']}
-            }
-            features.append(feature)
+            })
         return {"type": "FeatureCollection", "features": features}
     except: return None
 
@@ -131,18 +126,17 @@ ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
 def calcular_estado(row):
     bomba_tag = str(row['bomba'])
     l1_tag = str(row['voltaje_L1'])
-    if bomba_tag == "Sin telemetria": return "#808080", "SIN TELEMETRÍA", 0
+    if bomba_tag == "Sin telemetria": return [128, 128, 128], "SIN TELEMETRÍA" # Gris
     val_l1, fecha_l1 = scada_dict.get(l1_tag, (0, None))
-    if not fecha_l1 or (ahora - fecha_l1).total_seconds() / 3600 > 4: return "#FFA500", "FALLA COM.", 1
+    if not fecha_l1 or (ahora - fecha_l1).total_seconds() / 3600 > 4: return [255, 165, 0], "FALLA COM." # Naranja
     val_bba, _ = scada_dict.get(bomba_tag, (0, None))
-    if val_bba == 1: return "#00FF00", "OPERANDO", 2
-    else: return "#FF0000", "APAGADO", 3
+    if val_bba == 1: return [0, 255, 0], "OPERANDO" # Verde
+    else: return [255, 0, 0], "APAGADO" # Rojo
 
 if not df_p.empty:
-    df_p[['color_hex', 'status_label', 'status_code']] = df_p.apply(lambda r: pd.Series(calcular_estado(r)), axis=1)
-    df_p['color_rgb'] = df_p['color_hex'].apply(lambda x: [int(x[i:i+2], 16) for i in (1, 3, 5)] + [255])
-    # Altura basada en caudal para el efecto 3D
-    df_p['altura_3d'] = df_p['Pozos'].apply(lambda x: scada_dict.get(df_p.loc[df_p['Pozos']==x, 'caudal'].values[0], (0,0))[0] * 30)
+    res = df_p.apply(lambda r: pd.Series(calcular_estado(r)), axis=1)
+    df_p['color_rgb'] = res[0]
+    df_p['status_label'] = res[1]
 
 # 6 ------------------------------------------------------------------------------- 6. SIDEBAR ------------------------------------------------------------------------------------------
 with st.sidebar:
@@ -150,76 +144,67 @@ with st.sidebar:
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-    
-    st.markdown("### RESUMEN")
-    if not df_p.empty:
-        st.write(f"🟢 Operando: {len(df_p[df_p['status_code']==2])}")
-        st.write(f"🔴 Apagados: {len(df_p[df_p['status_code']==3])}")
-        st.write(f"🟠 Falla Com: {len(df_p[df_p['status_code']==1])}")
 
-# 7--------------------------------------------------------------------------------- 7. MAPA 3D REAL (CALLES Y SECTORES) -------------------------------------------------------------------------------------------------------------
-st.markdown('<div class="titulo-superior">Monitoreo MIAA 3D</div>', unsafe_allow_html=True)
+# 7--------------------------------------------------------------------------------- 7. MAPA 3D CON CALLES Y PUNTOS -------------------------------------------------------------------------------------------------------------
+st.markdown('<div class="titulo-superior">Sistema MIAA 3D Real-Time</div>', unsafe_allow_html=True)
 
-# Estado de la vista (Inclinada y con zoom para ver calles)
+# Vista inicial con inclinación para el 3D
 view_state = pdk.ViewState(
     latitude=21.8820,
     longitude=-102.2800,
     zoom=13,
-    pitch=50,
-    bearing=-10
+    pitch=45,
+    bearing=0
 )
 
 capas = []
 
-# Capa 1: Sectores (GeoJSON)
+# CAPA DE SECTORES (Calles visibles debajo)
 if sectores_geo:
     capas.append(pdk.Layer(
         "GeoJsonLayer",
         sectores_geo,
-        opacity=0.1,
+        opacity=0.15,
         stroked=True,
         filled=True,
-        get_fill_color=[0, 212, 255, 100],
-        get_line_color=[0, 212, 255, 255],
-        get_line_width=2,
+        get_fill_color=[0, 212, 255],
+        get_line_color=[0, 212, 255],
+        get_line_width=1,
     ))
 
-# Capa 2: Pozos en 3D (Columnas)
+# CAPA DE PUNTOS DE LOS POZOS (Estado de operación)
 capas.append(pdk.Layer(
-    "ColumnLayer",
+    "ScatterplotLayer",
     df_p,
     get_position=['lon', 'lat'],
-    get_elevation='altura_3d',
-    elevation_scale=1,
-    radius=35,
-    get_fill_color='color_rgb',
+    get_color='color_rgb',
+    get_radius=50,
     pickable=True,
-    auto_highlight=True,
+    opacity=0.8,
+    stroked=True,
+    line_width_min_pixels=2,
+    get_line_color=[255, 255, 255]
 ))
 
-# Capa 3: Etiquetas de Pozos
+# CAPA DE ETIQUETAS (Nombres de Pozos)
 capas.append(pdk.Layer(
     "TextLayer",
     df_p,
     get_position=['lon', 'lat'],
     get_text='Pozos',
-    get_size=14,
+    get_size=12,
     get_color=[255, 255, 255],
     get_alignment_baseline="'bottom'",
-    offset_y=-15
+    offset_y=-10
 ))
 
-# Renderizado del mapa
-# El estilo 'mapbox://styles/mapbox/dark-v10' muestra las calles claramente en gris oscuro.
+# MAPA FINAL
 st.pydeck_chart(pdk.Deck(
-    map_style='mapbox://styles/mapbox/dark-v10', 
+    map_style='mapbox://styles/mapbox/navigation-night-v1', # Estilo que resalta calles y nombres
     initial_view_state=view_state,
     layers=capas,
     tooltip={
         "html": "<b>Pozo:</b> {Pozos}<br><b>Estado:</b> {status_label}",
-        "style": {"backgroundColor": "#050505", "color": "white", "fontSize": "12px"}
+        "style": {"backgroundColor": "#050505", "color": "white"}
     }
 ))
-
-if df_p.empty:
-    st.error("Error al cargar datos. Verifica la conexión a la base de datos.")

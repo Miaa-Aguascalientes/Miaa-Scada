@@ -319,6 +319,13 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
+
+
+# 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
+# DASHBOARD
+st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
+
+
 # Obtener parámetros de la URL
 query_params = st.query_params
 
@@ -333,10 +340,6 @@ if "sector_id" in query_params:
         st.query_params.clear()
         st.rerun()
     st.stop() # Detiene la ejecución del resto del script (el mapa) para mostrar solo la info
-
-# 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
-# DASHBOARD
-st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
 with col_capas:

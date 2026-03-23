@@ -159,26 +159,6 @@ def cargar_datos_scada(mapa_pozos):
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except: return {}
 
-@st.cache_data(ttl=3600)
-def cargar_sectores_poligonos():
-    conn = get_postgres_conn()
-    if not conn: return []
-    try:
-        # Traemos todos los campos relevantes de la imagen
-        query = """
-            SELECT 
-                sector, 
-                "Pozos_Sector", "Cantidad_Pozos", "Poblacion",
-                "Cons_m3", "Fugas_Tot", "Long_Red", "Vol_Prod", "Balance_Estimado",
-                ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
-            FROM "Sectorizacion"."Sectores_hidr"
-        """
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df.to_dict('records')
-    except: 
-        return []
-
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():

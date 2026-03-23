@@ -331,7 +331,7 @@ with st.sidebar:
 
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 # DASHBOARD
-st.markdown('<div class="titulo-superior">📡 Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
+st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
 with col_capas:

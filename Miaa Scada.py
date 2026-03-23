@@ -501,5 +501,7 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-    # Renderizado final del mapa
+# Renderizado final del mapa con marco decorativo
+    st.markdown('<div class="map-container">', unsafe_allow_html=True)
     folium_static(m, width=None, height=750)
+    st.markdown('</div>', unsafe_allow_html=True)

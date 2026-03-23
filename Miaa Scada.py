@@ -164,7 +164,15 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        # Traemos todos los campos relevantes de la imagen
+        query = """
+            SELECT 
+                sector, 
+                "Pozos_Sector", "Cantidad_Pozos", "Poblacion",
+                "Cons_m3", "Fugas_Tot", "Long_Red", "Vol_Prod", "Balance_Estimado",
+                ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
+            FROM "Sectorizacion"."Sectores_hidr"
+        """
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
@@ -369,26 +377,56 @@ with col_mapa:
         </style>
         """
 
-    # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Condicionado al sidebar
+# 3. RENDERIZADO DE POLIGONOS (SECTORES)
     if ver_sectores:
         for s in sectores:
+            # Extraemos la info de la DB (usando .get para evitar errores si falta una columna)
+            nom = s.get('sector', 'N/A')
+            pozos_lista = s.get('Pozos_Sector', 'Sin datos')
+            pob = s.get('Poblacion', 0)
+            cons = s.get('Cons_m3', 0)
+            fugas = s.get('Fugas_Tot', 0)
+            balance = s.get('Balance_Estimado', 0)
+
+            # HTML del Popup enriquecido con datos de Postgres
+            html_popup = f"""
+            <div style="font-family: 'Segoe UI', sans-serif; min-width: 240px; background-color: #050505; color: white; padding: 10px; border-radius: 8px;">
+                <h4 style="margin: 0 0 10px 0; color: #00d4ff; border-bottom: 1px solid #333;">Sector {nom}</h4>
+                
+                <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                    <tr><td style="color: #888;">👥 Población:</td><td style="text-align: right;"><b>{pob:,}</b></td></tr>
+                    <tr><td style="color: #888;">💧 Consumo:</td><td style="text-align: right;"><b>{cons:,} m³</b></td></tr>
+                    <tr><td style="color: #888;">🚨 Fugas Totales:</td><td style="text-align: right; color: #ff4b4b;"><b>{fugas}</b></td></tr>
+                    <tr><td style="color: #888;">📈 Balance:</td><td style="text-align: right; color: #00ff00;"><b>{balance}%</b></td></tr>
+                </table>
+                
+                <div style="margin-top: 10px; font-size: 11px; color: #aaa;">
+                    <b>Pozos:</b> {pozos_lista}
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #444; margin: 10px 0;">
+                
+                <a href="/Detalle_Sector?sector={urllib.parse.quote(nom)}" target="_blank" style="text-decoration: none;">
+                    <button style="
+                        background-color: #00d4ff; color: black; border: none; padding: 8px 10px; 
+                        border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; font-size: 12px;">
+                        🚀 ABRIR TABLERO DETALLADO
+                    </button>
+                </a>
+            </div>
+            """
+
             folium.GeoJson(
                 json.loads(s['geo']), 
-                # Estilo base: Azul con baja opacidad
                 style_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#00d4ff', 
-                    'weight': 1, 
-                    'fillOpacity': 0.1
+                    'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1,
+                    'interactive': True
                 },
-                # Estilo al pasar el mouse: Aumenta grosor y opacidad
                 highlight_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#ffffff', 
-                    'weight': 3, 
-                    'fillOpacity': 0.4
+                    'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.3
                 },
-                tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
+                tooltip=folium.Tooltip(f"Sector: {nom}", sticky=True),
+                popup=folium.Popup(html_popup, max_width=320)
             ).add_to(m)
 
     # 4. RENDERIZADO DE POZOS

@@ -359,6 +359,19 @@ with col_mapa:
     ).add_to(m)
     # ------------------------------------------
 
+    # --- PEGA ESTO PARA LA VISTA DE SATÉLITE ---
+    folium.TileLayer(
+        tiles = 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attr = 'Google',
+        name = 'Google Satellite',
+        overlay = False,
+        control = True
+    ).add_to(m)
+    
+    # Esto añade el selector de capas arriba a la derecha para alternar
+    folium.LayerControl().add_to(m) 
+    # -------------------------------------------
+
     # 1. FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
         try:

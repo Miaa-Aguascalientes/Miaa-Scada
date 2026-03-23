@@ -56,8 +56,7 @@ def get_mysql_scada_engine():
     try:
         c = st.secrets["mysql_scada"]
         pwd = urllib.parse.quote_plus(c["password"])
-        engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        return engine
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except: return None
 
 @st.cache_resource
@@ -65,8 +64,7 @@ def get_mysql_telemetria_engine():
     try:
         c = st.secrets["mysql_telemetria"]
         pwd = urllib.parse.quote_plus(c["password"])
-        engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        return engine
+        return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
     except: return None
 
 @st.cache_resource
@@ -90,6 +88,26 @@ def cargar_pozos_dataframe():
         return df.dropna(subset=['lat', 'lon'])
     except: return pd.DataFrame()
 
+@st.cache_data(ttl=3600)
+def cargar_sectores_geojson():
+    conn = get_postgres_conn()
+    if not conn: return None
+    try:
+        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        df = pd.read_sql(query, conn)
+        conn.close()
+        # Convertir a formato GeoJSON FeatureCollection para Pydeck
+        features = []
+        for _, row in df.iterrows():
+            feature = {
+                "type": "Feature",
+                "geometry": json.loads(row['geo']),
+                "properties": {"sector": row['sector']}
+            }
+            features.append(feature)
+        return {"type": "FeatureCollection", "features": features}
+    except: return None
+
 def cargar_datos_scada_df(df_pozos):
     engine = get_mysql_scada_engine()
     if not engine or df_pozos.empty: return {}
@@ -99,44 +117,32 @@ def cargar_datos_scada_df(df_pozos):
     tags = list(set([t for t in tags if t and t not in ['0', 'Sin telemetria', 'None']]))
     try:
         tags_str = "', '".join(tags)
-        query = f"""SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h 
-                    JOIN VfiTagRef r ON h.GATEID = r.GATEID 
-                    WHERE r.NAME IN ('{tags_str}')"""
+        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}')"
         df = pd.read_sql(query, engine)
         return {row['NAME']: (row['VALUE'], row['FECHA']) for _, row in df.iterrows()}
     except: return {}
 
 # 5-------------------------------------------------------------------------------- 5. PROCESAMIENTO ----------------------------------------------------------------------------------------------------------
 df_p = cargar_pozos_dataframe()
+sectores_geo = cargar_sectores_geojson()
 scada_dict = cargar_datos_scada_df(df_p)
 ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
 
 def calcular_estado(row):
     bomba_tag = str(row['bomba'])
     l1_tag = str(row['voltaje_L1'])
-    
-    if bomba_tag == "Sin telemetria":
-        return "#808080", "SIN TELEMETRÍA", 0
-    
+    if bomba_tag == "Sin telemetria": return "#808080", "SIN TELEMETRÍA", 0
     val_l1, fecha_l1 = scada_dict.get(l1_tag, (0, None))
-    if not fecha_l1 or (ahora - fecha_l1).total_seconds() / 3600 > 4:
-        return "#FFA500", "FALLA COM.", 1
-    
+    if not fecha_l1 or (ahora - fecha_l1).total_seconds() / 3600 > 4: return "#FFA500", "FALLA COM.", 1
     val_bba, _ = scada_dict.get(bomba_tag, (0, None))
-    if val_bba == 1:
-        return "#00FF00", "OPERANDO", 2
-    else:
-        return "#FF0000", "APAGADO", 3
+    if val_bba == 1: return "#00FF00", "OPERANDO", 2
+    else: return "#FF0000", "APAGADO", 3
 
 if not df_p.empty:
-    df_p[['color_hex', 'status_label', 'status_code']] = df_p.apply(
-        lambda r: pd.Series(calcular_estado(r)), axis=1
-    )
-    # Convertir Hex a RGB para Pydeck
-    df_p['color_rgb'] = df_p['color_hex'].apply(lambda x: [int(x[i:i+2], 16) for i in (1, 3, 5)] + [200])
-    
-    # Valores para visualización 3D (altura de las columnas basada en presión o caudal)
-    df_p['altura_3d'] = df_p['Pozos'].apply(lambda x: scada_dict.get(df_p.loc[df_p['Pozos']==x, 'caudal'].values[0], (0,0))[0] * 20)
+    df_p[['color_hex', 'status_label', 'status_code']] = df_p.apply(lambda r: pd.Series(calcular_estado(r)), axis=1)
+    df_p['color_rgb'] = df_p['color_hex'].apply(lambda x: [int(x[i:i+2], 16) for i in (1, 3, 5)] + [255])
+    # Altura basada en caudal para el efecto 3D
+    df_p['altura_3d'] = df_p['Pozos'].apply(lambda x: scada_dict.get(df_p.loc[df_p['Pozos']==x, 'caudal'].values[0], (0,0))[0] * 30)
 
 # 6 ------------------------------------------------------------------------------- 6. SIDEBAR ------------------------------------------------------------------------------------------
 with st.sidebar:
@@ -151,53 +157,69 @@ with st.sidebar:
         st.write(f"🔴 Apagados: {len(df_p[df_p['status_code']==3])}")
         st.write(f"🟠 Falla Com: {len(df_p[df_p['status_code']==1])}")
 
-# 7--------------------------------------------------------------------------------- 7. MAPA 3D REAL -------------------------------------------------------------------------------------------------------------
+# 7--------------------------------------------------------------------------------- 7. MAPA 3D REAL (CALLES Y SECTORES) -------------------------------------------------------------------------------------------------------------
 st.markdown('<div class="titulo-superior">Monitoreo MIAA 3D</div>', unsafe_allow_html=True)
 
-# Definir la vista inicial (Inclinada para efecto 3D)
+# Estado de la vista (Inclinada y con zoom para ver calles)
 view_state = pdk.ViewState(
     latitude=21.8820,
     longitude=-102.2800,
-    zoom=12,
-    pitch=45,  # Inclinación de la cámara
-    bearing=0
+    zoom=13,
+    pitch=50,
+    bearing=-10
 )
 
-# Capa de columnas 3D para los pozos
-layer_pozos = pdk.Layer(
+capas = []
+
+# Capa 1: Sectores (GeoJSON)
+if sectores_geo:
+    capas.append(pdk.Layer(
+        "GeoJsonLayer",
+        sectores_geo,
+        opacity=0.1,
+        stroked=True,
+        filled=True,
+        get_fill_color=[0, 212, 255, 100],
+        get_line_color=[0, 212, 255, 255],
+        get_line_width=2,
+    ))
+
+# Capa 2: Pozos en 3D (Columnas)
+capas.append(pdk.Layer(
     "ColumnLayer",
     df_p,
     get_position=['lon', 'lat'],
     get_elevation='altura_3d',
     elevation_scale=1,
-    radius=40,
+    radius=35,
     get_fill_color='color_rgb',
     pickable=True,
     auto_highlight=True,
-)
+))
 
-# Capa de etiquetas de texto
-layer_text = pdk.Layer(
+# Capa 3: Etiquetas de Pozos
+capas.append(pdk.Layer(
     "TextLayer",
     df_p,
     get_position=['lon', 'lat'],
     get_text='Pozos',
-    get_size=12,
+    get_size=14,
     get_color=[255, 255, 255],
     get_alignment_baseline="'bottom'",
-    offset_y=-10
-)
+    offset_y=-15
+))
 
-# Renderizar el mapa con estilo Dark y edificios 3D si están disponibles en Mapbox
+# Renderizado del mapa
+# El estilo 'mapbox://styles/mapbox/dark-v10' muestra las calles claramente en gris oscuro.
 st.pydeck_chart(pdk.Deck(
-    map_style='mapbox://styles/mapbox/dark-v10',
+    map_style='mapbox://styles/mapbox/dark-v10', 
     initial_view_state=view_state,
-    layers=[layer_pozos, layer_text],
+    layers=capas,
     tooltip={
         "html": "<b>Pozo:</b> {Pozos}<br><b>Estado:</b> {status_label}",
-        "style": {"backgroundColor": "#050505", "color": "white"}
+        "style": {"backgroundColor": "#050505", "color": "white", "fontSize": "12px"}
     }
 ))
 
 if df_p.empty:
-    st.error("No se pudieron cargar los datos de los pozos para el mapa 3D.")
+    st.error("Error al cargar datos. Verifica la conexión a la base de datos.")

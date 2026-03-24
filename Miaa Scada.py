@@ -21,153 +21,66 @@ st.set_page_config(
 params = st.query_params
 sector_seleccionado = params.get("sector", None)
 
-# 2 SECCION -----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
+
+
+# 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        /* --- CONFIGURACIÓN GLOBAL --- */
-        .stApp { 
-            background-color: #000000; 
-            color: white; 
-        }
-        
-        /* --- TÍTULO SUPERIOR CON ANIMACIÓN GLOW --- */
+
         .titulo-superior {
             position: fixed;
             top: 15px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 9999999;
-            color: #00d4ff;
+            color: #00d4ff; /* Azul vivo / Cyan */
             font-size: 1.5rem;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 2px;
             white-space: nowrap;
             text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+            /* Animación de pulso */
             animation: glow 2s ease-in-out infinite alternate;
-        }
+          }
 
         @keyframes glow {
             from {
                 text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
                 transform: translateX(-50%) scale(1);
-            }
+          }
             to {
-                text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
-                transform: translateX(-50%) scale(1.02);
-            }
+              text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
+              transform: translateX(-50%) scale(1.02);
+          }
         }
     
-        /* --- SIDEBAR CUSTOMIZADO --- */
-        [data-testid="stSidebar"] { 
-            background-color: #0b1a29; 
-            border-right: 2px solid #1f4068; 
-        }
+        .stApp { background-color: #000000; color: white; }
+        [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
         
-        /* Eliminar espacios vacíos superiores en Sidebar */
-        [data-testid="stSidebarContent"], [data-testid="stSidebarNav"] { 
-            padding-top: 0rem !important; 
-        }
+        /* ELIMINAR ESPACIO SUPERIOR POR DEFECTO DE STREAMLIT EN SIDEBAR */
+        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
+        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
         
-        /* Ajuste del Logo MIAA */
+        /* AJUSTE MÁXIMO DEL LOGO HACIA ARRIBA */
         .sidebar-logo { 
             display: flex; 
             justify-content: center; 
             padding: 0px !important; 
-            margin-top: -70px !important; 
+            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
             margin-bottom: 10px;
         }
-        .sidebar-logo img { 
-            max-width: 85%; 
-            height: auto; 
-        }
+        .sidebar-logo img { max-width: 85%; height: auto; }
         
-        /* --- TARJETAS Y ETIQUETAS DE ESTADO --- */
-        .resumen-card { 
-            background: #050505; 
-            border: 1px solid #1f4068; 
-            border-radius: 5px; 
-            padding: 15px; 
-            margin-bottom: 15px; 
-        }
-        
-        .status-tag { 
-            font-size: 10px; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            margin-left: 5px; 
-            font-weight: bold; 
-        }
-        
+        .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
+        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
         .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        
-        .section-header { 
-            padding: 10px; 
-            border-radius: 3px; 
-            font-weight: bold; 
-            margin-bottom: 5px; 
-            color: white; 
-        }
-
-        /* --- ANIMACIONES --- */
+        .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
-
-        /* --- FIX PARA POPUPS DE FOLIUM (ELIMINAR MARCO BLANCO) --- */
-        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-            background: transparent !important;
-            box-shadow: none !important;
-            border: none !important;
-        }
-        .leaflet-popup-content {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        .leaflet-popup-tip-container {
-            display: none !important;
-        }
-        .leaflet-popup-close-button {
-            display: none !important;
-        }
-
-        /* --- REGLA PARA ELIMINAR MARCO BLANCO (STREAMLIT LEVEL) --- */
-        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-            background-color: transparent !important;
-            box-shadow: none !important;
-            border: none !important;
-        }   
-
-        
     </style>
 """, unsafe_allow_html=True)
-CSS_JS_FIX = """
-<style>
-    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-        background: transparent !important;
-        box-shadow: none !important;
-        border: none !important;
-    }
-    .leaflet-popup-content { margin: 0 !important; padding: 0 !important; }
-</style>
-<script>
-    var observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            var popups = document.getElementsByClassName('leaflet-popup-content-wrapper');
-            for (var i = 0; i < popups.length; i++) {
-                popups[i].style.background = 'transparent';
-                popups[i].style.border = 'none';
-                popups[i].style.boxShadow = 'none';
-            }
-            var tips = document.getElementsByClassName('leaflet-popup-tip');
-            for (var j = 0; j < tips.length; j++) {
-                tips[j].style.display = 'none';
-            }
-        });
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-</script>
-"""
 
 # 3  SECCION--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
 @st.cache_resource
@@ -399,7 +312,6 @@ if sector_seleccionado:
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilos generales de la página
         st.markdown("""
             <style>
                 .block-container { padding-top: 3.5rem !important; }
@@ -427,58 +339,21 @@ if sector_seleccionado:
 
         st.divider()
 
-        # --- CONFIGURACIÓN DEL MAPA ---
+        # --- MAPA DEL SECTOR ---
+        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         Fullscreen().add_to(m_sec)
-
-        # CSS INYECTADO PARA ELIMINAR EL MARCO BLANCO DEFINITIVAMENTE
-        m_sec.get_root().header.add_child(folium.Element("""
-            <style>
-                /* Elimina el fondo blanco, bordes y sombras del contenedor principal del popup */
-                .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-                    background: transparent !important;
-                    color: transparent !important;
-                    box-shadow: none !important;
-                    border: none !important;
-                }
-                
-                /* Elimina el borde blanco que rodea el contenido */
-                .leaflet-popup-content-wrapper {
-                    padding: 0 !important;
-                }
-
-                /* Ajusta el contenido para que no tenga márgenes forzados */
-                .leaflet-popup-content {
-                    margin: 0 !important;
-                    width: auto !important;
-                }
-
-                /* Elimina el botón de cierre (la X) si deseas que se vea más limpio, 
-                   o puedes dejarlo; por ahora lo mantenemos pero quitamos su fondo */
-                .leaflet-popup-close-button {
-                    color: #fff !important;
-                    padding: 8px 8px 0 0 !important;
-                }
-                
-                /* Quita la flecha/triángulo inferior del popup */
-                .leaflet-popup-tip-container {
-                    display: none !important;
-                }
-            </style>
-        """))
         
         geojson_sector = folium.GeoJson(
             json.loads(datos_s['geo']),
             style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.1}
         ).add_to(m_sec)
 
-        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
-
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
                 
-                # --- PROCESAMIENTO DE DATOS ---
+                # --- EXTRACCIÓN DE DATOS PARA EL POPUP ---
                 d = lambda tag: data_scada.get(tag, (0, "N/A"))
                 is_st = (info['status_label'] == 'SIN TELEMETRÍA')
                 
@@ -497,9 +372,9 @@ if sector_seleccionado:
                 v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
                 a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-                # HTML del Popup personalizado
+                # Tu HTML personalizado integrado
                 html_popup_sec = f"""
-                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 2px solid {info['color_final']}; font-family: sans-serif; box-shadow: 0 0 15px {info['color_final']}44;">
+                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
                         <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
                         <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
@@ -571,7 +446,7 @@ if sector_seleccionado:
                 </div>
                 """
 
-                # Renderizado de marcadores
+                # Marcador con lógica de parpadeo (Blink)
                 if info.get('blink'):
                     folium.Marker(
                         location=info['coord'],
@@ -669,7 +544,6 @@ with col_capas:
 
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
-    m.get_root().header.add_child(folium.Element(CSS_JS_FIX))
     Fullscreen().add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00
@@ -856,4 +730,5 @@ with col_mapa:
 
     # Renderizado final del mapa
     folium_static(m, width=None, height=750)
+
 

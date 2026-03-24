@@ -271,7 +271,7 @@ for id_p, info in mapa_pozos_dict.items():
             })
             pozos_off.append(id_p)
 
-# SECCIÓN 5.5 -------------------------------------------------------------------------- ANÁLISIS DE SECTOR (NUEVA PÁGINA) --------------------------------------------------------------------------------------
+# SECCIÓN 5.5 --------------------------------------------------------- ANÁLISIS DE SECTOR (NUEVA PÁGINA) ---------------------------------------------------------
 if sector_seleccionado:
     st.markdown(f'<div class="titulo-superior">Análisis Detallado: Sector {sector_seleccionado}</div>', unsafe_allow_html=True)
     
@@ -280,21 +280,15 @@ if sector_seleccionado:
     
     st.divider()
     
-    # Ejemplo de visualización de datos para el sector
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Sector Seleccionado", sector_seleccionado)
-    with col2:
-        # Aquí puedes filtrar tus DataFrames por el nombre del sector
-        st.metric("Estado de Red", "Estable", delta="Normal")
+    # Simulación de datos para el sector seleccionado
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("Sector", sector_seleccionado)
+        st.info(f"Cargando análisis técnico para la zona {sector_seleccionado}...")
     
-    st.info(f"Mostrando telemetría avanzada y reportes históricos para el sector {sector_seleccionado}...")
+    # AQUÍ PUEDES AGREGAR TUS GRÁFICOS DE ANÁLISIS
     
-    # Puedes insertar aquí gráficos de Plotly o tablas de Pandas filtradas
-    # df_filtrado = df_tus_datos[df_tus_datos['sector'] == sector_seleccionado]
-    # st.line_chart(df_filtrado)
-
-    st.stop() # IMPORTANTE: Evita que se cargue el resto del código (Sidebar y Mapa)
+    st.stop() # Esto detiene el resto del script (Mapa y Sidebar) solo en esta vista.
             
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:

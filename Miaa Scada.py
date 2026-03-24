@@ -400,6 +400,7 @@ if sector_seleccionado:
         folium_static(m_sec, width=None, height=700)
     
     st.stop()
+    
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba
@@ -467,7 +468,7 @@ with col_capas:
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
-    
+
     # FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
         try:
@@ -652,4 +653,5 @@ with col_mapa:
 
     # Renderizado final del mapa
     folium_static(m, width=None, height=750)
+
 

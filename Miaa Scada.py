@@ -514,7 +514,6 @@ with st.sidebar:
         st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
 
     # --- NUEVO: BUSCADOR DE POZOS ---
-    st.markdown("---")
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
     pozo_buscado = st.selectbox(
         "🔍 BUSCAR POZO",

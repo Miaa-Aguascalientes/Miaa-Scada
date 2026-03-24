@@ -10,16 +10,21 @@ import urllib.parse
 from datetime import datetime
 
 # 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
+params = st.query_params
+sector_seleccionado = params.get("sector", None)
+
+# Si hay un sector seleccionado, cambiamos el título de la pestaña
+if sector_seleccionado:
+    titulo_pestaña = f"MIAA - Estado de Sector: {sector_seleccionado}"
+else:
+    titulo_pestaña = "MIAA - Estado de Pozos"
+
 st.set_page_config(
-    page_title="MIAA - Estado de Pozos", 
+    page_title=titulo_pestaña, 
     page_icon="https://www.miaa.mx/favicon.ico", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )
-# --- LÓGICA DE NAVEGACIÓN ---
-# Detectamos si el usuario seleccionó un sector a través de la URL
-params = st.query_params
-sector_seleccionado = params.get("sector", None)
 
 
 

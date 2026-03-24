@@ -300,16 +300,16 @@ if sector_seleccionado:
                 .blinker-s { width: 12px; height: 12px; border-radius: 50%; position: relative; }
                 .blinker-s::after {
                     content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%;
-                    background: inherit; animation: pulse 1.5s infinite; opacity: 0.6;
+                    background: inherit; animation: pulse-s 1.5s infinite; opacity: 0.6;
                 }
-                @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3.5); opacity: 0; } }
+                @keyframes pulse-s { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3.5); opacity: 0; } }
             </style>
         """, unsafe_allow_html=True)
 
         def micro_metric(label, value):
             st.markdown(f'<div class="micro-card"><div class="micro-label">{label}</div><div class="micro-value">{value}</div></div>', unsafe_allow_html=True)
 
-        # Indicadores superiores
+        # 1. Indicadores superiores
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
         with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
@@ -323,6 +323,7 @@ if sector_seleccionado:
         # --- MAPA DEL SECTOR ---
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         
+        # Polígono
         geojson_sector = folium.GeoJson(
             json.loads(datos_s['geo']),
             style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.15}
@@ -334,30 +335,24 @@ if sector_seleccionado:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
                 
-                # REUTILIZACIÓN DE LÓGICA DE DATOS (Misma que en Sección 7)
+                # REUTILIZACIÓN DE LÓGICA DE DATOS (Asegurando que formato_hora ya exista)
                 d = lambda tag: data_scada.get(tag, (0, "N/A"))
                 is_st = (info['status_label'] == 'SIN TELEMETRÍA')
                 
-                # Extraemos variables para el popup (idéntico al mapa principal)
-                q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
-                p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
-                sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
-                dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
-                tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
-                col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-                h_arr_fmt = formato_hora(d(info['h_arranque'])[0]) if not is_st else "00:00"
-                h_par_fmt = formato_hora(d(info['h_paro'])[0]) if not is_st else "00:00"
-                v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
-                a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
-
-                # Reutilizamos el bloque HTML_POPUP original
+                # Extracción de valores
+                q, _ = d(info['caudal']) if not is_st else (0.0, "N/A")
+                p, _ = d(info['presion']) if not is_st else (0.0, "N/A")
+                sumer, _ = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+                dinam, _ = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+                
+                # El POPUP completo que ya tienes definido en la Sección 7
                 html_popup = f"""
-                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 350px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 320px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
                         <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
                         <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
                     </div>
-                    <div style="font-size: 11px;">
+                    <div style="font-size: 11px; line-height: 1.6;">
                         💧 Caudal: <b>{q:.2f} L/s</b><br>
                         🚀 Presión: <b>{p:.2f} kg</b><br>
                         📏 Sumergencia: <b>{sumer:.1f} m</b><br>
@@ -366,17 +361,23 @@ if sector_seleccionado:
                 </div>
                 """
 
-                # Marcador con Punto (Blinker) y Texto
+                # Marcador con Punto (Blinker)
                 folium.Marker(
                     location=info['coord'],
-                    icon=folium.DivIcon(html=f'<div class="blinker-s" style="background-color: {info["color_final"]};"></div>', icon_anchor=(6,6)),
+                    icon=folium.DivIcon(
+                        html=f'<div class="blinker-s" style="background-color: {info["color_final"]};"></div>', 
+                        icon_anchor=(6,6)
+                    ),
                     popup=folium.Popup(html_popup, max_width=400)
                 ).add_to(m_sec)
                 
+                # Etiqueta de ID
                 folium.Marker(
                     location=info['coord'],
-                    icon=folium.DivIcon(icon_anchor=(-12, 7), 
-                    html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_p}</div>')
+                    icon=folium.DivIcon(
+                        icon_anchor=(-12, 7), 
+                        html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_p}</div>'
+                    )
                 ).add_to(m_sec)
 
         try:

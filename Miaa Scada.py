@@ -524,8 +524,8 @@ with st.sidebar:
         </style>
     """, unsafe_allow_html=True)
 
-        st.markdown(f"""
-    <div class="resumen-card">
+    st.markdown(f"""
+        <div class="resumen-card">
         <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
         <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
         <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>

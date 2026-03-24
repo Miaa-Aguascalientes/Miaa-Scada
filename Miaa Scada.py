@@ -21,62 +21,115 @@ st.set_page_config(
 params = st.query_params
 sector_seleccionado = params.get("sector", None)
 
-# 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
+# 2 SECCION -----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-
+        /* --- CONFIGURACIÓN GLOBAL --- */
+        .stApp { 
+            background-color: #000000; 
+            color: white; 
+        }
+        
+        /* --- TÍTULO SUPERIOR CON ANIMACIÓN GLOW --- */
         .titulo-superior {
             position: fixed;
             top: 15px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 9999999;
-            color: #00d4ff; /* Azul vivo / Cyan */
+            color: #00d4ff;
             font-size: 1.5rem;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 2px;
             white-space: nowrap;
             text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-            /* Animación de pulso */
             animation: glow 2s ease-in-out infinite alternate;
-          }
+        }
 
         @keyframes glow {
             from {
                 text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
                 transform: translateX(-50%) scale(1);
-          }
+            }
             to {
-              text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
-              transform: translateX(-50%) scale(1.02);
-          }
+                text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
+                transform: translateX(-50%) scale(1.02);
+            }
         }
     
-        .stApp { background-color: #000000; color: white; }
-        [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
+        /* --- SIDEBAR CUSTOMIZADO --- */
+        [data-testid="stSidebar"] { 
+            background-color: #0b1a29; 
+            border-right: 2px solid #1f4068; 
+        }
         
-        /* ELIMINAR ESPACIO SUPERIOR POR DEFECTO DE STREAMLIT EN SIDEBAR */
-        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
+        /* Eliminar espacios vacíos superiores en Sidebar */
+        [data-testid="stSidebarContent"], [data-testid="stSidebarNav"] { 
+            padding-top: 0rem !important; 
+        }
         
-        /* AJUSTE MÁXIMO DEL LOGO HACIA ARRIBA */
+        /* Ajuste del Logo MIAA */
         .sidebar-logo { 
             display: flex; 
             justify-content: center; 
             padding: 0px !important; 
-            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
+            margin-top: -70px !important; 
             margin-bottom: 10px;
         }
-        .sidebar-logo img { max-width: 85%; height: auto; }
+        .sidebar-logo img { 
+            max-width: 85%; 
+            height: auto; 
+        }
         
-        .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
-        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
+        /* --- TARJETAS Y ETIQUETAS DE ESTADO --- */
+        .resumen-card { 
+            background: #050505; 
+            border: 1px solid #1f4068; 
+            border-radius: 5px; 
+            padding: 15px; 
+            margin-bottom: 15px; 
+        }
+        
+        .status-tag { 
+            font-size: 10px; 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            margin-left: 5px; 
+            font-weight: bold; 
+        }
+        
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
         .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
+        
+        .section-header { 
+            padding: 10px; 
+            border-radius: 3px; 
+            font-weight: bold; 
+            margin-bottom: 5px; 
+            color: white; 
+        }
+
+        /* --- ANIMACIONES --- */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
+
+        /* --- FIX PARA POPUPS DE FOLIUM (ELIMINAR MARCO BLANCO) --- */
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+        .leaflet-popup-content {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .leaflet-popup-tip-container {
+            display: none !important;
+        }
+        .leaflet-popup-close-button {
+            display: none !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 

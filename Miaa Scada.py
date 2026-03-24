@@ -360,8 +360,8 @@ with col_mapa:
         """
 
 # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para incluir Popup con Botón
-    if ver_sectores:
-      for s in sectores:
+if ver_sectores:
+    for s in sectores:
         # Usamos "." para que sea la misma página actual
         # Streamlit detectará los parámetros después del "?"
         url_detalles = f"./?sector={urllib.parse.quote(s['sector'])}"
@@ -376,25 +376,15 @@ with col_mapa:
             </a>
         </div>
         """
-            
-            folium.GeoJson(
-                json.loads(s['geo']), 
-                style_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#00d4ff', 
-                    'weight': 1, 
-                    'fillOpacity': 0.1
-                },
-                highlight_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#ffffff', 
-                    'weight': 3, 
-                    'fillOpacity': 0.4
-                },
-                # Añadimos el Popup aquí
-                popup=folium.Popup(html_sector, max_width=250),
-                tooltip=folium.Tooltip(f"Sector: {s['sector']} (Click para más)", sticky=True)
-            ).add_to(m)
+        
+        folium.GeoJson(
+            json.loads(s['geo']), 
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+            highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
+            # AÑADIMOS EL POPUP AQUÍ
+            popup=folium.Popup(html_sector, max_width=250),
+            tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
+        ).add_to(m)
 
     # 4. RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():

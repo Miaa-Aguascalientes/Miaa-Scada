@@ -132,6 +132,19 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+# VARIABLE PARA INYECCIÓN DIRECTA EN MAPAS
+CSS_POPUP_LIMPIO = """
+<style>
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+    .leaflet-popup-content { margin: 0 !important; padding: 0 !important; }
+    .leaflet-popup-tip-container { display: none !important; }
+    .leaflet-popup-close-button { display: none !important; }
+</style>
+"""
 
 # 3  SECCION--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
 @st.cache_resource

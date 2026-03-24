@@ -280,7 +280,7 @@ for id_p, info in mapa_pozos_dict.items():
             })
             pozos_off.append(id_p)
 
-# SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
+# 5.5 SECCIÓN ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
     # Título del sector
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
@@ -289,39 +289,24 @@ if sector_seleccionado:
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilo CSS para micro-indicadores pegados al título y sin espacios excesivos
+        # Estilo CSS para micro-indicadores
         st.markdown("""
             <style>
-                /* Ajuste para reducir el espacio superior de la página en la nueva pestaña */
-                .block-container {
-                    padding-top: 3.5rem !important;
-                }
+                .block-container { padding-top: 3.5rem !important; }
                 .micro-card {
-                    background: #0b1a29;
-                    border: 1px solid #1f4068;
-                    border-radius: 5px;
-                    padding: 8px;
-                    text-align: center;
-                    margin-top: -10px; /* Sube los indicadores hacia el título */
-                    margin-bottom: 5px;
+                    background: #0b1a29; border: 1px solid #1f4068;
+                    border-radius: 5px; padding: 8px; text-align: center;
+                    margin-top: -10px; margin-bottom: 5px;
                 }
                 .micro-label { color: #888; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
                 .micro-value { color: #00d4ff; font-size: 15px; font-weight: bold; }
-                
-                /* Eliminar el espacio del divider para que el mapa suba */
                 hr { margin-top: 0.5rem !important; margin-bottom: 0.5rem !important; }
             </style>
         """, unsafe_allow_html=True)
 
         def micro_metric(label, value):
-            st.markdown(f"""
-                <div class="micro-card">
-                    <div class="micro-label">{label}</div>
-                    <div class="micro-value">{value}</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f'<div class="micro-card"><div class="micro-label">{label}</div><div class="micro-value">{value}</div></div>', unsafe_allow_html=True)
 
-        # Fila única de indicadores (sin letrero superior)
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
         with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
@@ -335,18 +320,77 @@ if sector_seleccionado:
         # --- MAPA DEL SECTOR ---
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
+        Fullscreen().add_to(m_sec)
         
         geojson_sector = folium.GeoJson(
             json.loads(datos_s['geo']),
             style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.1}
         ).add_to(m_sec)
 
+        # RENDERIZADO DE POZOS CON LÓGICA COMPLETA
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
-                folium.CircleMarker(
-                    location=info['coord'], radius=6, color=info['color_final'], fill=True,
-                    popup=f"Pozo: {id_p}"
+                
+                # --- GENERAR EL MISMO POPUP QUE EL MAPA PRINCIPAL ---
+                d = lambda tag: data_scada.get(tag, (0, "N/A"))
+                is_st = (info['status_label'] == 'SIN TELEMETRÍA')
+                
+                q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+                p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+                sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+                dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+                tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+                col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
+                
+                h_arr_val, _ = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+                h_par_val, _ = d(info['h_paro']) if not is_st else (0.0, "N/A")
+                h_arr_fmt = formato_hora(h_arr_val)
+                h_par_fmt = formato_hora(h_par_val)
+                
+                v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+                a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+
+                # Reutilizamos tu diseño de HTML para el popup
+                html_popup_sec = f"""
+                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 350px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                        <b style="color: #00d4ff; font-size: 14px;">POZO {id_p}</b>
+                        <span style="font-size: 9px; background: {info['color_final']}; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+                    </div>
+                    <div style="font-size: 11px;">
+                        💧 Caudal: <b>{q:.2f} L/s</b><br>
+                        🚀 Presión: <b>{p:.2f} kg</b><br>
+                        📏 Sumergencia: <b>{sumer:.1f} m</b><br>
+                        🔋 Tanque: <b>{tanq:.1f} mts</b>
+                    </div>
+                    <div style="margin-top:10px; border-top: 1px solid #222; padding-top: 5px;">
+                        <span style="font-size: 10px; color: #888;">⚡ VOLTAJE L1: <b>{v[0][0]:.1f}V</b></span>
+                    </div>
+                </div>
+                """
+
+                # --- DIBUJAR MARCADOR (Blink o Fijo) ---
+                if info.get('blink'):
+                    folium.Marker(
+                        location=info['coord'],
+                        icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                        popup=folium.Popup(html_popup_sec, max_width=400)
+                    ).add_to(m_sec)
+                else:
+                    folium.CircleMarker(
+                        location=info['coord'], radius=5, color=info['color_final'], 
+                        fill=True, fill_color=info['color_final'], fill_opacity=1,
+                        popup=folium.Popup(html_popup_sec, max_width=400)
+                    ).add_to(m_sec)
+                
+                # Etiqueta de ID
+                folium.Marker(
+                    location=info['coord'],
+                    icon=folium.DivIcon(
+                        icon_anchor=(-10, 10),
+                        html=f'<div style="font-size: 8px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_p}</div>'
+                    )
                 ).add_to(m_sec)
 
         # Ajuste automático del mapa al polígono

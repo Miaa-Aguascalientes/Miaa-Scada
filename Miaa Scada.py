@@ -9,7 +9,6 @@ import json
 import urllib.parse
 from datetime import datetime
 
-
 # 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
@@ -106,62 +105,6 @@ def get_postgres_conn():
         return psycopg2.connect(**st.secrets["postgres"])
     except: 
         return None
-
-# ... (Después de tus funciones de conexión y carga de datos) ...
-
-# --- BUSCA ESTA LÍNEA EN TU CÓDIGO ---
-st.markdown('<div class="titulo-superior">...</div>', unsafe_allow_html=True)
-
-# --- JUSTO AQUÍ PEGA EL SIGUIENTE BLOQUE ---
-query_params = st.query_params
-if "sector" in query_params:
-    sector_id = query_params["sector"]
-    
-    # 1. Título y Estilo para la nueva pestaña
-    st.title(f"📍 Detalle Técnico - Sector {sector_id}")
-    
-    # 2. Consultar PostgreSQL
-    conn = get_postgres_conn()
-    # Usamos comillas dobles para nombres de tablas con mayúsculas/puntos
-    query_sql = f'SELECT *, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr" WHERE sector = \'{sector_id}\''
-    df_detalle = pd.read_sql(query_sql, conn)
-    conn.close()
-
-    if not df_detalle.empty:
-        row = df_detalle.iloc[0]
-        
-        # Muestra los datos de la DB (Las columnas de tu imagen)
-        st.subheader("Información de Infraestructura")
-        cols = st.columns(4)
-        cols[0].metric("Pozos en Sector", row['Cantidad_Pozos'])
-        cols[1].metric("Viviendas (U_Tot)", row['U_Tot'])
-        cols[2].metric("Longitud Red", f"{row['Long_Red']:.2f} m")
-        cols[3].metric("Faltas de Agua", row['Faltas_Agua'])
-
-        # 3. Filtrar pozos (Usando la columna Pozos_Sector de tu imagen)
-        ids_pozos = [p.strip() for p in str(row['Pozos_Sector']).split(',')]
-        # Filtramos del diccionario que ya tienes cargado en memoria
-        pozos_sector = {id_p: info for id_p, info in mapa_pozos_dict.items() if id_p in ids_pozos}
-
-        # 4. Mapa del Sector
-        m_sector = folium.Map(location=list(mapa_pozos_dict.values())[0]['coord'], zoom_start=14, tiles="CartoDB dark_matter")
-        
-        folium.GeoJson(
-            json.loads(row['geo']),
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.3}
-        ).add_to(m_sector)
-
-        for id_p, info in pozos_sector.items():
-            folium.CircleMarker(location=info['coord'], radius=6, color=info['color_final'], fill=True).add_to(m_sector)
-
-        folium_static(m_sector, width=1200)
-        
-        # Botón para regresar al mapa general
-        if st.button("⬅️ Volver al Mapa General"):
-            st.query_params.clear()
-            st.rerun()
-
-        st.stop() # Esto evita que se cargue el resto del tablero principal abajo
 
 # 4-------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
@@ -374,8 +317,6 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
-
-
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
@@ -419,34 +360,42 @@ with col_mapa:
         """
 
 # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para incluir Popup con Botón
-# Dentro del bucle de sectores en la Sección 7
-# --- EN TU ARCHIVO ACTUAL (Miaa Scada - respaldo.py) ---
-
-if ver_sectores:
-    for s in sectores:
-        # Usamos "." para que sea la misma página actual
-        # Streamlit detectará los parámetros después del "?"
-        url_detalles = f"./?sector={urllib.parse.quote(s['sector'])}"
-        
-        html_sector = f"""
-        <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-            <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
-            <a href="{url_detalles}" target="_blank" 
-               style="display: inline-block; padding: 8px 15px; background-color: #00d4ff; color: black; 
-                      text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 12px;">
-               📊 ANALIZAR SECTOR
-            </a>
-        </div>
-        """
-        
-        folium.GeoJson(
-            json.loads(s['geo']), 
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-            highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
-            # AÑADIMOS EL POPUP AQUÍ
-            popup=folium.Popup(html_sector, max_width=250),
-            tooltip=folium.Tooltip(f"Sector: {s['sector']}", sticky=True)
-        ).add_to(m)
+    if ver_sectores:
+        for s in sectores:
+            # Definimos la URL a la que quieres redirigir (puedes dinamizarla con s['sector'])
+            url_destino = f"https://tu-sitio-analisis.com/sector/{s['sector']}"
+            
+            # Creamos el HTML del popup con un botón estilizado
+            html_sector = f"""
+            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px;">
+                <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
+                <p style="font-size: 12px; color: #ccc;">Presione el botón para ver el análisis detallado de este sector.</p>
+                <a href="{url_destino}" target="_blank" 
+                   style="display: inline-block; padding: 8px 16px; background-color: #00d4ff; color: black; 
+                          text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 5px;">
+                   📊 Ver Detalles
+                </a>
+            </div>
+            """
+            
+            folium.GeoJson(
+                json.loads(s['geo']), 
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#00d4ff', 
+                    'weight': 1, 
+                    'fillOpacity': 0.1
+                },
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
+                # Añadimos el Popup aquí
+                popup=folium.Popup(html_sector, max_width=250),
+                tooltip=folium.Tooltip(f"Sector: {s['sector']} (Click para más)", sticky=True)
+            ).add_to(m)
 
     # 4. RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():

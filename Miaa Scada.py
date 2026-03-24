@@ -170,12 +170,22 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Añadimos la columna Pozos_Sector a la consulta
-        query = 'SELECT sector, "Pozos_Sector", ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        # Añadimos los campos numéricos solicitados en la consulta
+        query = """
+            SELECT sector, "Pozos_Sector", 
+                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
+                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
+                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
+                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
+                   "Recaudacion", "Dotacion", "Balance_Estimado",
+                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
+            FROM "Sectorizacion"."Sectores_hidr"
+        """
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
-    except: 
+    except Exception as e:
+        st.error(f"Error al cargar sectores: {e}")
         return []
 
 
@@ -274,41 +284,56 @@ for id_p, info in mapa_pozos_dict.items():
 if sector_seleccionado:
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
-    # Buscamos polígono del sector
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
+        # --- FILA 1: INDICADORES PRINCIPALES ---
+        st.markdown("### 📈 Indicadores del Sector")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Población", f"{datos_s.get('Poblacion', 0):,.0f} hab")
+        m2.metric("Usuarios Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
+        m3.metric("Consumo (m³)", f"{datos_s.get('Cons_m3', 0):,.2f}")
+        m4.metric("Dotación", f"{datos_s.get('Dotacion', 0):,.2f} L/hab/d")
 
-        # 1. Crear el Mapa INICIAL (con centro y zoom por defecto)
-        m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
+        # --- FILA 2: EFICIENCIA Y RED ---
+        m5, m6, m7, m8 = st.columns(4)
+        m5.metric("Longitud Red", f"{datos_s.get('Long_Red', 0):,.2f} m")
+        m6.metric("Vol. Facturado", f"{datos_s.get('Vol_Fact', 0):,.2f} m³")
+        m7.metric("Fugas Totales", f"{datos_s.get('Fugas_Tot', 0):,.0f}", delta="Fugas", delta_color="inverse")
+        m8.metric("Recaudación", f"${datos_s.get('Recaudacion', 0):,.2f}")
+
+        # --- FILA 3: COSTOS Y ENERGÍA ---
+        m9, m10, m11, m12 = st.columns(4)
+        m9.metric("Energía (Kwh)", f"{datos_s.get('Kwh', 0):,.2f}")
+        m10.metric("Costo Kw-hr", f"${datos_s.get('costoKw-hr', 0):,.2f}")
+        m11.metric("Faltas de Agua", f"{datos_s.get('Faltas_Agua', 0):,.0f}", delta="Reportes", delta_color="inverse")
+        m12.metric("Balance", f"{datos_s.get('Balance_Estimado', 0):,.2f}%")
+
+        st.divider()
+
+        # --- MAPA CENTRADO ---
+        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
+        m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         
-        # 2. Dibujar polígono del sector y guardarlo en una variable
         geojson_sector = folium.GeoJson(
             json.loads(datos_s['geo']),
             style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.2}
         ).add_to(m_sec)
 
-        # Dibujar los pozos del sector
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
                 folium.CircleMarker(
-                    location=info['coord'], radius=7, color=info['color_final'], fill=True,
+                    location=info['coord'], radius=8, color=info['color_final'], fill=True,
                     popup=f"Pozo: {id_p}<br>Estado: {info['status_label']}"
                 ).add_to(m_sec)
-                
-        # --- 🚀 CORRECCIÓN AQUÍ 🚀 ---
-        # 3. Calcular límites del polígono y forzar al mapa a ajustarse
-        # geojson_sector.get_bounds() devuelve [[min_lat, min_lon], [max_lat, max_lon]]
-        try:
-            limites = geojson_sector.get_bounds()
-            m_sec.fit_bounds(limites) 
-        except:
-            pass # Si falla, usa el centro por defecto
 
-        # Renderizado final del mapa ajustado
-        folium_static(m_sec, width=None, height=700)
+        # Ajustar vista al sector
+        try:
+            m_sec.fit_bounds(geojson_sector.get_bounds())
+        except: pass
+
+        folium_static(m_sec, width=None, height=600)
     else:
         st.error(f"No se encontró información para el sector {sector_seleccionado}")
     

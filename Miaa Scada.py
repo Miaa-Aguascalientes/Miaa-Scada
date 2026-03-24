@@ -280,10 +280,10 @@ for id_p, info in mapa_pozos_dict.items():
             pozos_off.append(id_p)
 
 
-# SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
+# SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR -------------------------------------------
 if sector_seleccionado:
-    # 0. FUNCIÓN LOCAL PARA EVITAR ERRORES DE NAMEERROR
-    def formato_hora_local(decimal):
+    # 1. Definimos la función de forma interna para que sea INDEPENDIENTE y no rompa nada fuera
+    def formato_hora_sector(decimal):
         try:
             if decimal == "N/A" or decimal is None: return "00:00"
             horas = int(float(decimal))
@@ -307,11 +307,7 @@ if sector_seleccionado:
                 }
                 .micro-label { color: #888; font-size: 10px; text-transform: uppercase; }
                 .micro-value { color: #00d4ff; font-size: 15px; font-weight: bold; }
-                
-                .blinker-s { 
-                    width: 12px; height: 12px; border-radius: 50%; 
-                    position: relative; z-index: 1000; 
-                }
+                .blinker-s { width: 12px; height: 12px; border-radius: 50%; position: relative; z-index: 1000; }
                 .blinker-s::after {
                     content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%;
                     background: inherit; animation: pulse-s 1.5s infinite; opacity: 0.6;
@@ -320,86 +316,42 @@ if sector_seleccionado:
             </style>
         """, unsafe_allow_html=True)
 
-        def micro_metric(label, value):
-            st.markdown(f'<div class="micro-card"><div class="micro-label">{label}</div><div class="micro-value">{value}</div></div>', unsafe_allow_html=True)
-
-        # 1. Indicadores superiores
+        # Indicadores
         c1, c2, c3, c4, c5, c6 = st.columns(6)
-        with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
-        with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
-        with c3: micro_metric("U. Domésticos", f"{datos_s.get('U_Domesticos', 0):,.0f}")
-        with c4: micro_metric("Consumo m³", f"{datos_s.get('Cons_m3', 0):,.1f}")
-        with c5: micro_metric("Dotación", f"{datos_s.get('Dotacion', 0):,.1f}")
-        with c6: micro_metric("Balance", f"{datos_s.get('Balance_Estimado', 0):,.1f}%")
+        with c1: st.markdown(f'<div class="micro-card"><div class="micro-label">Población</div><div class="micro-value">{datos_s.get("Poblacion", 0):,.0f}</div></div>', unsafe_allow_html=True)
+        with c2: st.markdown(f'<div class="micro-card"><div class="micro-label">U. Totales</div><div class="micro-value">{datos_s.get("U_Tot", 0):,.0f}</div></div>', unsafe_allow_html=True)
+        with c3: st.markdown(f'<div class="micro-card"><div class="micro-label">U. Domésticos</div><div class="micro-value">{datos_s.get("U_Domesticos", 0):,.0f}</div></div>', unsafe_allow_html=True)
+        with c4: st.markdown(f'<div class="micro-card"><div class="micro-label">Consumo m³</div><div class="micro-value">{datos_s.get("Cons_m3", 0):,.1f}</div></div>', unsafe_allow_html=True)
+        with c5: st.markdown(f'<div class="micro-card"><div class="micro-label">Dotación</div><div class="micro-value">{datos_s.get("Dotacion", 0):,.1f}</div></div>', unsafe_allow_html=True)
+        with c6: st.markdown(f'<div class="micro-card"><div class="micro-label">Balance</div><div class="micro-value">{datos_s.get("Balance_Estimado", 0):,.1f}%</div></div>', unsafe_allow_html=True)
 
         st.divider()
 
-        # 2. Mapa del Sector
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
-        
-        geojson_sector = folium.GeoJson(
-            json.loads(datos_s['geo']),
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.15}
-        ).add_to(m_sec)
+        geojson_sector = folium.GeoJson(json.loads(datos_s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.15}).add_to(m_sec)
 
-        # 3. Pozos del Sector
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
-
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
-                color = info['color_final']
-                
                 d = lambda tag: data_scada.get(tag, (0, "N/A"))
                 is_st = (info['status_label'] == 'SIN TELEMETRÍA')
-                
                 q = d(info['caudal'])[0] if not is_st else 0.0
-                p = d(info['presion'])[0] if not is_st else 0.0
-                h_arr_val = d(info['h_arranque'])[0] if not is_st else 0.0
-                
-                # Usamos la función local definida arriba
-                h_arr_fmt = formato_hora_local(h_arr_val)
+                h_arr_fmt = formato_hora_sector(d(info['h_arranque'])[0]) if not is_st else "00:00"
 
-                html_popup = f"""
-                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 280px; border: 1px solid {color}; font-family: sans-serif;">
-                    <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 8px;">
-                        <b style="color: #00d4ff;">POZO {id_p}</b> | <small>{info['status_label']}</small>
-                    </div>
-                    <div style="font-size: 11px; line-height: 1.4;">
-                        💧 Caudal: <b>{q:.2f} L/s</b><br>
-                        🚀 Presión: <b>{p:.2f} kg</b><br>
-                        🕒 Últ. Arranque: <b>{h_arr_fmt}</b>
-                    </div>
-                </div>
-                """
+                html_p = f'<div style="background:#050505;color:white;padding:10px;border-radius:8px;border:1px solid {info["color_final"]};"><b>POZO {id_p}</b><br>Q: {q:.2f} L/s<br>Arr: {h_arr_fmt}</div>'
 
-                # Marcador: Punto Blinker
-                folium.Marker(
-                    location=info['coord'],
-                    icon=folium.DivIcon(
-                        html=f'<div class="blinker-s" style="background-color: {color};"></div>', 
-                        icon_size=(12,12),
-                        icon_anchor=(6,6)
-                    ),
-                    popup=folium.Popup(html_popup, max_width=350)
-                ).add_to(m_sec)
-                
-                # Marcador: Etiqueta ID (con el offset a la derecha para que se vea el punto)
-                folium.Marker(
-                    location=info['coord'],
-                    icon=folium.DivIcon(
-                        icon_anchor=(-15, 8), 
-                        html=f'<div style="font-size: 10px; font-weight: bold; color: {color}; text-shadow: 1px 1px #000; white-space: nowrap;">{id_p}</div>'
-                    )
-                ).add_to(m_sec)
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(html=f'<div class="blinker-s" style="background-color:{info["color_final"]};"></div>', icon_anchor=(6,6)), popup=folium.Popup(html_p, max_width=300)).add_to(m_sec)
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-15, 8), html=f'<div style="font-size:10px;font-weight:bold;color:{info["color_final"]};text-shadow:1px 1px #000;">{id_p}</div>')).add_to(m_sec)
 
-        try:
-            m_sec.fit_bounds(geojson_sector.get_bounds())
+        try: m_sec.fit_bounds(geojson_sector.get_bounds())
         except: pass
-
         folium_static(m_sec, width=None, height=700)
     
-    st.stop()
+    # SOLO detenemos si realmente entramos aquí para ver el detalle
+    st.stop() 
+
+# Si no hay sector_seleccionado, el código sigue de largo hacia la SECCIÓN 6 y 7 automáticamente.
     
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:

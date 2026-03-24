@@ -518,6 +518,12 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
 
+    st.markdown("---") # Línea divisoria para separar del botón
+    with st.expander("🗺️ CONTROL DE CAPAS", expanded=True):
+        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
+        ver_pozos = st.checkbox("Mostrar Pozos", value=True)
+        ver_etiquetas = st.checkbox("Mostrar ID Pozos", value=True)
+
     st.markdown(f"""
     <div class="resumen-card">
         <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
@@ -553,13 +559,6 @@ with st.sidebar:
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 # Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
-
-with col_capas:
-    # Usamos un estilo de fuente más pequeño para que quepa en el 10% de ancho
-    st.markdown("<h4 style='font-size: 14px;'>🗺️ Capas</h4>", unsafe_allow_html=True)
-    ver_sectores = st.checkbox("Sectores", value=True)
-    ver_pozos = st.checkbox("Pozos", value=True)
-    ver_etiquetas = st.checkbox("ID Pozos", value=True)
 
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")

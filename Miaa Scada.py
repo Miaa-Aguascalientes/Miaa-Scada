@@ -141,8 +141,7 @@ st.markdown("""
         
     </style>
 """, unsafe_allow_html=True)
-# VARIABLE PARA INYECCIÓN DIRECTA EN MAPAS
-CSS_POPUP_LIMPIO = """
+CSS_JS_FIX = """
 <style>
     .leaflet-popup-content-wrapper, .leaflet-popup-tip {
         background: transparent !important;
@@ -150,9 +149,24 @@ CSS_POPUP_LIMPIO = """
         border: none !important;
     }
     .leaflet-popup-content { margin: 0 !important; padding: 0 !important; }
-    .leaflet-popup-tip-container { display: none !important; }
-    .leaflet-popup-close-button { display: none !important; }
 </style>
+<script>
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            var popups = document.getElementsByClassName('leaflet-popup-content-wrapper');
+            for (var i = 0; i < popups.length; i++) {
+                popups[i].style.background = 'transparent';
+                popups[i].style.border = 'none';
+                popups[i].style.boxShadow = 'none';
+            }
+            var tips = document.getElementsByClassName('leaflet-popup-tip');
+            for (var j = 0; j < tips.length; j++) {
+                tips[j].style.display = 'none';
+            }
+        });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+</script>
 """
 
 # 3  SECCION--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------

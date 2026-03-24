@@ -172,7 +172,8 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        query = 'SELECT sector, ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        # Añadimos la columna Pozos_Sector a la consulta
+        query = 'SELECT sector, "Pozos_Sector", ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
@@ -277,19 +278,58 @@ if sector_seleccionado:
     
     if st.button("⬅️ Volver al Mapa General"):
         volver_al_mapa()
+
+    # 1. Obtener datos del sector específico
+    datos_sector = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
-    st.divider()
-    
-    # Simulación de datos para el sector seleccionado
-    c1, c2 = st.columns(2)
-    with c1:
-        st.metric("Sector", sector_seleccionado)
-        st.info(f"Cargando análisis técnico para la zona {sector_seleccionado}...")
-    
-    # AQUÍ PUEDES AGREGAR TUS GRÁFICOS DE ANÁLISIS
-    
-    st.stop() # Esto detiene el resto del script (Mapa y Sidebar) solo en esta vista.
-            
+    if datos_sector:
+        # 2. Identificar qué pozos pertenecen a este sector
+        # Convertimos la cadena "P022A, P023A" en una lista ['P022A', 'P023A']
+        lista_pozos_str = datos_sector.get('Pozos_Sector', '')
+        pozos_a_mostrar = [p.strip() for p in lista_pozos_str.split(',')] if lista_pozos_str else []
+
+        # 3. Crear Mapa Filtrado
+        m_detalle = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
+        
+        # Dibujar el Polígono del Sector
+        folium.GeoJson(
+            json.loads(datos_sector['geo']),
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.2}
+        ).add_to(m_detalle)
+
+        # Dibujar solo los Pozos que pertenecen a este sector
+        for id_p in pozos_a_mostrar:
+            if id_p in mapa_pozos_dict:
+                info = mapa_pozos_dict[id_p]
+                folium.CircleMarker(
+                    location=info['coord'],
+                    radius=6,
+                    color=info['color_final'],
+                    fill=True,
+                    popup=f"Pozo: {id_p}<br>Estatus: {info['status_label']}"
+                ).add_to(m_detalle)
+                
+                folium.Marker(
+                    location=info['coord'],
+                    icon=folium.DivIcon(html=f'<div style="font-size: 10px; font-weight: bold; color: white;">{id_p}</div>')
+                ).add_to(m_detalle)
+
+        # Ajustar el zoom automáticamente al polígono
+        # (Opcional: puedes dejar el zoom_start fijo si prefieres)
+        
+        st.write(f"### Mapa de Infraestructura - Sector {sector_seleccionado}")
+        folium_static(m_detalle, width=None, height=600)
+        
+        # Mostrar métricas rápidas de los pozos del sector
+        cols = st.columns(len(pozos_a_mostrar) if 0 < len(pozos_a_mostrar) <= 4 else 4)
+        for i, id_p in enumerate(pozos_a_mostrar[:8]): # Limitamos a 8 para no saturar
+             with cols[i % 4]:
+                 if id_p in mapa_pozos_dict:
+                     st.metric(id_p, mapa_pozos_dict[id_p]['status_label'])
+    else:
+        st.error("No se encontró información geográfica para este sector.")
+
+    st.stop()
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba
@@ -392,16 +432,16 @@ with col_mapa:
             
             # HTML del Popup con el botón corregido
             html_sector = f"""
-            <div style="font-family: Arial; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                <h4 style="margin: 0 0 5px 0; color: #00d4ff;">Sector: {nombre_sec}</h4>
-                <p style="font-size: 11px; color: #ccc;">Presione para ver análisis.</p>
-                <a href="/?sector={sector_url}" target="_self" 
-                   style="display: inline-block; padding: 8px 15px; background-color: #00d4ff; color: black; 
-                          text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 5px;">
-                   📊 Ver Detalles
-                </a>
-            </div>
-            """
+             <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px;">
+             <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
+             <p style="font-size: 10px; color: #888;">Pozos: {s.get('Pozos_Sector', 'N/A')}</p>
+             <a href="/?sector={urllib.parse.quote(nombre_sec)}" target="_self" 
+           style="display: inline-block; padding: 5px 10px; background-color: #00d4ff; color: black; 
+                  text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 5px; font-size: 12px;">
+           📊 Ver Detalles
+        </a>
+    </div>
+    """
             
             try:
                 folium.GeoJson(

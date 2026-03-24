@@ -517,15 +517,6 @@ with st.sidebar:
     lista_pozos = sorted(list(mapa_pozos_dict.keys()))
     pozo_buscado = st.selectbox("🔍 Buscar Pozo:", ["Seleccionar..."] + lista_pozos, index=0)
 
-    if st.button("♻️ Actualizar Datos", use_container_width=True):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.rerun()
-
-    with st.expander("🗺️ CONTROL DE CAPAS", expanded=True):
-        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
-        ver_pozos = st.checkbox("Mostrar Pozos", value=True)
-        ver_etiquetas = st.checkbox("Mostrar ID Pozos", value=True)
 
     st.markdown(f"""
     <div class="resumen-card">
@@ -557,20 +548,15 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
-# 7 SECCION --------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
+# 7  SECCION--------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
+# DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
+# Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
+col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
-# --- LÓGICA DE CENTRADO DINÁMICO ---
-lat_centro, lon_centro = 21.8820, -102.2800
-zoom_inicial = 12.5
-
-if pozo_buscado != "Seleccionar..." and pozo_buscado in mapa_pozos_dict:
-    lat_centro, lon_centro = mapa_pozos_dict[pozo_buscado]['coord']
-    zoom_inicial = 16 
-
-# Inicialización del mapa (Ocupa todo el ancho disponible)
-m = folium.Map(location=[lat_centro, lon_centro], zoom_start=zoom_inicial, tiles="CartoDB dark_matter")
-Fullscreen().add_to(m)
+with col_mapa:
+    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12.5, tiles="CartoDB dark_matter")
+    Fullscreen().add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
@@ -597,27 +583,47 @@ Fullscreen().add_to(m)
         </style>
         """
 
-# --- RENDERIZADO DE SECTORES ---
 if ver_sectores and sectores:
     for s in sectores:
-        geo_data = json.loads(s['geo'])
-        nombre_sec = s['sector']
-        url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-        
-        html_sector = f"""
-        <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-            <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-            <a href="{url_sector}" target="_blank" style="display: inline-block; margin-top: 8px; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold;">🚀 Ver Detalles</a>
-        </div>
-        """
-        
-        folium.GeoJson(
-            geo_data, 
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1},
-            highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
-            popup=folium.Popup(html_sector, max_width=250),
-            tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-        ).add_to(m)
+        try:
+            nombre_sec = s['sector']
+            # Construcción de URL para el análisis detallado
+            url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
+            
+            # GeoJSON con estilo forzado: Cyan con 10% de opacidad de relleno
+            geo_data = json.loads(s['geo'])
+            
+            html_sector = f"""
+            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+                <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
+                <p style="font-size: 11px; color: #888; margin: 5px 0;">Abrir análisis en nueva pestaña</p>
+                <a href="{url_sector}" target="_blank" 
+                   style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; 
+                          text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px;">
+                   🚀 Ver Detalles
+                </a>
+            </div>
+            """
+            
+            folium.GeoJson(
+                geo_data, 
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#00d4ff', 
+                    'weight': 1.5, 
+                    'fillOpacity': 0.1  # Opacidad baja para no tapar los pozos
+                },
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
+                popup=folium.Popup(html_sector, max_width=250),
+                tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
+            ).add_to(m)
+        except Exception as e:
+            continue # Si un polígono falla, continúa con el siguiente
                 
         
 
@@ -750,5 +756,6 @@ if ver_sectores and sectores:
 
     # Renderizado final del mapa
     folium_static(m, width=None, height=750)
+
 
 

@@ -1,0 +1,69 @@
+name: Despertar lecturas Hes MIAA (Clicker)
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  wake-up-miaa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      - name: Buscar y Pulsar Botón de Despertar
+        run: |
+          node -e "
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const context = await browser.newContext();
+            const page = await context.newPage();
+            
+            try {
+              console.log('Navegando a la App MIAA...');
+              await page.goto('https://miaa-scada.streamlit.app', { 
+                waitUntil: 'networkidle', 
+                timeout: 60000 
+              });
+
+              // Buscamos el botón azul por su texto exacto
+              const wakeUpButton = page.locator('button:has-text(\"Yes, get this app back up!\")');
+              
+              if (await wakeUpButton.isVisible()) {
+                console.log('⚠️ La app está dormida. Pulsando el botón azul...');
+                await wakeUpButton.click();
+                
+                // Esperamos un tiempo largo porque tras el click, la app tarda en cargar
+                console.log('Botón pulsado. Esperando 60 segundos para el arranque del servidor...');
+                await new Promise(r => setTimeout(r, 60000));
+              } else {
+                console.log('✅ La app ya parece estar despierta (no se vio el botón).');
+                // Hacemos un scroll solo para refrescar la sesión
+                await page.evaluate(() => window.scrollBy(0, 300));
+                await new Promise(r => setTimeout(r, 10000));
+              }
+              
+              await browser.close();
+              console.log('Proceso finalizado.');
+            } catch (err) {
+              console.error('❌ Error en el proceso:', err);
+              await browser.close();
+              process.exit(1);
+            }
+          })();
+          "

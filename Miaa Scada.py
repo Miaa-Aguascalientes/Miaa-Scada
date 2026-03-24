@@ -282,25 +282,34 @@ for id_p, info in mapa_pozos_dict.items():
 
 # SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
+    # Título del sector
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
-    # Localizar datos del sector en la lista cargada
+    # Localizar datos del sector
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilo CSS para micro-indicadores optimizados
+        # Estilo CSS para micro-indicadores pegados al título y sin espacios excesivos
         st.markdown("""
             <style>
+                /* Ajuste para reducir el espacio superior de la página en la nueva pestaña */
+                .block-container {
+                    padding-top: 3.5rem !important;
+                }
                 .micro-card {
                     background: #0b1a29;
                     border: 1px solid #1f4068;
                     border-radius: 5px;
-                    padding: 10px;
+                    padding: 8px;
                     text-align: center;
-                    margin-bottom: 10px;
+                    margin-top: -10px; /* Sube los indicadores hacia el título */
+                    margin-bottom: 5px;
                 }
-                .micro-label { color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 2px; }
-                .micro-value { color: #00d4ff; font-size: 16px; font-weight: bold; }
+                .micro-label { color: #888; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
+                .micro-value { color: #00d4ff; font-size: 15px; font-weight: bold; }
+                
+                /* Eliminar el espacio del divider para que el mapa suba */
+                hr { margin-top: 0.5rem !important; margin-bottom: 0.5rem !important; }
             </style>
         """, unsafe_allow_html=True)
 
@@ -312,9 +321,7 @@ if sector_seleccionado:
                 </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("### 📊 Indicadores Seleccionados")
-        
-        # Se han eliminado los campos de costos, energía y reportes
+        # Fila única de indicadores (sin letrero superior)
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
         with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
@@ -326,7 +333,6 @@ if sector_seleccionado:
         st.divider()
 
         # --- MAPA DEL SECTOR ---
-        # Filtrado de pozos por la columna Pozos_Sector
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         
@@ -343,12 +349,12 @@ if sector_seleccionado:
                     popup=f"Pozo: {id_p}"
                 ).add_to(m_sec)
 
-        # Ajuste automático del mapa al polígono del sector
+        # Ajuste automático del mapa al polígono
         try:
             m_sec.fit_bounds(geojson_sector.get_bounds())
         except: pass
 
-        folium_static(m_sec, width=None, height=650)
+        folium_static(m_sec, width=None, height=700)
     else:
         st.error(f"No se encontró información para el sector {sector_seleccionado}")
     

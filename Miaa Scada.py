@@ -9,15 +9,23 @@ import json
 import urllib.parse
 from datetime import datetime
 
-# 1---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
+# 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 st.set_page_config(
     page_title="MIAA - Estado de Pozos", 
     page_icon="https://www.miaa.mx/favicon.ico", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )
+# --- LÓGICA DE NAVEGACIÓN ---
+# Detectamos si el usuario seleccionó un sector a través de la URL
+params = st.query_params
+sector_seleccionado = params.get("sector", None)
 
-# 2-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
+def volver_al_mapa():
+    st.query_params.clear() # Limpia la URL
+    st.rerun()
+
+# 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
 
@@ -76,7 +84,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ----------------------------------------------------------------------------------------------------------
+# 3  SECCION--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -106,7 +114,7 @@ def get_postgres_conn():
     except: 
         return None
 
-# 4-------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
+# 4 SECCION -------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
@@ -172,14 +180,14 @@ def cargar_sectores_poligonos():
         return []
 
 
-# --- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) ---
+# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) -----------------------------------------------------------------
 
-# 1. Carga de datos base
+# Carga de datos base
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-# 2. Inicialización de listas y contadores para el resumen
+# Inicialización de listas y contadores para el resumen
 pozos_on = []
 pozos_off = []
 pozos_sin_telemetria = []
@@ -187,7 +195,7 @@ pozos_falla_com = []
 total_q = 0.0
 total_p = 0.0
 
-# 3. Ajuste de Hora Local (Aguascalientes UTC-6)
+# Ajuste de Hora Local (Aguascalientes UTC-6)
 # Esto evita que datos recientes se marquen como falla por el desfase del servidor
 import datetime as dt
 ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
@@ -195,7 +203,7 @@ ahora = dt.datetime.utcnow() - dt.timedelta(hours=6)
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
     
-    # A. FILTRO INICIAL: SIN TELEMETRÍA
+    # FILTRO INICIAL: SIN TELEMETRÍA
     if bomba_val == "Sin telemetria":
         info.update({
             'status_label': 'SIN TELEMETRÍA', 
@@ -205,8 +213,7 @@ for id_p, info in mapa_pozos_dict.items():
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # B. VALIDACIÓN DE COMUNICACIÓN (SOLO L1)
-    # Buscamos el tag de la línea 1 de voltaje configurado en el diccionario
+    # VALIDACIÓN DE COMUNICACIÓN (SOLO L1)
     tag_l1 = info['voltajes_l'][0]
     _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
     
@@ -230,7 +237,7 @@ for id_p, info in mapa_pozos_dict.items():
         # Si no hay fecha registrada para L1, no hay comunicación
         es_falla_com = True
 
-    # C. ASIGNACIÓN DE ESTADO FINAL Y PARPADEO
+    #  ASIGNACIÓN DE ESTADO FINAL Y PARPADEO
     if es_falla_com:
         # FALLA DE COMUNICACIÓN: Naranja y Parpadea
         info.update({
@@ -263,8 +270,33 @@ for id_p, info in mapa_pozos_dict.items():
                 'blink': True
             })
             pozos_off.append(id_p)
+
+# SECCIÓN 5.5 -------------------------------------------------------------------------- ANÁLISIS DE SECTOR (NUEVA PÁGINA) --------------------------------------------------------------------------------------
+if sector_seleccionado:
+    st.markdown(f'<div class="titulo-superior">Análisis Detallado: Sector {sector_seleccionado}</div>', unsafe_allow_html=True)
+    
+    if st.button("⬅️ Volver al Mapa General"):
+        volver_al_mapa()
+    
+    st.divider()
+    
+    # Ejemplo de visualización de datos para el sector
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Sector Seleccionado", sector_seleccionado)
+    with col2:
+        # Aquí puedes filtrar tus DataFrames por el nombre del sector
+        st.metric("Estado de Red", "Estable", delta="Normal")
+    
+    st.info(f"Mostrando telemetría avanzada y reportes históricos para el sector {sector_seleccionado}...")
+    
+    # Puedes insertar aquí gráficos de Plotly o tablas de Pandas filtradas
+    # df_filtrado = df_tus_datos[df_tus_datos['sector'] == sector_seleccionado]
+    # st.line_chart(df_filtrado)
+
+    st.stop() # IMPORTANTE: Evita que se cargue el resto del código (Sidebar y Mapa)
             
-# 6 -------------------------------------------------------------------------------SECCION 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
+# 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
@@ -295,7 +327,7 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-# Sección de Bombas ON
+   # Sección de Bombas ON
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
         for p in sorted(pozos_on): 
             st.write(f"🟢 {p}")
@@ -317,11 +349,9 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
-# 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
+# 7  SECCION--------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
-
-
 
 col_mapa, col_capas = st.columns([8.5, 1.5])
 with col_capas:
@@ -334,7 +364,7 @@ with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # 1. FUNCIÓN PARA HORARIO 00:00
+    # FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
         try:
             if decimal == "N/A" or decimal is None: return "00:00"
@@ -344,7 +374,7 @@ with col_mapa:
         except:
             return "00:00"
 
-    # 2. FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
+    # FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
     def get_blink_icon(color):
         return f"""
         <div style="
@@ -359,20 +389,24 @@ with col_mapa:
         </style>
         """
 
-# 3. RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para incluir Popup con Botón
+# RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para navegación interna
     if ver_sectores:
         for s in sectores:
-            # Definimos la URL a la que quieres redirigir (puedes dinamizarla con s['sector'])
-            url_destino = f"https://tu-sitio-analisis.com/sector/{s['sector']}"
+            nombre_sec = s['sector']
+            # Codificamos el nombre para que sea seguro en una URL (ej. espacios -> %20)
+            sector_url = urllib.parse.quote(nombre_sec)
             
-            # Creamos el HTML del popup con un botón estilizado
+            # La URL apunta a la raíz de tu app con el parámetro ?sector=...
+            # Usamos target="_self" para que NO abra una pestaña nueva del navegador, 
+            # sino que recargue la misma (comportamiento de "App")
             html_sector = f"""
-            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px;">
-                <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
-                <p style="font-size: 12px; color: #ccc;">Presione el botón para ver el análisis detallado de este sector.</p>
-                <a href="{url_destino}" target="_blank" 
-                   style="display: inline-block; padding: 8px 16px; background-color: #00d4ff; color: black; 
-                          text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 5px;">
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; color: white; background: #0b1a29; padding: 15px; border-radius: 10px; border: 1px solid #00d4ff;">
+                <h4 style="margin: 0 0 10px 0; color: #00d4ff; font-size: 16px;">Sector: {nombre_sec}</h4>
+                <p style="font-size: 12px; color: #adb5bd; margin-bottom: 15px;">Presione el botón para ver el análisis detallado de este sector.</p>
+                <a href="/?sector={sector_url}" target="_self" 
+                   style="display: block; padding: 10px; background-color: #00d4ff; color: black; 
+                          text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 13px;
+                          box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
                    📊 Ver Detalles
                 </a>
             </div>
@@ -392,12 +426,11 @@ with col_mapa:
                     'weight': 3, 
                     'fillOpacity': 0.4
                 },
-                # Añadimos el Popup aquí
-                popup=folium.Popup(html_sector, max_width=250),
-                tooltip=folium.Tooltip(f"Sector: {s['sector']} (Click para más)", sticky=True)
+                popup=folium.Popup(html_sector, max_width=280),
+                tooltip=folium.Tooltip(f"Sector: {nombre_sec} (Click para ver)", sticky=True)
             ).add_to(m)
 
-    # 4. RENDERIZADO DE POZOS
+    #  RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
@@ -419,7 +452,7 @@ with col_mapa:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # TU DISEÑO ORIGINAL RESTAURADO (Con MTS y 00:00)
+        # POPUP DE LOS POZOS
         html_popup = f"""
         <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">

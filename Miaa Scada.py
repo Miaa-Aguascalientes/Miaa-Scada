@@ -81,41 +81,10 @@ st.markdown("""
            padding-right: 1rem !important;
 }
 
-         /* Forzar que las columnas no se encimen */
-        [data-testid="column"] {
-        width: 100% !important;
-        flex: 1 1 auto !important;
-}
-
-        /* Contenedor para alinear texto a la izquierda y tag a la derecha */
-.connection-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-/* Tag de estado con verde más intenso y estilo mejorado */
-.status-tag {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-weight: bold;
-    min-width: 50px;
-    text-align: center;
-    text-transform: uppercase;
-}
-
-.status-ok {
-    background-color: #00ff41; /* Verde Matrix/Neón más intenso */
-    color: #000000; /* Texto negro para mejor contraste con el verde brillante */
-    box-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
-}
-
-.status-err {
-    background-color: #ff0000;
-    color: white;
-    box-shadow: 0 0 8px rgba(255, 0, 0, 0.4);
+/* Forzar que las columnas no se encimen */
+[data-testid="column"] {
+    width: 100% !important;
+    flex: 1 1 auto !important;
 }
         
         .sidebar-logo img { max-width: 85%; height: auto; }
@@ -564,24 +533,19 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-# --- ESTADO DE LAS CONEXIONES A LAS BASES DE DATOS ---     
-with st.sidebar.expander("🔌 Estado de las Conexiones", expanded=True):
-    status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
-    status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
-    status_postgres = "OK" if get_postgres_conn() else "ERROR"
+# --- ESTADO DE LAS CONEXIONES A LAS BASES DE DATOS ---    
+    with st.expander("🔌 Estado de las Conexiones", expanded=True):
+        status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
+        status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
+        status_postgres = "OK" if get_postgres_conn() else "ERROR"
 
-    def get_tag(label, status):
-        cls = "status-ok" if status == "OK" else "status-err"
-        return f'''
-            <div class="connection-row">
-                <span style="color: white; font-weight: bold;">{label}:</span>
-                <span class="status-tag {cls}">{status}</span>
-            </div>
-        '''
+        def get_tag(status):
+            cls = "status-ok" if status == "OK" else "status-err"
+            return f'<span class="status-tag {cls}">{status}</span>'
 
-    st.markdown(get_tag("BD-Scada", status_mysql_scada), unsafe_allow_html=True)
-    st.markdown(get_tag("BD-Diccionarios", status_mysql_tele), unsafe_allow_html=True)
-    st.markdown(get_tag("BD-PostgreSQL", status_postgres), unsafe_allow_html=True)
+        st.markdown(f"**BD-Scada:** {get_tag(status_mysql_scada)}", unsafe_allow_html=True)
+        st.markdown(f"**BD-Diccionarios:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
+        st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
 
 # --- BUSCADOR INTEGRADO ---
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
@@ -843,6 +807,7 @@ if ver_sectores and sectores:
 
     # Renderizado final del mapa
     folium_static(m, width=None, height=750)
+
 
 
 

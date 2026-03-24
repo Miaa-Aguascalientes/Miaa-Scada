@@ -282,13 +282,12 @@ for id_p, info in mapa_pozos_dict.items():
 
 # SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
-    # Título del sector
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilo CSS para micro-indicadores y el efecto de parpadeo (Blinker)
+        # Estilos CSS (Blinker y Micro-cards)
         st.markdown("""
             <style>
                 .block-container { padding-top: 3.5rem !important; }
@@ -298,29 +297,19 @@ if sector_seleccionado:
                 }
                 .micro-label { color: #888; font-size: 10px; text-transform: uppercase; }
                 .micro-value { color: #00d4ff; font-size: 15px; font-weight: bold; }
-                hr { margin-top: 0.5rem !important; margin-bottom: 0.5rem !important; }
-
-                /* Estilo para el Blinker (Punto con movimiento) */
-                .blinker {
-                    width: 12px; height: 12px; border-radius: 50%;
-                    display: inline-block; position: relative;
+                .blinker-s { width: 12px; height: 12px; border-radius: 50%; position: relative; }
+                .blinker-s::after {
+                    content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%;
+                    background: inherit; animation: pulse 1.5s infinite; opacity: 0.6;
                 }
-                .blinker::after {
-                    content: ''; width: 100%; height: 100%; border-radius: 50%;
-                    position: absolute; top: 0; left: 0;
-                    animation: pulse 1.5s infinite; opacity: 0.5;
-                }
-                @keyframes pulse {
-                    0% { transform: scale(1); opacity: 0.8; }
-                    100% { transform: scale(3); opacity: 0; }
-                }
+                @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3.5); opacity: 0; } }
             </style>
         """, unsafe_allow_html=True)
 
         def micro_metric(label, value):
             st.markdown(f'<div class="micro-card"><div class="micro-label">{label}</div><div class="micro-value">{value}</div></div>', unsafe_allow_html=True)
 
-        # Fila de indicadores
+        # Indicadores superiores
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
         with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
@@ -332,59 +321,69 @@ if sector_seleccionado:
         st.divider()
 
         # --- MAPA DEL SECTOR ---
-        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         
-        # Polígono del sector
         geojson_sector = folium.GeoJson(
             json.loads(datos_s['geo']),
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.1}
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.15}
         ).add_to(m_sec)
 
-        # Renderizado de Pozos con la misma lógica del mapa principal
+        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
+
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
-                color = info['color_final']
                 
-                # HTML para el marcador con movimiento (Blinker)
-                icon_html = f'<div class="blinker" style="background-color: {color}; box-shadow: 0 0 10px {color};"></div>'
+                # REUTILIZACIÓN DE LÓGICA DE DATOS (Misma que en Sección 7)
+                d = lambda tag: data_scada.get(tag, (0, "N/A"))
+                is_st = (info['status_label'] == 'SIN TELEMETRÍA')
                 
-                # Reutilizamos el popup (puedes copiar el html_popup exacto que usas en la sección 7)
-                popup_html = f"""
-                <div style="font-family: sans-serif; min-width: 200px;">
-                    <b style="color: {color}; font-size: 14px;">Pozo: {id_p}</b><br>
-                    <hr style="margin: 5px 0;">
-                    <span style="font-size: 12px;"><b>Estado:</b> {info['status_label']}</span><br>
-                    <span style="font-size: 12px;"><b>Nivel Dinámico:</b> {info.get('nivel_dinamico', 'N/D')} m</span><br>
-                    <span style="font-size: 12px;"><b>Presión:</b> {info.get('presion', 'N/D')} kg/cm²</span>
+                # Extraemos variables para el popup (idéntico al mapa principal)
+                q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+                p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+                sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+                dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+                tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+                col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
+                h_arr_fmt = formato_hora(d(info['h_arranque'])[0]) if not is_st else "00:00"
+                h_par_fmt = formato_hora(d(info['h_paro'])[0]) if not is_st else "00:00"
+                v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+                a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+
+                # Reutilizamos el bloque HTML_POPUP original
+                html_popup = f"""
+                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 350px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                        <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+                        <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+                    </div>
+                    <div style="font-size: 11px;">
+                        💧 Caudal: <b>{q:.2f} L/s</b><br>
+                        🚀 Presión: <b>{p:.2f} kg</b><br>
+                        📏 Sumergencia: <b>{sumer:.1f} m</b><br>
+                        📉 Dinámico: <b>{dinam:.1f} m</b>
+                    </div>
                 </div>
                 """
 
+                # Marcador con Punto (Blinker) y Texto
                 folium.Marker(
                     location=info['coord'],
-                    icon=folium.DivIcon(html=icon_html),
-                    popup=folium.Popup(popup_html, max_width=300)
+                    icon=folium.DivIcon(html=f'<div class="blinker-s" style="background-color: {info["color_final"]};"></div>', icon_anchor=(6,6)),
+                    popup=folium.Popup(html_popup, max_width=400)
                 ).add_to(m_sec)
                 
-                # Etiqueta de texto del pozo
                 folium.Marker(
                     location=info['coord'],
-                    icon=folium.DivIcon(
-                        icon_anchor=(-10, 10),
-                        html=f'<div style="font-size: 10px; font-weight: bold; color: {color}; text-shadow: 1px 1px #000;">{id_p}</div>'
-                    )
+                    icon=folium.DivIcon(icon_anchor=(-12, 7), 
+                    html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_p}</div>')
                 ).add_to(m_sec)
 
-        # Ajuste de vista
         try:
             m_sec.fit_bounds(geojson_sector.get_bounds())
         except: pass
 
         folium_static(m_sec, width=None, height=700)
-    else:
-        st.error(f"No se encontró información para el sector {sector_seleccionado}")
-    
     st.stop()
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:

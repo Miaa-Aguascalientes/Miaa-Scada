@@ -282,29 +282,37 @@ for id_p, info in mapa_pozos_dict.items():
 
 # SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
-    # Título estilizado del sector
+    # 0. FUNCIÓN LOCAL PARA EVITAR ERRORES DE NAMEERROR
+    def formato_hora_local(decimal):
+        try:
+            if decimal == "N/A" or decimal is None: return "00:00"
+            horas = int(float(decimal))
+            minutos = int((float(decimal) - horas) * 60)
+            return f"{horas:02d}:{minutos:02d}"
+        except:
+            return "00:00"
+
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilos CSS (Micro-cards y Animación de Punto)
+        # Estilos CSS
         st.markdown("""
             <style>
                 .block-container { padding-top: 3.5rem !important; }
                 .micro-card {
-                    background: #050505; border: 1px solid #1f4068; border-radius: 5px;
+                    background: #0b1a29; border: 1px solid #1f4068; border-radius: 5px;
                     padding: 8px; text-align: center; margin-top: -10px; margin-bottom: 5px;
                 }
                 .micro-label { color: #888; font-size: 10px; text-transform: uppercase; }
                 .micro-value { color: #00d4ff; font-size: 15px; font-weight: bold; }
                 
-                /* Animación Blinker para sectores */
-                .blinker-sector { 
+                .blinker-s { 
                     width: 12px; height: 12px; border-radius: 50%; 
                     position: relative; z-index: 1000; 
                 }
-                .blinker-sector::after {
+                .blinker-s::after {
                     content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%;
                     background: inherit; animation: pulse-s 1.5s infinite; opacity: 0.6;
                 }
@@ -342,20 +350,15 @@ if sector_seleccionado:
                 info = mapa_pozos_dict[id_p]
                 color = info['color_final']
                 
-                # --- Lógica de Telemetría Reutilizada ---
                 d = lambda tag: data_scada.get(tag, (0, "N/A"))
                 is_st = (info['status_label'] == 'SIN TELEMETRÍA')
                 
-                # Extraemos datos para el popup
                 q = d(info['caudal'])[0] if not is_st else 0.0
                 p = d(info['presion'])[0] if not is_st else 0.0
-                sumer = d(info['sumergencia'])[0] if not is_st else 0.0
-                dinam = d(info['nivel_dinamico'])[0] if not is_st else 0.0
-                
-                # Usamos la función de formato_hora que mencionaste
-                # (Asegúrate de haberla movido a una sección superior del script)
                 h_arr_val = d(info['h_arranque'])[0] if not is_st else 0.0
-                h_arr_fmt = formato_hora(h_arr_val)
+                
+                # Usamos la función local definida arriba
+                h_arr_fmt = formato_hora_local(h_arr_val)
 
                 html_popup = f"""
                 <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 280px; border: 1px solid {color}; font-family: sans-serif;">
@@ -365,25 +368,23 @@ if sector_seleccionado:
                     <div style="font-size: 11px; line-height: 1.4;">
                         💧 Caudal: <b>{q:.2f} L/s</b><br>
                         🚀 Presión: <b>{p:.2f} kg</b><br>
-                        📏 Sumergencia: <b>{sumer:.1f} m</b><br>
-                        📉 Nivel Dinámico: <b>{dinam:.1f} m</b><br>
                         🕒 Últ. Arranque: <b>{h_arr_fmt}</b>
                     </div>
                 </div>
                 """
 
-                # MARCADOR: Punto Blinker (Capa Inferior)
+                # Marcador: Punto Blinker
                 folium.Marker(
                     location=info['coord'],
                     icon=folium.DivIcon(
-                        html=f'<div class="blinker-sector" style="background-color: {color};"></div>', 
+                        html=f'<div class="blinker-s" style="background-color: {color};"></div>', 
                         icon_size=(12,12),
                         icon_anchor=(6,6)
                     ),
                     popup=folium.Popup(html_popup, max_width=350)
                 ).add_to(m_sec)
                 
-                # MARCADOR: Etiqueta ID (Capa Superior con Offset a la derecha)
+                # Marcador: Etiqueta ID (con el offset a la derecha para que se vea el punto)
                 folium.Marker(
                     location=info['coord'],
                     icon=folium.DivIcon(
@@ -392,7 +393,6 @@ if sector_seleccionado:
                     )
                 ).add_to(m_sec)
 
-        # Ajuste de encuadre
         try:
             m_sec.fit_bounds(geojson_sector.get_bounds())
         except: pass

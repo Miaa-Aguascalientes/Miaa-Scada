@@ -496,30 +496,7 @@ with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # FUNCIÓN PARA HORARIO 00:00
-    def formato_hora(decimal):
-        try:
-            if decimal == "N/A" or decimal is None: return "00:00"
-            horas = int(float(decimal))
-            minutos = int((float(decimal) - horas) * 60)
-            return f"{horas:02d}:{minutos:02d}"
-        except:
-            return "00:00"
 
-    # FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
-    def get_blink_icon(color):
-        return f"""
-        <div style="
-            width: 8px; height: 8px; 
-            background-color: {color}; 
-            border-radius: 50%; 
-            box-shadow: 0 0 8px {color};
-            animation: blinker 1s linear infinite;">
-        </div>
-        <style>
-        @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
-        </style>
-        """
 
 # RENDERIZADO DE POLIGONOS (SECTORES)
     if ver_sectores:

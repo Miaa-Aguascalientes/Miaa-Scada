@@ -374,6 +374,49 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 
+# --- SECCION 6.1. SIDEBAR DERECHO ---
+with col_sidebar:
+    # Contenedor del logo
+    st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg" style="width:100%;"></div>', unsafe_allow_html=True)
+    
+    with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
+        status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
+        status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
+        status_postgres = "OK" if get_postgres_conn() else "ERROR"
+
+        def get_tag(status):
+            cls = "status-ok" if status == "OK" else "status-err"
+            return f'<span class="status-tag {cls}">{status}</span>'
+
+        st.markdown(f"**SCADA:** {get_tag(status_mysql_scada)}", unsafe_allow_html=True)
+        st.markdown(f"**Telemetría:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
+        st.markdown(f"**PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
+
+    if st.button("♻️ Actualizar Datos", use_container_width=True):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.rerun()
+
+    # Resumen Global
+    st.markdown(f"""
+    <div class="resumen-card" style="background-color: #1e1e1e; padding: 15px; border-radius: 10px; border-left: 5px solid #00d4ff;">
+        <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
+        <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+        <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Listados de Pozos
+    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
+        for p in sorted(pozos_on): st.write(f"🟢 {p}")
+    
+    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
+        for p in sorted(pozos_off): st.write(f"🔴 {p}")
+
+    if pozos_falla_com:
+        with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
+            for p in sorted(pozos_falla_com): st.write(f"🟠 {p}")
+
 # 7--------------------------------------------------------------------------------- SECCION 7. MAPA -------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)

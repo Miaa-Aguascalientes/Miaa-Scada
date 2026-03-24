@@ -561,15 +561,21 @@ with st.sidebar:
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 # Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
-col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
+lat_centro, lon_centro = 21.8820, -102.2800
+zoom_actual = 12.5
 
-with col_mapa:
-    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12.5, tiles="CartoDB dark_matter")
-    Fullscreen().add_to(m)
-
-    if pozo_buscado != "Seleccionar..." and pozo_buscado in mapa_pozos_dict:
+# 2. Si se buscó un pozo, sobreescribimos los valores de centrado
+if pozo_buscado != "Seleccionar..." and pozo_buscado in mapa_pozos_dict:
     lat_centro, lon_centro = mapa_pozos_dict[pozo_buscado]['coord']
-    zoom_inicial = 16 # Zoom cercano al pozo encontrado
+    zoom_actual = 16  # Zoom cercano para el pozo encontrado
+
+# 3. Creamos el mapa con la ubicación final (dinámica o estática)
+m = folium.Map(
+    location=[lat_centro, lon_centro], 
+    zoom_start=zoom_actual, 
+    tiles="CartoDB dark_matter"
+)
+Fullscreen().add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):

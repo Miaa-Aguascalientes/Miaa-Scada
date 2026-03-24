@@ -509,9 +509,9 @@ with st.sidebar:
             cls = "status-ok" if status == "OK" else "status-err"
             return f'<span class="status-tag {cls}">{status}</span>'
 
-        st.markdown(f"**SCADA:** {get_tag(status_mysql_scada)}", unsafe_allow_html=True)
-        st.markdown(f"**Telemetría:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
-        st.markdown(f"**PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
+        st.markdown(f"**BD-Scada:** {get_tag(status_mysql_scada)}", unsafe_allow_html=True)
+        st.markdown(f"**BD-Diccionarios:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
+        st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
 
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
@@ -543,7 +543,7 @@ with st.sidebar:
 
     # Nueva Sección: Falla de Comunicación
     if pozos_falla_com:
-        with st.expander(f"⚠️ Falla de Com. (+4h) ({len(pozos_falla_com)})", expanded=False):
+        with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
             for p in sorted(pozos_falla_com):
                 st.write(f"🟠 {p}")
     

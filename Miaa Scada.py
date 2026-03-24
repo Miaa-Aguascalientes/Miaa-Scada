@@ -571,13 +571,15 @@ with col_mapa:
         </style>
         """
 
-# RENDERIZADO DE POLIGONOS (SECTORES)
-    if ver_sectores:
-        for s in sectores:
+if ver_sectores and sectores:
+    for s in sectores:
+        try:
             nombre_sec = s['sector']
-            # Creamos la URL apuntando a tu propia app con el parámetro sector
-            # Nota: Al estar en la nube, "/" apunta a tu URL base
+            # Construcción de URL para el análisis detallado
             url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
+            
+            # GeoJSON con estilo forzado: Cyan con 10% de opacidad de relleno
+            geo_data = json.loads(s['geo'])
             
             html_sector = f"""
             <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
@@ -592,12 +594,24 @@ with col_mapa:
             """
             
             folium.GeoJson(
-                json.loads(s['geo']), 
-                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-                highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
+                geo_data, 
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#00d4ff', 
+                    'weight': 1.5, 
+                    'fillOpacity': 0.1  # Opacidad baja para no tapar los pozos
+                },
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
                 popup=folium.Popup(html_sector, max_width=250),
                 tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
             ).add_to(m)
+        except Exception as e:
+            continue # Si un polígono falla, continúa con el siguiente
                 
         
 

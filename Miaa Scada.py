@@ -21,9 +21,7 @@ st.set_page_config(
 params = st.query_params
 sector_seleccionado = params.get("sector", None)
 
-def volver_al_mapa():
-    st.query_params.clear() # Limpia la URL
-    st.rerun()
+
 
 # 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
@@ -272,56 +270,40 @@ for id_p, info in mapa_pozos_dict.items():
             })
             pozos_off.append(id_p)
 
-# SECCIÓN 5.5 --------------------------------------------------------- VISTA DE DETALLE (NUEVA PESTAÑA) ---------------------------------------------------------
+# SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
-    # Buscamos los datos del sector en la lista cargada
-    datos_sector = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
+    # 1. Buscar polígono del sector
+    datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
-    if datos_sector:
-        # Extraemos los pozos vinculados a este sector desde la columna Pozos_Sector
-        lista_pozos_nombres = [p.strip() for p in datos_sector.get('Pozos_Sector', '').split(',')] if datos_sector.get('Pozos_Sector') else []
+    if datos_s:
+        # 2. Filtrar pozos que pertenecen a este sector (Columna Pozos_Sector)
+        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
 
-        # Crear mapa centrado en el sector
-        m_sector = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
+        # 3. Crear Mapa del Sector
+        m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         
-        # Dibujar el polígono del sector seleccionado
+        # Dibujar polígono del sector
         folium.GeoJson(
-            json.loads(datos_sector['geo']),
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.3}
-        ).add_to(m_sector)
+            json.loads(datos_s['geo']),
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.2}
+        ).add_to(m_sec)
 
-        # Dibujar solo los pozos que pertenecen a este sector
-        for id_p in lista_pozos_nombres:
+        # Dibujar solo los pozos del sector
+        for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
                 folium.CircleMarker(
-                    location=info['coord'],
-                    radius=8,
-                    color=info['color_final'],
-                    fill=True,
-                    popup=f"<b>Pozo: {id_p}</b><br>Estado: {info['status_label']}"
-                ).add_to(m_sector)
+                    location=info['coord'], radius=7, color=info['color_final'], fill=True,
+                    popup=f"Pozo: {id_p}<br>Estado: {info['status_label']}"
+                ).add_to(m_sec)
                 
-                folium.Marker(
-                    location=info['coord'],
-                    icon=folium.DivIcon(html=f'<div style="font-size: 12px; font-weight: bold; color: white; text-shadow: 1px 1px black;">{id_p}</div>')
-                ).add_to(m_sector)
-
-        folium_static(m_sector, width=None, height=700)
-        
-        # Tabla informativa del sector
-        st.write(f"### 📋 Listado de Pozos en {sector_seleccionado}")
-        df_mini = pd.DataFrame([
-            {"Pozo": id_p, "Estatus": mapa_pozos_dict[id_p]['status_label']} 
-            for id_p in lista_pozos_nombres if id_p in mapa_pozos_dict
-        ])
-        st.table(df_mini)
+        folium_static(m_sec, width=None, height=700)
     else:
-        st.error("No se encontraron datos geográficos para este sector.")
+        st.error(f"No se encontró información para el sector {sector_seleccionado}")
     
-    st.stop() # Evita cargar el mapa general en la nueva pestaña
+    st.stop() # IMPORTANTE: Detiene la ejecución aquí para la pestaña nueva
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba
@@ -419,14 +401,15 @@ with col_mapa:
     if ver_sectores:
         for s in sectores:
             nombre_sec = s['sector']
-            sector_url = urllib.parse.quote(nombre_sec)
+            # Creamos la URL apuntando a tu propia app con el parámetro sector
+            # Nota: Al estar en la nube, "/" apunta a tu URL base
+            url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
             
-            # HTML con target="_blank" para abrir en pestaña nueva
             html_sector = f"""
             <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
                 <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                <p style="font-size: 10px; color: #888; margin: 5px 0;">Abrir análisis en nueva pestaña</p>
-                <a href="/?sector={sector_url}" target="_blank" 
+                <p style="font-size: 11px; color: #888; margin: 5px 0;">Abrir análisis en nueva pestaña</p>
+                <a href="{url_sector}" target="_blank" 
                    style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; 
                           text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px;">
                    🚀 Ver Detalles

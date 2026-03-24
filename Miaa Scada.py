@@ -518,7 +518,6 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
 
-    st.markdown("---") # Línea divisoria para separar del botón
     with st.expander("🗺️ CONTROL DE CAPAS", expanded=True):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)

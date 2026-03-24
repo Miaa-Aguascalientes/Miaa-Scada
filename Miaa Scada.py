@@ -513,6 +513,24 @@ with st.sidebar:
         st.markdown(f"**BD-Diccionarios:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
         st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
 
+    # --- NUEVO: BUSCADOR DE POZOS ---
+    st.markdown("---")
+    lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
+    pozo_buscado = st.selectbox(
+        "🔍 BUSCAR POZO",
+        options=[""] + lista_pozos_nombres,
+        format_func=lambda x: "Seleccione un pozo..." if x == "" else f"📍 {x}",
+        help="Escribe o selecciona el ID del pozo para localizarlo"
+    )
+
+    # Lógica para centrar el mapa si se selecciona un pozo
+    centro_mapa = [21.8820, -102.2800]
+    zoom_inicial = 12.5
+    if pozo_buscado and pozo_buscado in mapa_pozos_dict:
+        centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
+        zoom_inicial = 16
+    # --------------------------------
+
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
         st.cache_resource.clear()

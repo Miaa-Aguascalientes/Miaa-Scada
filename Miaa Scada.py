@@ -574,30 +574,44 @@ with col_mapa:
 # RENDERIZADO DE POLIGONOS (SECTORES)
     if ver_sectores:
         for s in sectores:
-            nombre_sec = s['sector']
-            # Creamos la URL apuntando a tu propia app con el parámetro sector
-            # Nota: Al estar en la nube, "/" apunta a tu URL base
-            url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-            
-            html_sector = f"""
-            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                <p style="font-size: 11px; color: #888; margin: 5px 0;">Abrir análisis en nueva pestaña</p>
-                <a href="{url_sector}" target="_blank" 
-                   style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; 
-                          text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px;">
-                   🚀 Ver Detalles
-                </a>
-            </div>
-            """
-            
-            folium.GeoJson(
-                json.loads(s['geo']), 
-                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
-                highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
-                popup=folium.Popup(html_sector, max_width=250),
-                tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-            ).add_to(m)
+            try:
+                nombre_sec = s['sector']
+                url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
+                
+                # REEMPLAZA DESDE AQUÍ PARA ASEGURAR EL RENDERIZADO:
+                geo_data = json.loads(s['geo']) # Conversión explícita
+                
+                html_sector = f"""
+                <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+                    <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
+                    <p style="font-size: 11px; color: #888; margin: 5px 0;">Abrir análisis en nueva pestaña</p>
+                    <a href="{url_sector}" target="_blank" 
+                       style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; 
+                              text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px;">
+                       🚀 Ver Detalles
+                    </a>
+                </div>
+                """
+                
+                folium.GeoJson(
+                    geo_data, 
+                    style_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#00d4ff', 
+                        'weight': 3,        # Línea más gruesa para que se note
+                        'fillOpacity': 0.25  # Opacidad suficiente para verse en fondo negro
+                    },
+                    highlight_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#ffffff', 
+                        'weight': 4, 
+                        'fillOpacity': 0.5
+                    },
+                    popup=folium.Popup(html_sector, max_width=250),
+                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
+                ).add_to(m)
+            except Exception as e:
+                st.sidebar.error(f"Error en sector {s.get('sector')}: {e}")
                 
         
 

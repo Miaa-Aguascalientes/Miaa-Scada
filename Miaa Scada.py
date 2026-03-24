@@ -523,8 +523,16 @@ with st.sidebar:
             }
         </style>
     """, unsafe_allow_html=True)
+
+        st.markdown(f"""
+    <div class="resumen-card">
+        <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
+        <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+        <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
+    with st.expander("🔌 Estado de las Conexiones", expanded=True):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
         status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
         status_postgres = "OK" if get_postgres_conn() else "ERROR"
@@ -541,7 +549,7 @@ with st.sidebar:
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
     # Label con emoji y estilo personalizado
     pozo_buscado = st.selectbox(
-        "🔍 LOCALIZAR POZO",
+        "🔍 Localizar Sitio",
         options=[""] + lista_pozos_nombres,
         format_func=lambda x: "Seleccionar pozo..." if x == "" else f"POZO {x}",
         index=0
@@ -559,18 +567,10 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
 
-    with st.expander("🗺️ CONTROL DE CAPAS", expanded=True):
+    with st.expander("🗺️ Control de Capas", expanded=True):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
         ver_etiquetas = st.checkbox("Mostrar ID Pozos", value=True)
-
-    st.markdown(f"""
-    <div class="resumen-card">
-        <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
-        <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
-        <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
-    </div>
-    """, unsafe_allow_html=True)
     
    # Sección de Bombas ON
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):

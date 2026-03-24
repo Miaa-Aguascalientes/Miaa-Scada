@@ -130,6 +130,15 @@ st.markdown("""
         .leaflet-popup-close-button {
             display: none !important;
         }
+
+        /* --- REGLA PARA ELIMINAR MARCO BLANCO (STREAMLIT LEVEL) --- */
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background-color: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+        }   
+
+        
     </style>
 """, unsafe_allow_html=True)
 # VARIABLE PARA INYECCIÓN DIRECTA EN MAPAS

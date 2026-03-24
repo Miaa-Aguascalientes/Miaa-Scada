@@ -578,7 +578,8 @@ st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes<
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
 with col_mapa:
-    m = folium.Map(location=[21.8820, -102.2800], zoom_start=12.5, tiles="CartoDB dark_matter")
+    # Usamos las variables dinámicas centro_mapa y zoom_inicial definidas en el buscador
+    m = folium.Map(location=centro_mapa, zoom_start=zoom_inicial, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00

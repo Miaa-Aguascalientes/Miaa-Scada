@@ -551,7 +551,7 @@ with st.sidebar:
     pozo_buscado = st.selectbox(
         "🔍 Localizar Sitio",
         options=[""] + lista_pozos_nombres,
-        format_func=lambda x: "Seleccionar pozo..." if x == "" else f"POZO {x}",
+        format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}",
         index=0
     )
 

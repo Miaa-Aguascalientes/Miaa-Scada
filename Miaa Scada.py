@@ -13,7 +13,6 @@ from datetime import datetime
 params = st.query_params
 sector_seleccionado = params.get("sector", None)
 
-# Si hay un sector seleccionado, cambiamos el título de la pestaña
 if sector_seleccionado:
     titulo_pestaña = f"MIAA - Estado de Sector: {sector_seleccionado}"
 else:
@@ -25,8 +24,6 @@ st.set_page_config(
     layout="wide", 
     initial_sidebar_state="expanded"
 )
-
-
 
 # 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
@@ -540,14 +537,17 @@ with st.sidebar:
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
-col_mapa, col_capas = st.columns([8.5, 1.5])
+col_mapa, col_capas = st.columns([0.85, 0.15], gap="small")
+
 with col_capas:
     st.markdown("### 🗺️ Capas")
+    # Usamos contenedores para asegurar que no haya saltos de línea extraños
     ver_sectores = st.checkbox("Sectores", value=True)
     ver_pozos = st.checkbox("Pozos", value=True)
     ver_etiquetas = st.checkbox("ID Pozos", value=True)
 
 with col_mapa:
+    # IMPORTANTE: Definimos el mapa con location y zoom
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 

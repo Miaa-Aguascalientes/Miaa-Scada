@@ -499,6 +499,30 @@ if sector_seleccionado:
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
+
+    # CSS ADICIONAL PARA EL BUSCADOR (Elimina bordes rojos y ajusta a estilo oscuro/cyan)
+    st.markdown("""
+        <style>
+            /* Estilo del contenedor del selectbox */
+            div[data-baseweb="select"] > div {
+                background-color: #050505 !important;
+                border: 1px solid #1f4068 !important;
+                color: white !important;
+            }
+            /* Estilo del texto y el icono */
+            div[data-testid="stMarkdownContainer"] p {
+                font-size: 13px;
+                font-weight: bold;
+                color: #00d4ff;
+                margin-bottom: 5px;
+            }
+            /* Eliminar el borde rojo de enfoque por defecto */
+            div[data-baseweb="select"]:focus-within {
+                border: 1px solid #00d4ff !important;
+                box-shadow: 0 0 5px rgba(0, 212, 255, 0.5) !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
     
     with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
@@ -513,22 +537,24 @@ with st.sidebar:
         st.markdown(f"**BD-Diccionarios:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
         st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
 
-    # --- NUEVO: BUSCADOR DE POZOS ---
+# --- BUSCADOR INTEGRADO ---
+    st.markdown("---")
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
+    
+    # Label con emoji y estilo personalizado
     pozo_buscado = st.selectbox(
-        "🔍 BUSCAR POZO",
+        "🔍 LOCALIZAR POZO",
         options=[""] + lista_pozos_nombres,
-        format_func=lambda x: "Seleccione un pozo..." if x == "" else f"📍 {x}",
-        help="Escribe o selecciona el ID del pozo para localizarlo"
+        format_func=lambda x: "Seleccionar pozo..." if x == "" else f"POZO {x}",
+        index=0
     )
 
-    # Lógica para centrar el mapa si se selecciona un pozo
+    # Lógica de posicionamiento para la Sección 7
     centro_mapa = [21.8820, -102.2800]
     zoom_inicial = 12.5
     if pozo_buscado and pozo_buscado in mapa_pozos_dict:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
-        zoom_inicial = 16
-    # --------------------------------
+        zoom_inicial = 17 # Zoom más cerrado para inspección
 
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()

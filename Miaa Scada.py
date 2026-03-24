@@ -72,6 +72,21 @@ st.markdown("""
             margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
             margin-bottom: 10px;
         }
+
+        /* Maximizar el ancho del contenedor principal */
+           .block-container {
+           padding-top: 1rem !important;
+           padding-bottom: 0rem !important;
+           padding-left: 1rem !important;
+           padding-right: 1rem !important;
+}
+
+/* Forzar que las columnas no se encimen */
+[data-testid="column"] {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+}
+        
         .sidebar-logo img { max-width: 85%; height: auto; }
         
         .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
@@ -536,18 +551,17 @@ with st.sidebar:
 # 7  SECCION--------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
-
-col_mapa, col_capas = st.columns([0.85, 0.15], gap="small")
+# Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
+col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
 with col_capas:
-    st.markdown("### 🗺️ Capas")
-    # Usamos contenedores para asegurar que no haya saltos de línea extraños
+    # Usamos un estilo de fuente más pequeño para que quepa en el 10% de ancho
+    st.markdown("<h4 style='font-size: 14px;'>🗺️ Capas</h4>", unsafe_allow_html=True)
     ver_sectores = st.checkbox("Sectores", value=True)
     ver_pozos = st.checkbox("Pozos", value=True)
     ver_etiquetas = st.checkbox("ID Pozos", value=True)
 
 with col_mapa:
-    # IMPORTANTE: Definimos el mapa con location y zoom
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 

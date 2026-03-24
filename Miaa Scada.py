@@ -21,6 +21,8 @@ st.set_page_config(
 params = st.query_params
 sector_seleccionado = params.get("sector", None)
 
+
+
 # 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
@@ -109,7 +111,6 @@ def get_postgres_conn():
         return psycopg2.connect(**st.secrets["postgres"])
     except: 
         return None
-
 
 # 4 SECCION -------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
@@ -279,85 +280,85 @@ for id_p, info in mapa_pozos_dict.items():
             })
             pozos_off.append(id_p)
 
-
-# SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR -------------------------------------------
+# SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
-    # 1. FUNCIÓN LOCAL (Copia idéntica para que esta sección sea independiente)
-    def formato_hora_sector(decimal):
-        try:
-            if decimal == "N/A" or decimal is None: return "00:00"
-            horas = int(float(decimal))
-            minutos = int((float(decimal) - horas) * 60)
-            return f"{horas:02d}:{minutos:02d}"
-        except:
-            return "00:00"
-
+    # Título del sector
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
+    # Localizar datos del sector
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilos CSS para los indicadores y el punto (Blinker)
+        # Estilo CSS para micro-indicadores pegados al título y sin espacios excesivos
         st.markdown("""
             <style>
-                .block-container { padding-top: 3.5rem !important; }
+                /* Ajuste para reducir el espacio superior de la página en la nueva pestaña */
+                .block-container {
+                    padding-top: 3.5rem !important;
+                }
                 .micro-card {
-                    background: #0b1a29; border: 1px solid #1f4068; border-radius: 5px;
-                    padding: 8px; text-align: center; margin-top: -10px; margin-bottom: 5px;
+                    background: #0b1a29;
+                    border: 1px solid #1f4068;
+                    border-radius: 5px;
+                    padding: 8px;
+                    text-align: center;
+                    margin-top: -10px; /* Sube los indicadores hacia el título */
+                    margin-bottom: 5px;
                 }
-                .micro-label { color: #888; font-size: 10px; text-transform: uppercase; }
+                .micro-label { color: #888; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
                 .micro-value { color: #00d4ff; font-size: 15px; font-weight: bold; }
-                .blinker-s { width: 12px; height: 12px; border-radius: 50%; position: relative; z-index: 1000; }
-                .blinker-s::after {
-                    content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%;
-                    background: inherit; animation: pulse-s 1.5s infinite; opacity: 0.6;
-                }
-                @keyframes pulse-s { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(3.5); opacity: 0; } }
+                
+                /* Eliminar el espacio del divider para que el mapa suba */
+                hr { margin-top: 0.5rem !important; margin-bottom: 0.5rem !important; }
             </style>
         """, unsafe_allow_html=True)
 
-        # 2. Renderizado de micro-tarjetas (Población, U_Tot, etc.)
+        def micro_metric(label, value):
+            st.markdown(f"""
+                <div class="micro-card">
+                    <div class="micro-label">{label}</div>
+                    <div class="micro-value">{value}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # Fila única de indicadores (sin letrero superior)
         c1, c2, c3, c4, c5, c6 = st.columns(6)
-        with c1: st.markdown(f'<div class="micro-card"><div class="micro-label">Población</div><div class="micro-value">{datos_s.get("Poblacion", 0):,.0f}</div></div>', unsafe_allow_html=True)
-        with c2: st.markdown(f'<div class="micro-card"><div class="micro-label">U. Totales</div><div class="micro-value">{datos_s.get("U_Tot", 0):,.0f}</div></div>', unsafe_allow_html=True)
-        with c3: st.markdown(f'<div class="micro-card"><div class="micro-label">U. Domésticos</div><div class="micro-value">{datos_s.get("U_Domesticos", 0):,.0f}</div></div>', unsafe_allow_html=True)
-        with c4: st.markdown(f'<div class="micro-card"><div class="micro-label">Consumo m³</div><div class="micro-value">{datos_s.get("Cons_m3", 0):,.1f}</div></div>', unsafe_allow_html=True)
-        with c5: st.markdown(f'<div class="micro-card"><div class="micro-label">Dotación</div><div class="micro-value">{datos_s.get("Dotacion", 0):,.1f}</div></div>', unsafe_allow_html=True)
-        with c6: st.markdown(f'<div class="micro-card"><div class="micro-label">Balance</div><div class="micro-value">{datos_s.get("Balance_Estimado", 0):,.1f}%</div></div>', unsafe_allow_html=True)
+        with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
+        with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
+        with c3: micro_metric("U. Domésticos", f"{datos_s.get('U_Domesticos', 0):,.0f}")
+        with c4: micro_metric("Consumo m³", f"{datos_s.get('Cons_m3', 0):,.1f}")
+        with c5: micro_metric("Dotación", f"{datos_s.get('Dotacion', 0):,.1f}")
+        with c6: micro_metric("Balance", f"{datos_s.get('Balance_Estimado', 0):,.1f}%")
 
         st.divider()
 
-        # 3. Configuración del Mapa del Sector
-        m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
-        geojson_sector = folium.GeoJson(json.loads(datos_s['geo']), style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.15}).add_to(m_sec)
-
-        # 4. Dibujar Pozos con Punto y Texto (Offset corregido)
+        # --- MAPA DEL SECTOR ---
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
+        m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
+        
+        geojson_sector = folium.GeoJson(
+            json.loads(datos_s['geo']),
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.1}
+        ).add_to(m_sec)
+
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
-                d = lambda tag: data_scada.get(tag, (0, "N/A"))
-                is_st = (info['status_label'] == 'SIN TELEMETRÍA')
-                q = d(info['caudal'])[0] if not is_st else 0.0
-                
-                # Llamada a la función local definida arriba
-                h_arr_fmt = formato_hora_sector(d(info['h_arranque'])[0]) if not is_st else "00:00"
+                folium.CircleMarker(
+                    location=info['coord'], radius=6, color=info['color_final'], fill=True,
+                    popup=f"Pozo: {id_p}"
+                ).add_to(m_sec)
 
-                html_p = f'<div style="background:#050505;color:white;padding:10px;border-radius:8px;border:1px solid {info["color_final"]};"><b>POZO {id_p}</b><br>Caudal: {q:.2f} L/s<br>Arranque: {h_arr_fmt}</div>'
-
-                # Punto Blinker (Z-index 1000)
-                folium.Marker(location=info['coord'], icon=folium.DivIcon(html=f'<div class="blinker-s" style="background-color:{info["color_final"]};"></div>', icon_anchor=(6,6)), popup=folium.Popup(html_p, max_width=300)).add_to(m_sec)
-                
-                # ID del Pozo (Offset -15 para que aparezca a la derecha del punto)
-                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-15, 8), html=f'<div style="font-size:10px;font-weight:bold;color:{info["color_final"]};text-shadow:1px 1px #000;white-space:nowrap;">{id_p}</div>')).add_to(m_sec)
-
-        try: m_sec.fit_bounds(geojson_sector.get_bounds())
+        # Ajuste automático del mapa al polígono
+        try:
+            m_sec.fit_bounds(geojson_sector.get_bounds())
         except: pass
+
         folium_static(m_sec, width=None, height=700)
+    else:
+        st.error(f"No se encontró información para el sector {sector_seleccionado}")
     
-    # IMPORTANTE: st.stop() solo se ejecuta si hay un sector seleccionado
     st.stop()
-    
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba
@@ -610,5 +611,4 @@ with col_mapa:
 
     # Renderizado final del mapa
     folium_static(m, width=None, height=750)
-
 

@@ -669,6 +669,7 @@ with col_capas:
 
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
+    m.get_root().header.add_child(folium.Element(CSS_JS_FIX))
     Fullscreen().add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00

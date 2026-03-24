@@ -284,26 +284,26 @@ for id_p, info in mapa_pozos_dict.items():
 if sector_seleccionado:
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
+    # Localizar datos del sector en la lista cargada
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilo para micro-indicadores
+        # Estilo CSS para micro-indicadores optimizados
         st.markdown("""
             <style>
                 .micro-card {
                     background: #0b1a29;
                     border: 1px solid #1f4068;
                     border-radius: 5px;
-                    padding: 8px;
+                    padding: 10px;
                     text-align: center;
-                    margin-bottom: 5px;
+                    margin-bottom: 10px;
                 }
-                .micro-label { color: #888; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
-                .micro-value { color: #00d4ff; font-size: 14px; font-weight: bold; }
+                .micro-label { color: #888; font-size: 11px; text-transform: uppercase; margin-bottom: 2px; }
+                .micro-value { color: #00d4ff; font-size: 16px; font-weight: bold; }
             </style>
         """, unsafe_allow_html=True)
 
-        # Función para renderizar tarjeta pequeña
         def micro_metric(label, value):
             st.markdown(f"""
                 <div class="micro-card">
@@ -312,29 +312,21 @@ if sector_seleccionado:
                 </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("### 📊 Resumen Operativo")
+        st.markdown("### 📊 Indicadores Seleccionados")
         
-        # Fila 1 (6 columnas para mayor compactación)
+        # Se han eliminado los campos de costos, energía y reportes
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
         with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
-        with c3: micro_metric("Consumo m³", f"{datos_s.get('Cons_m3', 0):,.1f}")
-        with c4: micro_metric("Dotación", f"{datos_s.get('Dotacion', 0):,.1f}")
-        with c5: micro_metric("Long. Red", f"{datos_s.get('Long_Red', 0):,.0f}m")
+        with c3: micro_metric("U. Domésticos", f"{datos_s.get('U_Domesticos', 0):,.0f}")
+        with c4: micro_metric("Consumo m³", f"{datos_s.get('Cons_m3', 0):,.1f}")
+        with c5: micro_metric("Dotación", f"{datos_s.get('Dotacion', 0):,.1f}")
         with c6: micro_metric("Balance", f"{datos_s.get('Balance_Estimado', 0):,.1f}%")
-
-        # Fila 2
-        c7, c8, c9, c10, c11, c12 = st.columns(6)
-        with c7: micro_metric("Fugas", f"{datos_s.get('Fugas_Tot', 0):,.0f}")
-        with c8: micro_metric("Faltas Agua", f"{datos_s.get('Faltas_Agua', 0):,.0f}")
-        with c9: micro_metric("Vol. Fact", f"{datos_s.get('Vol_Fact', 0):,.1f}")
-        with c10: micro_metric("Kwh", f"{datos_s.get('Kwh', 0):,.0f}")
-        with c11: micro_metric("$ Kw-hr", f"{datos_s.get('costoKw-hr', 0):,.2f}")
-        with c12: micro_metric("Recaudación", f"${datos_s.get('Recaudacion', 0):,.0f}")
 
         st.divider()
 
-        # --- MAPA (con el mismo ajuste de bounds anterior) ---
+        # --- MAPA DEL SECTOR ---
+        # Filtrado de pozos por la columna Pozos_Sector
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         
@@ -351,6 +343,7 @@ if sector_seleccionado:
                     popup=f"Pozo: {id_p}"
                 ).add_to(m_sec)
 
+        # Ajuste automático del mapa al polígono del sector
         try:
             m_sec.fit_bounds(geojson_sector.get_bounds())
         except: pass

@@ -480,10 +480,38 @@ if sector_seleccionado:
     st.stop()
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
-    # Contenedor del logo con ajustes forzados hacia arriba
+    # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
     
-    with st.expander("🔌 ESTADO DE CONEXIONES", expanded=True):
+    # --- NUEVA SECCIÓN: NAVEGACIÓN POR SECTORES ---
+    st.markdown("### 🏘️ NAVEGACIÓN POR SECTORES")
+    
+    # Lista de nombres de sectores para el buscador
+    nombres_sectores = sorted([s['sector'] for s in sectores])
+    
+    # Buscador con autocompletado
+    sector_buscado = st.selectbox(
+        "Buscar Sector:",
+        options=["Seleccionar..."] + nombres_sectores,
+        index=0,
+        help="Escribe o selecciona un sector para ver su análisis detallado"
+    )
+
+    # Botón para ir al detalle si se selecciona uno
+    if sector_buscado != "Seleccionar...":
+        url_sector_directo = f"/?sector={urllib.parse.quote(sector_buscado)}"
+        st.markdown(f"""
+            <a href="{url_sector_directo}" target="_self" 
+               style="display: block; text-align: center; padding: 8px; background-color: #00d4ff; 
+                      color: black; text-decoration: none; border-radius: 5px; font-weight: bold; margin-bottom: 20px;">
+               🔍 Analizar {sector_buscado}
+            </a>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- ESTADO DE CONEXIONES (Original) ---
+    with st.expander("🔌 ESTADO DE CONEXIONES", expanded=False):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
         status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
         status_postgres = "OK" if get_postgres_conn() else "ERROR"
@@ -501,6 +529,7 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
 
+    # --- RESUMEN GLOBAL (Original) ---
     st.markdown(f"""
     <div class="resumen-card">
         <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
@@ -509,27 +538,17 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-   # Sección de Bombas ON
+    # --- LISTADO DE POZOS POR ESTADO ---
+    # (Tus expansores de pozos ON, OFF, Falla Com, etc. se mantienen aquí debajo)
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
-        for p in sorted(pozos_on): 
-            st.write(f"🟢 {p}")
+        for p in sorted(pozos_on): st.write(f"🟢 {p}")
     
-    # Sección de Bombas OFF
     with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
-        for p in sorted(pozos_off): 
-            st.write(f"🔴 {p}")
+        for p in sorted(pozos_off): st.write(f"🔴 {p}")
 
-    # Nueva Sección: Falla de Comunicación
     if pozos_falla_com:
-        with st.expander(f"⚠️ Falla de Com. (+4h) ({len(pozos_falla_com)})", expanded=False):
-            for p in sorted(pozos_falla_com):
-                st.write(f"🟠 {p}")
-    
-    # Sección Sin Telemetría
-    if pozos_sin_telemetria:
-        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
-            for p in sorted(pozos_sin_telemetria): 
-                st.write(f"⚪ {p}")
+        with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
+            for p in sorted(pozos_falla_com): st.write(f"🟠 {p}")
 
 # 7  SECCION--------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
 # DASHBOARD

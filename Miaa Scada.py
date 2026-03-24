@@ -112,6 +112,17 @@ def get_postgres_conn():
     except: 
         return None
 
+# 3.5  SECCION--------------------------------------------------------------------------------3.5. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
+    # FUNCIÓN PARA HORARIO 00:00
+    def formato_hora(decimal):
+        try:
+            if decimal == "N/A" or decimal is None: return "00:00"
+            horas = int(float(decimal))
+            minutos = int((float(decimal) - horas) * 60)
+            return f"{horas:02d}:{minutos:02d}"
+        except:
+            return "00:00"
+
 # 4 SECCION -------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
@@ -281,30 +292,31 @@ for id_p, info in mapa_pozos_dict.items():
             pozos_off.append(id_p)
 
 # SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
+# SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
+    # Título estilizado del sector
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
-    # Buscar datos del sector seleccionado en la lista cargada de Postgres
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilos CSS específicos para la vista de detalle
+        # Estilos CSS (Micro-cards y Animación de Punto)
         st.markdown("""
             <style>
                 .block-container { padding-top: 3.5rem !important; }
                 .micro-card {
-                    background: #0b1a29; border: 1px solid #1f4068; border-radius: 5px;
+                    background: #050505; border: 1px solid #1f4068; border-radius: 5px;
                     padding: 8px; text-align: center; margin-top: -10px; margin-bottom: 5px;
                 }
                 .micro-label { color: #888; font-size: 10px; text-transform: uppercase; }
                 .micro-value { color: #00d4ff; font-size: 15px; font-weight: bold; }
                 
-                /* Animación para el punto parpadeante en sectores */
-                .blinker-s { 
-                    width: 10px; height: 10px; border-radius: 50%; 
+                /* Animación Blinker para sectores */
+                .blinker-sector { 
+                    width: 12px; height: 12px; border-radius: 50%; 
                     position: relative; z-index: 1000; 
                 }
-                .blinker-s::after {
+                .blinker-sector::after {
                     content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%;
                     background: inherit; animation: pulse-s 1.5s infinite; opacity: 0.6;
                 }
@@ -315,7 +327,7 @@ if sector_seleccionado:
         def micro_metric(label, value):
             st.markdown(f'<div class="micro-card"><div class="micro-label">{label}</div><div class="micro-value">{value}</div></div>', unsafe_allow_html=True)
 
-        # 1. Fila de Indicadores (Datos de Postgres/QGIS)
+        # 1. Indicadores superiores
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
         with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
@@ -326,81 +338,80 @@ if sector_seleccionado:
 
         st.divider()
 
-        # 2. Configuración del Mapa del Sector
+        # 2. Mapa del Sector
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         
-        # Dibujar polígono del sector
         geojson_sector = folium.GeoJson(
             json.loads(datos_s['geo']),
             style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.15}
         ).add_to(m_sec)
 
-        # 3. Renderizado de Pozos asociados a este sector
+        # 3. Pozos del Sector
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
 
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
+                color = info['color_final']
                 
-                # REUTILIZACIÓN DE LÓGICA DE TELEMETRÍA (Idéntica a Sección 7)
+                # --- Lógica de Telemetría Reutilizada ---
                 d = lambda tag: data_scada.get(tag, (0, "N/A"))
                 is_st = (info['status_label'] == 'SIN TELEMETRÍA')
                 
-                # Datos hidráulicos y eléctricos
-                q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
-                p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
-                sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
-                dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+                # Extraemos datos para el popup
+                q = d(info['caudal'])[0] if not is_st else 0.0
+                p = d(info['presion'])[0] if not is_st else 0.0
+                sumer = d(info['sumergencia'])[0] if not is_st else 0.0
+                dinam = d(info['nivel_dinamico'])[0] if not is_st else 0.0
                 
-                # Horarios (Usa la función formato_hora definida previamente)
-                h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+                # Usamos la función de formato_hora que mencionaste
+                # (Asegúrate de haberla movido a una sección superior del script)
+                h_arr_val = d(info['h_arranque'])[0] if not is_st else 0.0
                 h_arr_fmt = formato_hora(h_arr_val)
 
-                # Reutilización del HTML_POPUP para consistencia total
                 html_popup = f"""
-                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 320px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
-                        <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
-                        <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 280px; border: 1px solid {color}; font-family: sans-serif;">
+                    <div style="border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 8px;">
+                        <b style="color: #00d4ff;">POZO {id_p}</b> | <small>{info['status_label']}</small>
                     </div>
-                    <div style="font-size: 11px; line-height: 1.5;">
+                    <div style="font-size: 11px; line-height: 1.4;">
                         💧 Caudal: <b>{q:.2f} L/s</b><br>
                         🚀 Presión: <b>{p:.2f} kg</b><br>
                         📏 Sumergencia: <b>{sumer:.1f} m</b><br>
-                        📉 Dinámico: <b>{dinam:.1f} m</b><br>
-                        ▶️ Arranque: <b>{h_arr_fmt}</b>
+                        📉 Nivel Dinámico: <b>{dinam:.1f} m</b><br>
+                        🕒 Últ. Arranque: <b>{h_arr_fmt}</b>
                     </div>
                 </div>
                 """
 
-                # MARCADOR 1: El Punto (Blinker) - Centrado
+                # MARCADOR: Punto Blinker (Capa Inferior)
                 folium.Marker(
                     location=info['coord'],
                     icon=folium.DivIcon(
-                        html=f'<div class="blinker-s" style="background-color: {info["color_final"]};"></div>', 
-                        icon_size=(10,10),
-                        icon_anchor=(5,5)
+                        html=f'<div class="blinker-sector" style="background-color: {color};"></div>', 
+                        icon_size=(12,12),
+                        icon_anchor=(6,6)
                     ),
                     popup=folium.Popup(html_popup, max_width=350)
                 ).add_to(m_sec)
                 
-                # MARCADOR 2: El Texto (ID) - Desfasado a la derecha (-15)
+                # MARCADOR: Etiqueta ID (Capa Superior con Offset a la derecha)
                 folium.Marker(
                     location=info['coord'],
                     icon=folium.DivIcon(
                         icon_anchor=(-15, 8), 
-                        html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000; white-space: nowrap;">{id_p}</div>'
+                        html=f'<div style="font-size: 10px; font-weight: bold; color: {color}; text-shadow: 1px 1px #000; white-space: nowrap;">{id_p}</div>'
                     )
                 ).add_to(m_sec)
 
-        # Ajuste automático del zoom al polígono del sector
+        # Ajuste de encuadre
         try:
             m_sec.fit_bounds(geojson_sector.get_bounds())
         except: pass
 
         folium_static(m_sec, width=None, height=700)
-        
-    st.stop() # Finaliza la ejecución para mostrar solo la pestaña de detalle
+    
+    st.stop()
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba
@@ -469,15 +480,6 @@ with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # FUNCIÓN PARA HORARIO 00:00
-    def formato_hora(decimal):
-        try:
-            if decimal == "N/A" or decimal is None: return "00:00"
-            horas = int(float(decimal))
-            minutos = int((float(decimal) - horas) * 60)
-            return f"{horas:02d}:{minutos:02d}"
-        except:
-            return "00:00"
 
     # FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
     def get_blink_icon(color):

@@ -360,23 +360,22 @@ with col_mapa:
         """
 
 # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para incluir Popup con Botón
-    if ver_sectores:
-        for s in sectores:
-            # Definimos la URL a la que quieres redirigir (puedes dinamizarla con s['sector'])
-            url_destino = f"https://tu-sitio-analisis.com/sector/{s['sector']}"
-            
-            # Creamos el HTML del popup con un botón estilizado
-            html_sector = f"""
-            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px;">
-                <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
-                <p style="font-size: 12px; color: #ccc;">Presione el botón para ver el análisis detallado de este sector.</p>
-                <a href="{url_destino}" target="_blank" 
-                   style="display: inline-block; padding: 8px 16px; background-color: #00d4ff; color: black; 
-                          text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 5px;">
-                   📊 Ver Detalles
-                </a>
-            </div>
-            """
+if ver_sectores:
+    for s in sectores:
+        # Usamos "." para que sea la misma página actual
+        # Streamlit detectará los parámetros después del "?"
+        url_detalles = f"./?sector={urllib.parse.quote(s['sector'])}"
+        
+        html_sector = f"""
+        <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+            <h4 style="margin: 0 0 10px 0; color: #00d4ff;">Sector: {s['sector']}</h4>
+            <a href="{url_detalles}" target="_blank" 
+               style="display: inline-block; padding: 8px 15px; background-color: #00d4ff; color: black; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 12px;">
+               📊 ANALIZAR SECTOR
+            </a>
+        </div>
+        """
             
             folium.GeoJson(
                 json.loads(s['geo']), 

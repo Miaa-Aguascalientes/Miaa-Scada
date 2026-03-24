@@ -71,7 +71,7 @@ st.markdown("""
             padding: 0px !important; 
             margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
             margin-bottom: 10px;
-        }
+           }
 
         /* Maximizar el ancho del contenedor principal */
            .block-container {
@@ -79,13 +79,44 @@ st.markdown("""
            padding-bottom: 0rem !important;
            padding-left: 1rem !important;
            padding-right: 1rem !important;
+           }
+
+        /* Forzar que las columnas no se encimen */
+          [data-testid="column"] {
+          width: 100% !important;
+          flex: 1 1 auto !important;
+          }
+
+         /* Contenedor para alinear texto a la izquierda y tag a la derecha */
+.connection-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
 }
 
-/* Forzar que las columnas no se encimen */
-[data-testid="column"] {
-    width: 100% !important;
-    flex: 1 1 auto !important;
+/* Tag de estado con verde más intenso y estilo mejorado */
+.status-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    min-width: 50px;
+    text-align: center;
+    text-transform: uppercase;
 }
+
+.status-ok {
+    background-color: #00ff41; /* Verde Matrix/Neón más intenso */
+    color: #000000; /* Texto negro para mejor contraste con el verde brillante */
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+}
+
+.status-err {
+    background-color: #ff0000;
+    color: white;
+    box-shadow: 0 0 8px rgba(255, 0, 0, 0.4);
+} 
         
         .sidebar-logo img { max-width: 85%; height: auto; }
         
@@ -523,7 +554,8 @@ with st.sidebar:
             }
         </style>
     """, unsafe_allow_html=True)
-
+    
+# --- RESUMEN GLOBAL ---
     st.markdown(f"""
         <div class="resumen-card">
         <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
@@ -532,18 +564,24 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    with st.expander("🔌 Estado de las Conexiones", expanded=True):
-        status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
-        status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
-        status_postgres = "OK" if get_postgres_conn() else "ERROR"
+# --- ESTADO DE LAS CONEXIONES A LAS BASES DE DATOS ---     
+with st.sidebar.expander("🔌 Estado de las Conexiones", expanded=True):
+    status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
+    status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
+    status_postgres = "OK" if get_postgres_conn() else "ERROR"
 
-        def get_tag(status):
-            cls = "status-ok" if status == "OK" else "status-err"
-            return f'<span class="status-tag {cls}">{status}</span>'
+    def get_tag(label, status):
+        cls = "status-ok" if status == "OK" else "status-err"
+        return f'''
+            <div class="connection-row">
+                <span style="color: white; font-weight: bold;">{label}:</span>
+                <span class="status-tag {cls}">{status}</span>
+            </div>
+        '''
 
-        st.markdown(f"**BD-Scada:** {get_tag(status_mysql_scada)}", unsafe_allow_html=True)
-        st.markdown(f"**BD-Diccionarios:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
-        st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
+    st.markdown(get_tag("BD-Scada", status_mysql_scada), unsafe_allow_html=True)
+    st.markdown(get_tag("BD-Diccionarios", status_mysql_tele), unsafe_allow_html=True)
+    st.markdown(get_tag("BD-PostgreSQL", status_postgres), unsafe_allow_html=True)
 
 # --- BUSCADOR INTEGRADO ---
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
@@ -561,12 +599,14 @@ with st.sidebar:
     if pozo_buscado and pozo_buscado in mapa_pozos_dict:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         zoom_inicial = 17 # Zoom más cerrado para inspección
-
+        
+# --- BOTON PARA REFRESCAR LAS CONEXIONES DE TODO EL PANEL ---
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
         st.cache_resource.clear()
         st.rerun()
-
+        
+# --- CONTROL DE CAPAS DEL MAPA ---
     with st.expander("🗺️ Control de Capas", expanded=False):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)

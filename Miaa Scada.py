@@ -310,6 +310,7 @@ if sector_seleccionado:
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
+        # Estilo CSS para micro-indicadores y ajuste superior
         st.markdown("""
             <style>
                 .block-container { padding-top: 3.5rem !important; }
@@ -338,7 +339,6 @@ if sector_seleccionado:
         st.divider()
 
         # --- MAPA DEL SECTOR ---
-        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         Fullscreen().add_to(m_sec)
 
@@ -371,6 +371,8 @@ if sector_seleccionado:
             style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.1}
         ).add_to(m_sec)
 
+        ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
+
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
@@ -394,7 +396,7 @@ if sector_seleccionado:
                 v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
                 a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-                # Tu HTML personalizado integrado
+                # HTML del Popup
                 html_popup_sec = f"""
                 <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -468,7 +470,7 @@ if sector_seleccionado:
                 </div>
                 """
 
-                # Marcador con lógica de parpadeo (Blink)
+                # Marcador con Blink o Fijo
                 if info.get('blink'):
                     folium.Marker(
                         location=info['coord'],
@@ -482,7 +484,7 @@ if sector_seleccionado:
                         popup=folium.Popup(html_popup_sec, max_width=450)
                     ).add_to(m_sec)
                 
-                # Etiqueta de ID
+                # Etiqueta ID
                 folium.Marker(
                     location=info['coord'],
                     icon=folium.DivIcon(

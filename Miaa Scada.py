@@ -274,23 +274,22 @@ for id_p, info in mapa_pozos_dict.items():
 if sector_seleccionado:
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
-    # 1. Buscar polígono del sector
+    # Buscamos polígono del sector
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # 2. Filtrar pozos que pertenecen a este sector (Columna Pozos_Sector)
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
 
-        # 3. Crear Mapa del Sector
-        m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
+        # 1. Crear el Mapa INICIAL (con centro y zoom por defecto)
+        m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
         
-        # Dibujar polígono del sector
-        folium.GeoJson(
+        # 2. Dibujar polígono del sector y guardarlo en una variable
+        geojson_sector = folium.GeoJson(
             json.loads(datos_s['geo']),
             style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.2}
         ).add_to(m_sec)
 
-        # Dibujar solo los pozos del sector
+        # Dibujar los pozos del sector
         for id_p in ids_pozos:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
@@ -299,11 +298,21 @@ if sector_seleccionado:
                     popup=f"Pozo: {id_p}<br>Estado: {info['status_label']}"
                 ).add_to(m_sec)
                 
+        # --- 🚀 CORRECCIÓN AQUÍ 🚀 ---
+        # 3. Calcular límites del polígono y forzar al mapa a ajustarse
+        # geojson_sector.get_bounds() devuelve [[min_lat, min_lon], [max_lat, max_lon]]
+        try:
+            limites = geojson_sector.get_bounds()
+            m_sec.fit_bounds(limites) 
+        except:
+            pass # Si falla, usa el centro por defecto
+
+        # Renderizado final del mapa ajustado
         folium_static(m_sec, width=None, height=700)
     else:
         st.error(f"No se encontró información para el sector {sector_seleccionado}")
     
-    st.stop() # IMPORTANTE: Detiene la ejecución aquí para la pestaña nueva
+    st.stop()
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo con ajustes forzados hacia arriba

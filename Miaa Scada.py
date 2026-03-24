@@ -360,8 +360,8 @@ with col_mapa:
         """
 
 # 3. RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para incluir Popup con Botón
-if ver_sectores:
-    for s in sectores:
+    if ver_sectores:
+      for s in sectores:
         # Usamos "." para que sea la misma página actual
         # Streamlit detectará los parámetros después del "?"
         url_detalles = f"./?sector={urllib.parse.quote(s['sector'])}"

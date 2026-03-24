@@ -574,5 +574,5 @@ if ver_sectores:
                 ).add_to(m)
 
     # Renderizado final del mapa
-    folium_static(m, width=None, height=750)
+    folium_static(m, width=None, height=650)
 

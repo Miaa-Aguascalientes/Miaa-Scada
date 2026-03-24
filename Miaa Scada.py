@@ -442,8 +442,7 @@ with col_mapa:
                 tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
             ).add_to(m)
                 
-            except Exception as e:
-                continue # Evita que un error en un polígono rompa todo el mapa
+        
 
     #  RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():

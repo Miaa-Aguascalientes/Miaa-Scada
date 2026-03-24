@@ -280,6 +280,31 @@ for id_p, info in mapa_pozos_dict.items():
             })
             pozos_off.append(id_p)
 
+# --- FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ---
+
+def formato_hora(decimal):
+    try:
+        if decimal == "N/A" or decimal is None: return "00:00"
+        horas = int(float(decimal))
+        minutos = int((float(decimal) - horas) * 60)
+        return f"{horas:02d}:{minutos:02d}"
+    except:
+        return "00:00"
+
+def get_blink_icon(color):
+    return f"""
+    <div style="
+        width: 8px; height: 8px; 
+        background-color: {color}; 
+        border-radius: 50%; 
+        box-shadow: 0 0 8px {color};
+        animation: blinker 1s linear infinite;">
+    </div>
+    <style>
+    @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
+    </style>
+    """
+
 # 5.5 SECCIÓN ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
     # Título del sector

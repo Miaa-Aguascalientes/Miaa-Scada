@@ -21,8 +21,6 @@ st.set_page_config(
 params = st.query_params
 sector_seleccionado = params.get("sector", None)
 
-
-
 # 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
@@ -343,6 +341,30 @@ if sector_seleccionado:
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         Fullscreen().add_to(m_sec)
+
+        # !!! NUEVO !!! CSS para eliminar el marco blanco del popup !!!
+        m_sec.get_root().header.add_child(folium.Element("""
+            <style>
+                /* Elimina el marco blanco del popup */
+                .leaflet-popup-content-wrapper {
+                    background: transparent !important;
+                    box-shadow: none !important;
+                    border: none !important;
+                    padding: 0px !important;
+                }
+                
+                /* Oculta la "colita" (triángulo) del popup */
+                .leaflet-popup-tip-container {
+                    display: none !important;
+                }
+
+                /* Reduce el espacio interno de Folium */
+                .leaflet-popup-content {
+                    margin: 0px !important;
+                    padding: 0px !important;
+                }
+            </style>
+        """))
         
         geojson_sector = folium.GeoJson(
             json.loads(datos_s['geo']),

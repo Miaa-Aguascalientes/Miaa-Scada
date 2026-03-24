@@ -567,7 +567,7 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
 
-    with st.expander("🗺️ Control de Capas", expanded=True):
+    with st.expander("🗺️ Control de Capas", expanded=False):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
         ver_etiquetas = st.checkbox("Mostrar ID Pozos", value=True)

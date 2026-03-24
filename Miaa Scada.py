@@ -375,6 +375,7 @@ with st.sidebar:
                 st.write(f"⚪ {p}")
 
 # --- SECCION 6.1. SIDEBAR DERECHO ---
+col_main, col_sidebar = st.columns([3, 1])
 with col_sidebar:
     # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg" style="width:100%;"></div>', unsafe_allow_html=True)

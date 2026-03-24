@@ -383,46 +383,46 @@ with col_mapa:
         </style>
         """
 
-# RENDERIZADO DE POLIGONOS (SECTORES) - Modificado para navegación interna
-    if ver_sectores:
+# RENDERIZADO DE POLIGONOS (SECTORES)
+    if ver_sectores and 'sectores' in locals():
         for s in sectores:
             nombre_sec = s['sector']
-            # Codificamos el nombre para que sea seguro en una URL (ej. espacios -> %20)
+            # Codificación segura para la URL
             sector_url = urllib.parse.quote(nombre_sec)
             
-            # La URL apunta a la raíz de tu app con el parámetro ?sector=...
-            # Usamos target="_self" para que NO abra una pestaña nueva del navegador, 
-            # sino que recargue la misma (comportamiento de "App")
+            # HTML del Popup con el botón corregido
             html_sector = f"""
-            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; color: white; background: #0b1a29; padding: 15px; border-radius: 10px; border: 1px solid #00d4ff;">
-                <h4 style="margin: 0 0 10px 0; color: #00d4ff; font-size: 16px;">Sector: {nombre_sec}</h4>
-                <p style="font-size: 12px; color: #adb5bd; margin-bottom: 15px;">Presione el botón para ver el análisis detallado de este sector.</p>
+            <div style="font-family: Arial; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+                <h4 style="margin: 0 0 5px 0; color: #00d4ff;">Sector: {nombre_sec}</h4>
+                <p style="font-size: 11px; color: #ccc;">Presione para ver análisis.</p>
                 <a href="/?sector={sector_url}" target="_self" 
-                   style="display: block; padding: 10px; background-color: #00d4ff; color: black; 
-                          text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 13px;
-                          box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                   style="display: inline-block; padding: 8px 15px; background-color: #00d4ff; color: black; 
+                          text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 5px;">
                    📊 Ver Detalles
                 </a>
             </div>
             """
             
-            folium.GeoJson(
-                json.loads(s['geo']), 
-                style_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#00d4ff', 
-                    'weight': 1, 
-                    'fillOpacity': 0.1
-                },
-                highlight_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#ffffff', 
-                    'weight': 3, 
-                    'fillOpacity': 0.4
-                },
-                popup=folium.Popup(html_sector, max_width=280),
-                tooltip=folium.Tooltip(f"Sector: {nombre_sec} (Click para ver)", sticky=True)
-            ).add_to(m)
+            try:
+                folium.GeoJson(
+                    json.loads(s['geo']), 
+                    style_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#00d4ff', 
+                        'weight': 1, 
+                        'fillOpacity': 0.1
+                    },
+                    highlight_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#ffffff', 
+                        'weight': 3, 
+                        'fillOpacity': 0.4
+                    },
+                    popup=folium.Popup(html_sector, max_width=250),
+                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
+                ).add_to(m)
+            except Exception as e:
+                continue # Evita que un error en un polígono rompa todo el mapa
 
     #  RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():

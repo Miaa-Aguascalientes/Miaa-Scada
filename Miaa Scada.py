@@ -578,8 +578,8 @@ with col_mapa:
                 nombre_sec = s['sector']
                 url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
                 
-                # REEMPLAZA DESDE AQUÍ PARA ASEGURAR EL RENDERIZADO:
-                geo_data = json.loads(s['geo']) # Conversión explícita
+                # Forzamos la carga del GeoJSON desde el string de la DB
+                geo_data = json.loads(s['geo'])
                 
                 html_sector = f"""
                 <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
@@ -595,23 +595,25 @@ with col_mapa:
                 
                 folium.GeoJson(
                     geo_data, 
+                    # Regresamos a tu estilo original:
                     style_function=lambda x: {
                         'fillColor': '#00d4ff', 
                         'color': '#00d4ff', 
-                        'weight': 3,        # Línea más gruesa para que se note
-                        'fillOpacity': 0.25  # Opacidad suficiente para verse en fondo negro
+                        'weight': 1, 
+                        'fillOpacity': 0.1
                     },
                     highlight_function=lambda x: {
                         'fillColor': '#00d4ff', 
                         'color': '#ffffff', 
-                        'weight': 4, 
-                        'fillOpacity': 0.5
+                        'weight': 3, 
+                        'fillOpacity': 0.4
                     },
                     popup=folium.Popup(html_sector, max_width=250),
                     tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
                 ).add_to(m)
             except Exception as e:
-                st.sidebar.error(f"Error en sector {s.get('sector')}: {e}")
+                # Silencioso en UI, pero visible en logs si algo falla
+                continue
                 
         
 

@@ -21,8 +21,6 @@ st.set_page_config(
 params = st.query_params
 sector_seleccionado = params.get("sector", None)
 
-
-
 # 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
@@ -112,16 +110,6 @@ def get_postgres_conn():
     except: 
         return None
 
-# 3.5  SECCION--------------------------------------------------------------------------------3.5. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
-    # FUNCIÓN PARA HORARIO 00:00
-    def formato_hora(decimal):
-        try:
-            if decimal == "N/A" or decimal is None: return "00:00"
-            horas = int(float(decimal))
-            minutos = int((float(decimal) - horas) * 60)
-            return f"{horas:02d}:{minutos:02d}"
-        except:
-            return "00:00"
 
 # 4 SECCION -------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 @st.cache_data(ttl=600)
@@ -291,7 +279,7 @@ for id_p, info in mapa_pozos_dict.items():
             })
             pozos_off.append(id_p)
 
-# SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
+
 # SECCIÓN 5.5 ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
 if sector_seleccionado:
     # Título estilizado del sector
@@ -479,7 +467,16 @@ with col_capas:
 with col_mapa:
     m = folium.Map(location=[21.8820, -102.2800], zoom_start=12, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
-
+    
+    # FUNCIÓN PARA HORARIO 00:00
+    def formato_hora(decimal):
+        try:
+            if decimal == "N/A" or decimal is None: return "00:00"
+            horas = int(float(decimal))
+            minutos = int((float(decimal) - horas) * 60)
+            return f"{horas:02d}:{minutos:02d}"
+        except:
+            return "00:00"
 
     # FUNCIÓN PARA ICONO PARPADEANTE PEQUEÑO (8px)
     def get_blink_icon(color):

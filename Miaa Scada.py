@@ -310,7 +310,7 @@ if sector_seleccionado:
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
     
     if datos_s:
-        # Estilo CSS para micro-indicadores y ajuste superior
+        # Estilos generales de la página
         st.markdown("""
             <style>
                 .block-container { padding-top: 3.5rem !important; }
@@ -338,30 +338,42 @@ if sector_seleccionado:
 
         st.divider()
 
-        # --- MAPA DEL SECTOR ---
+        # --- CONFIGURACIÓN DEL MAPA ---
         m_sec = folium.Map(location=[21.8820, -102.2800], zoom_start=14, tiles="CartoDB dark_matter")
         Fullscreen().add_to(m_sec)
 
-        # !!! NUEVO !!! CSS para eliminar el marco blanco del popup !!!
+        # CSS INYECTADO PARA ELIMINAR EL MARCO BLANCO DEFINITIVAMENTE
         m_sec.get_root().header.add_child(folium.Element("""
             <style>
-                /* Elimina el marco blanco del popup */
-                .leaflet-popup-content-wrapper {
+                /* Elimina el fondo blanco, bordes y sombras del contenedor principal del popup */
+                .leaflet-popup-content-wrapper, .leaflet-popup-tip {
                     background: transparent !important;
+                    color: transparent !important;
                     box-shadow: none !important;
                     border: none !important;
-                    padding: 0px !important;
                 }
                 
-                /* Oculta la "colita" (triángulo) del popup */
-                .leaflet-popup-tip-container {
-                    display: none !important;
+                /* Elimina el borde blanco que rodea el contenido */
+                .leaflet-popup-content-wrapper {
+                    padding: 0 !important;
                 }
 
-                /* Reduce el espacio interno de Folium */
+                /* Ajusta el contenido para que no tenga márgenes forzados */
                 .leaflet-popup-content {
-                    margin: 0px !important;
-                    padding: 0px !important;
+                    margin: 0 !important;
+                    width: auto !important;
+                }
+
+                /* Elimina el botón de cierre (la X) si deseas que se vea más limpio, 
+                   o puedes dejarlo; por ahora lo mantenemos pero quitamos su fondo */
+                .leaflet-popup-close-button {
+                    color: #fff !important;
+                    padding: 8px 8px 0 0 !important;
+                }
+                
+                /* Quita la flecha/triángulo inferior del popup */
+                .leaflet-popup-tip-container {
+                    display: none !important;
                 }
             </style>
         """))
@@ -377,7 +389,7 @@ if sector_seleccionado:
             if id_p in mapa_pozos_dict:
                 info = mapa_pozos_dict[id_p]
                 
-                # --- EXTRACCIÓN DE DATOS PARA EL POPUP ---
+                # --- PROCESAMIENTO DE DATOS ---
                 d = lambda tag: data_scada.get(tag, (0, "N/A"))
                 is_st = (info['status_label'] == 'SIN TELEMETRÍA')
                 
@@ -396,9 +408,9 @@ if sector_seleccionado:
                 v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
                 a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-                # HTML del Popup
+                # HTML del Popup personalizado
                 html_popup_sec = f"""
-                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 2px solid {info['color_final']}; font-family: sans-serif; box-shadow: 0 0 15px {info['color_final']}44;">
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
                         <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
                         <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
@@ -470,7 +482,7 @@ if sector_seleccionado:
                 </div>
                 """
 
-                # Marcador con Blink o Fijo
+                # Renderizado de marcadores
                 if info.get('blink'):
                     folium.Marker(
                         location=info['coord'],
@@ -484,7 +496,7 @@ if sector_seleccionado:
                         popup=folium.Popup(html_popup_sec, max_width=450)
                     ).add_to(m_sec)
                 
-                # Etiqueta ID
+                # Etiqueta de ID
                 folium.Marker(
                     location=info['coord'],
                     icon=folium.DivIcon(

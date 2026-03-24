@@ -571,49 +571,53 @@ with col_mapa:
         </style>
         """
 
-# RENDERIZADO DE POLIGONOS (SECTORES)
-    if ver_sectores:
-        for s in sectores:
-            try:
-                nombre_sec = s['sector']
-                url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-                
-                # Forzamos la carga del GeoJSON desde el string de la DB
-                geo_data = json.loads(s['geo'])
-                
-                html_sector = f"""
-                <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                    <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                    <p style="font-size: 11px; color: #888; margin: 5px 0;">Abrir análisis en nueva pestaña</p>
-                    <a href="{url_sector}" target="_blank" 
-                       style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; 
-                              text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px;">
-                       🚀 Ver Detalles
-                    </a>
-                </div>
-                """
-                
-                folium.GeoJson(
-                    geo_data, 
-                    # Regresamos a tu estilo original:
-                    style_function=lambda x: {
-                        'fillColor': '#00d4ff', 
-                        'color': '#00d4ff', 
-                        'weight': 1, 
-                        'fillOpacity': 0.1
-                    },
-                    highlight_function=lambda x: {
-                        'fillColor': '#00d4ff', 
-                        'color': '#ffffff', 
-                        'weight': 3, 
-                        'fillOpacity': 0.4
-                    },
-                    popup=folium.Popup(html_sector, max_width=250),
-                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-                ).add_to(m)
-            except Exception as e:
-                # Silencioso en UI, pero visible en logs si algo falla
+# RENDERIZADO DE POLIGONOS (SECTORES) - VERSIÓN ANTIFALLOS
+if ver_sectores:
+    for s in sectores:
+        try:
+            # Validación de datos mínima
+            if not s.get('geo') or s['geo'] == 'null':
                 continue
+
+            nombre_sec = s['sector']
+            url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
+            geo_data = json.loads(s['geo'])
+            
+            html_sector = f"""
+            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+                <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
+                <p style="font-size: 11px; color: #888; margin: 5px 0;">Abrir análisis en nueva pestaña</p>
+                <a href="{url_sector}" target="_blank" 
+                   style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; 
+                          text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px;">
+                   🚀 Ver Detalles
+                </a>
+            </div>
+            """
+            
+            folium.GeoJson(
+                geo_data, 
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#00d4ff', 
+                    'weight': 1, 
+                    'fillOpacity': 0.1
+                },
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
+                popup=folium.Popup(html_sector, max_width=250),
+                tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
+            ).add_to(m)
+
+        except Exception as e:
+            # Si un sector falla, imprimimos el error en la consola para depurar
+            # pero NO detenemos la ejecución del mapa
+            print(f"Error cargando polígono del sector {s.get('sector')}: {e}")
+            continue
                 
         
 

@@ -513,10 +513,6 @@ with st.sidebar:
         st.markdown(f"**BD-Diccionarios:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
         st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
 
-    # --- BUSCADOR DE POZOS ---
-    lista_pozos = sorted(list(mapa_pozos_dict.keys()))
-    pozo_buscado = st.selectbox("🔍 Buscar Pozo:", ["Seleccionar..."] + lista_pozos, index=0)
-
 
     st.markdown(f"""
     <div class="resumen-card">

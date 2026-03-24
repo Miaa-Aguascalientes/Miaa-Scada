@@ -513,6 +513,15 @@ with st.sidebar:
         st.markdown(f"**BD-Diccionarios:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
         st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
 
+    if st.button("♻️ Actualizar Datos", use_container_width=True):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.rerun()
+
+    with st.expander("🗺️ CONTROL DE CAPAS", expanded=True):
+        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
+        ver_pozos = st.checkbox("Mostrar Pozos", value=True)
+        ver_etiquetas = st.checkbox("Mostrar ID Pozos", value=True)
 
     st.markdown(f"""
     <div class="resumen-card">
@@ -752,6 +761,7 @@ if ver_sectores and sectores:
 
     # Renderizado final del mapa
     folium_static(m, width=None, height=750)
+
 
 
 

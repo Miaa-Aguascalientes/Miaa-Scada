@@ -564,7 +564,7 @@ with st.sidebar:
                 coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
                 # INVERSIÓN CRÍTICA: de [lon, lat] a [lat, lon] para Folium
                 centro_mapa = [coords_raw[1], coords_raw[0]]
-                zoom_inicial = 14.5
+                zoom_inicial = 16
             except:
                 pass
         

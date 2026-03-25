@@ -538,6 +538,11 @@ with st.sidebar:
     # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
+    # 1. Inicializamos variables de control con valores por defecto
+    if 'centro_mapa' not in st.session_state:
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+        st.session_state.zoom_inicial = 12.5
+    
     # --- RESUMEN GLOBAL ---
     st.markdown(f"""
         <div class="resumen-card">
@@ -572,7 +577,7 @@ with st.sidebar:
     centro_mapa = [21.8820, -102.2800]
     zoom_inicial = 12.5
 
-    # 1. Localizar Sitio (Pozo)
+# 2. Buscador de Pozos
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
     pozo_buscado = st.selectbox(
         "🔍 Localizar Sitio",
@@ -598,18 +603,28 @@ with st.sidebar:
     zoom_inicial = 12.5
     datos_sector_resaltado = None # Variable para guardar la geometría a resaltar
 
-    if sector_buscado:
+# 4. ASIGNACIÓN DE PRIORIDAD (Aquí está la corrección)
+    datos_sector_resaltado = None
+
+    if pozo_buscado:
+        # Si seleccionas un pozo, el mapa va directo a sus coordenadas
+        st.session_state.centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
+        st.session_state.zoom_inicial = 18 
+    elif sector_buscado:
+        # Si no hay pozo, pero hay sector, centramos en el sector
         datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
         if datos_s:
-            datos_sector_resaltado = datos_s # Guardamos para el mapa
+            datos_sector_resaltado = datos_s
             try:
                 geom = json.loads(datos_s['geo'])
-                # Inversión de coordenadas para Folium [lat, lon]
                 coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
-                centro_mapa = [coords_raw[1], coords_raw[0]]
-                zoom_inicial = 14.5
-            except:
-                pass
+                st.session_state.centro_mapa = [coords_raw[1], coords_raw[0]]
+                st.session_state.zoom_inicial = 14.5
+            except: pass
+    else:
+        # Si ambos están vacíos, volvemos a la vista general
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+        st.session_state.zoom_inicial = 12.5
     
     # Lógica de posicionamiento para POZOS (mantiene prioridad si se busca un pozo)
     if pozo_buscado and pozo_buscado in mapa_pozos_dict:
@@ -657,16 +672,19 @@ st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes<
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
 with col_mapa:
-    # 1. CREAR EL MAPA BASE (Esto se ejecuta SIEMPRE)
-    m = folium.Map(location=centro_mapa, zoom_start=zoom_inicial, tiles="CartoDB dark_matter")
+    # Usamos las variables guardadas en el estado de la sesión
+    m = folium.Map(
+        location=st.session_state.centro_mapa, 
+        zoom_start=st.session_state.zoom_inicial, 
+        tiles="CartoDB dark_matter"
+    )
     Fullscreen().add_to(m)
 
-# 2. CAPA DE SECTOR RESALTADO (Buscador/Filtro externo)
+# Añadir el resaltado del sector si existe
     if datos_sector_resaltado:
         folium.GeoJson(
             json.loads(datos_sector_resaltado['geo']),
-            name="Sector Resaltado",
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 4, 'fillOpacity': 0.4}
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4}
         ).add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00

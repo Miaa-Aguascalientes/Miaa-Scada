@@ -770,11 +770,11 @@ with col_mapa:
                 <div style="margin-bottom: 12px;">
                     <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>🔋 Tanque: <b>{tanq:.2f} mts</b></span>
+                        <span>🔋 Nivel de Tanque: <b>{tanq:.2f} mts</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>📉 Dinámico: <b>{dinam:.2f} m</b></span>
+                        <span>📉 Nivel Dinámico/Estatico: <b>{dinam:.2f} m</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
@@ -782,7 +782,7 @@ with col_mapa:
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px;">
-                        <span>🏗️ Columna: <b>{col:.2f} m</b></span>
+                        <span>🏗️ Longitud de Columna: <b>{col:.2f} m</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
                     </div>
                     

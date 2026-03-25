@@ -535,6 +535,11 @@ if sector_seleccionado:
     
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
+    # 1. INICIALIZACIÓN DE VARIABLES DE POSICIÓN (Importante: al principio)
+    centro_mapa = [21.8820, -102.2800]
+    zoom_inicial = 12.5
+    datos_sector_resaltado = None
+    
     # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 

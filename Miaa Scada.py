@@ -573,9 +573,7 @@ with st.sidebar:
         render_status_line("BD-Diccionarios:", status_mysql_tele)
         render_status_line("BD-PostgreSQL:", status_postgres)
 
-    # --- BUSCADORES ---
-    centro_mapa = [21.8820, -102.2800]
-    zoom_inicial = 12.5
+
 
     # 1. Localizar Sitio (Pozo)
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
@@ -585,9 +583,20 @@ with st.sidebar:
         format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}"
     )
 
+# LÓGICA DE POSICIONAMIENTO (Prioridad: Pozo > Sector > Default)
     if pozo_buscado and pozo_buscado in mapa_pozos_dict:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         zoom_inicial = 17 
+    elif sector_buscado:
+        datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
+        if datos_s:
+            datos_sector_resaltado = datos_s
+            try:
+                geom = json.loads(datos_s['geo'])
+                coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
+                centro_mapa = [coords_raw[1], coords_raw[0]]
+                zoom_inicial = 14.5
+            except: pass
 
 # --- BUSCADOR DE SECTORES (LOCALIZADOR) ---
     lista_sectores = sorted([s['sector'] for s in sectores])

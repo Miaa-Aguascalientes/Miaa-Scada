@@ -905,7 +905,7 @@ if ver_sectores and sectores:
         # Marcador Cuadrado para Tanques
         folium.RegularPolygonMarker(
             location=info['coord'],
-            number_of_sides=8, # Cuadrado para diferenciarlo de los pozos circulares
+            number_of_sides=6, # <--- CAMBIA ESTO: 3=Triángulo, 4=Cuadrado, 6=Hexágono, 8=Octágono
             radius=5,
             color="#00d4ff",
             fill=True,

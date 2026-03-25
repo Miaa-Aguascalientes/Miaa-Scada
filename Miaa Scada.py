@@ -447,10 +447,6 @@ if sector_seleccionado:
                     <div style="margin-bottom: 12px;">
                         <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
                         <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
                         <span>🔋 Nivel de Tanque:<b>{tanq:.2f} mts</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
                     </div>

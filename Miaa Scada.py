@@ -546,19 +546,29 @@ with st.sidebar:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         zoom_inicial = 17 # Zoom más cerrado para inspección
 
-    # --- NUEVO: BUSCADOR DE SECTORES ---
+# --- BUSCADOR DE SECTORES (LOCALIZADOR) ---
     lista_sectores = sorted([s['sector'] for s in sectores])
     sector_buscado = st.selectbox(
-        "🏘️ Analizar Sector",
+        "🏘️ Localizar Sector",
         options=[""] + lista_sectores,
         format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
         key="busqueda_sectores"
     )
 
-    # Si se selecciona un sector en el buscador, recargamos con el parámetro en la URL
+    # Lógica de posicionamiento para SECTORES
     if sector_buscado:
-        st.query_params["sector"] = sector_buscado
-        st.rerun()
+        # Buscamos los datos del sector seleccionado
+        datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
+        if datos_s:
+            try:
+                # Extraemos el centroide del GeoJSON para centrar el mapa
+                geom = json.loads(datos_s['geo'])
+                coords = geom['coordinates'][0][0] # Tomamos un punto de referencia del polígono
+                # Invertimos de [lon, lat] a [lat, lon] que es lo que usa folium
+                centro_mapa = [coords[1], coords[0]]
+                zoom_inicial = 14.5 # Zoom ideal para ver un sector completo
+            except:
+                pass
         
 # --- BOTON PARA REFRESCAR LAS CONEXIONES DE TODO EL PANEL ---
     if st.button("♻️ Actualizar Datos", use_container_width=True):

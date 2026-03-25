@@ -529,24 +529,25 @@ with st.sidebar:
         render_status_line("BD-Diccionarios:", status_mysql_tele)
         render_status_line("BD-PostgreSQL:", status_postgres)
 
-# --- BUSCADOR INTEGRADO ---
+# --- BUSCADOR DE SITIOS (POZOS) ---
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
-    # Label con emoji y estilo personalizado
     pozo_buscado = st.selectbox(
         "🔍 Localizar Sitio",
         options=[""] + lista_pozos_nombres,
         format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}",
-        index=0
+        key="busqueda_pozos"
     )
 
-    # Lógica de posicionamiento para la Sección 7
+    # Variables de control del mapa (Valores por defecto)
     centro_mapa = [21.8820, -102.2800]
     zoom_inicial = 12.5
+
+    # Lógica de posicionamiento para POZOS
     if pozo_buscado and pozo_buscado in mapa_pozos_dict:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
-        zoom_inicial = 17 # Zoom más cerrado para inspección
+        zoom_inicial = 17 
 
-# --- BUSCADOR DE SECTORES (LOCALIZADOR) ---
+    # --- BUSCADOR DE SECTORES (LOCALIZADOR) ---
     lista_sectores = sorted([s['sector'] for s in sectores])
     sector_buscado = st.selectbox(
         "🏘️ Localizar Sector",

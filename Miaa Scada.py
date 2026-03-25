@@ -534,18 +534,25 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     
 # --- ESTADO DE LAS CONEXIONES A LAS BASES DE DATOS ---    
-    with st.expander("🔌 Estado de las Conexiones", expanded=True):
+with st.expander("🔌 Estado de las Conexiones", expanded=True):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
         status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
         status_postgres = "OK" if get_postgres_conn() else "ERROR"
 
-        def get_tag(status):
+        def render_status_line(label, status):
             cls = "status-ok" if status == "OK" else "status-err"
-            return f'<span class="status-tag {cls}">{status}</span>'
+            # Usamos Flexbox para empujar el tag a la derecha
+            html = f"""
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <span style="font-weight: bold;">{label}</span>
+                <span class="status-tag {cls}">{status}</span>
+            </div>
+            """
+            st.markdown(html, unsafe_allow_html=True)
 
-        st.markdown(f"**BD-Scada:** {get_tag(status_mysql_scada)}", unsafe_allow_html=True)
-        st.markdown(f"**BD-Diccionarios:** {get_tag(status_mysql_tele)}", unsafe_allow_html=True)
-        st.markdown(f"**BD-PostgreSQL:** {get_tag(status_postgres)}", unsafe_allow_html=True)
+        render_status_line("BD-Scada:", status_mysql_scada)
+        render_status_line("BD-Diccionarios:", status_mysql_tele)
+        render_status_line("BD-PostgreSQL:", status_postgres)
 
 # --- BUSCADOR INTEGRADO ---
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))

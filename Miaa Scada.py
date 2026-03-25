@@ -832,41 +832,43 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-    # --- RENDERIZADO DE TANQUES ---
-if ver_tanques:
-    for id_tq, info in mapa_tanques_dict.items():
-        val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
-        n_max = info['nivel_max'] if info['nivel_max'] else 1.0
-        porcentaje = (val_nivel / n_max) * 100
-        
-        html_popup_tq = f"""
-        <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
-            <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
-            <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
-                <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
+# --- RENDERIZADO DE TANQUES (Ahora controlado por ver_etiquetas) ---
+    if ver_tanques:
+        for id_tq, info in mapa_tanques_dict.items():
+            val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
+            n_max = info['nivel_max'] if info['nivel_max'] else 1.0
+            porcentaje = (val_nivel / n_max) * 100
+            
+            html_popup_tq = f"""
+            <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
+                <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
+                <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
+                    <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
+                </div>
+                <div style="font-size: 10px; color: #aaa;">Nivel: {val_nivel:.2f} m</div>
             </div>
-            <div style="font-size: 10px; color: #aaa;">Nivel: {val_nivel:.2f} m</div>
-        </div>
-        """
+            """
 
-        folium.RegularPolygonMarker(
-            location=info['coord'],
-            number_of_sides=6,
-            radius=5,
-            color="#00d4ff",
-            fill=True,
-            fill_color="#00d4ff",
-            fill_opacity=0.7,
-            popup=folium.Popup(html_popup_tq, max_width=300)
-        ).add_to(m)
+            # Marcador del Tanque
+            folium.RegularPolygonMarker(
+                location=info['coord'],
+                number_of_sides=6,
+                radius=5,
+                color="#00d4ff",
+                fill=True,
+                fill_color="#00d4ff",
+                fill_opacity=0.7,
+                popup=folium.Popup(html_popup_tq, max_width=300)
+            ).add_to(m)
 
-        folium.Marker(
-            location=info['coord'],
-            icon=folium.DivIcon(
-                icon_anchor=(20, -10),
-                html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
-            )
-        ).add_to(m)
+            # Etiqueta del Tanque
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(
+                    icon_anchor=(20, -10),
+                    html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
+                )
+            ).add_to(m)
 
     # FINAL: Renderizado del mapa
     folium_static(m, width=None, height=750)

@@ -624,6 +624,20 @@ with col_mapa:
     m = folium.Map(location=centro_mapa, zoom_start=zoom_inicial, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
+    # Si hay un sector seleccionado en el buscador, lo resaltamos con un estilo especial
+    if datos_sector_resaltado:
+        folium.GeoJson(
+            json.loads(datos_sector_resaltado['geo']),
+            name="Sector Resaltado",
+            style_function=lambda x: {
+                'fillColor': '#00d4ff',
+                'color': '#ffffff',  # Borde blanco para resaltar
+                'weight': 4,         # Borde más grueso
+                'fillOpacity': 0.4   # Relleno más intenso
+            },
+            tooltip=folium.Tooltip(f"SECTOR SELECCIONADO: {datos_sector_resaltado['sector']}")
+        ).add_to(m)
+
     # FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
         try:

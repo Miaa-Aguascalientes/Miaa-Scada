@@ -177,18 +177,22 @@ def cargar_tanques_desde_db():
         nuevo_mapa_tq = {}
         for _, row in df_tq.iterrows():
             try:
+                # Limpiar y separar coordenadas
                 coords_str = str(row['coord']).strip().replace('(', '').replace(')', '')
                 lat, lon = map(float, coords_str.split(','))
-                coords = (lat, lon)
-            except: continue
+                
+                # Validación de Nivel Máximo para evitar división por cero o error
+                n_max = float(row['Nivel_max']) if row.get('Nivel_max') is not None else 1.0
+                if n_max <= 0: n_max = 1.0
 
-            nuevo_mapa_tq[row['TQ']] = {
-                "nombre": row['Nombre_tq'],
-                "coord": coords,
-                "tag_nivel": row['nivel_tanque'],
-                "nivel_max": row['Nivel_max'],
-                "sitios": row['Sitios']
-            }
+                nuevo_mapa_tq[row['TQ']] = {
+                    "nombre": row['Nombre_tq'],
+                    "coord": (lat, lon),
+                    "tag_nivel": row['nivel_tanque'], # Usamos el campo nivel_tanque
+                    "nivel_max": n_max,
+                    "sitios": row['Sitios']
+                }
+            except: continue
         return nuevo_mapa_tq
     except: return {}
 

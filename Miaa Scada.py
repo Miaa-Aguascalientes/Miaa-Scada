@@ -846,7 +846,7 @@ with col_mapa:
                 ).add_to(m)
 
 # --- RENDERIZADO DE TANQUES (Controlado por ver_etiquetas / "Mostrar Tanques") ---
-    if ver_etiquetas:
+    if ver_tanques:
         for id_tq, info in mapa_tanques_dict.items():
             val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
             n_max = info['nivel_max'] if info['nivel_max'] else 1.0

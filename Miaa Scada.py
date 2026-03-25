@@ -626,7 +626,7 @@ with st.sidebar:
     with st.expander("🗺️ Control de Capas", expanded=False):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
-        ver_etiquetas = st.checkbox("Mostrar ID Pozos", value=True)
+        ver_tanques = st.checkbox("Mostrar Tanques", value=True)
     
    # Sección de Bombas ON
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
@@ -833,6 +833,7 @@ with col_mapa:
                 ).add_to(m)
 
     # --- RENDERIZADO DE TANQUES ---
+if ver_tanques:
     for id_tq, info in mapa_tanques_dict.items():
         val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
         n_max = info['nivel_max'] if info['nivel_max'] else 1.0

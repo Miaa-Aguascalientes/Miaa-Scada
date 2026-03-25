@@ -873,7 +873,7 @@ with col_mapa:
         """
 
             # Marcador del Tanque
-            folium.RegularPolygonMarker(
+        folium.RegularPolygonMarker(
                 location=info['coord'],
                 number_of_sides=6,
                 radius=5,

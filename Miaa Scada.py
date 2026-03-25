@@ -497,54 +497,29 @@ if sector_seleccionado:
     st.stop()
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
-    # Contenedor del logo con ajustes forzados hacia arriba
+    # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
-    # CSS ADICIONAL PARA EL BUSCADOR (Elimina bordes rojos y ajusta a estilo oscuro/cyan)
-    st.markdown("""
-        <style>
-            /* Estilo del contenedor del selectbox */
-            div[data-baseweb="select"] > div {
-                background-color: #050505 !important;
-                border: 1px solid #1f4068 !important;
-                color: white !important;
-            }
-            /* Estilo del texto y el icono */
-            div[data-testid="stMarkdownContainer"] p {
-                font-size: 13px;
-                font-weight: bold;
-                color: #00d4ff;
-                margin-bottom: 5px;
-            }
-            /* Eliminar el borde rojo de enfoque por defecto */
-            div[data-baseweb="select"]:focus-within {
-                border: 1px solid #00d4ff !important;
-                box-shadow: 0 0 5px rgba(0, 212, 255, 0.5) !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-    
-# --- RESUMEN GLOBAL ---
+    # --- RESUMEN GLOBAL ---
     st.markdown(f"""
         <div class="resumen-card">
-        <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
-        <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
-        <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
-    </div>
+            <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
+            <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+            <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
+        </div>
     """, unsafe_allow_html=True)
     
-# --- ESTADO DE LAS CONEXIONES A LAS BASES DE DATOS ---    
-with st.expander("🔌 Estado de las Conexiones", expanded=True):
+    # --- ESTADO DE LAS CONEXIONES (ALINEADO A LA DERECHA) ---    
+    with st.expander("🔌 Estado de las Conexiones", expanded=True):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
         status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
         status_postgres = "OK" if get_postgres_conn() else "ERROR"
 
         def render_status_line(label, status):
             cls = "status-ok" if status == "OK" else "status-err"
-            # Usamos Flexbox para empujar el tag a la derecha
             html = f"""
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <span style="font-weight: bold;">{label}</span>
+                <span style="font-weight: bold; font-size: 13px;">{label}</span>
                 <span class="status-tag {cls}">{status}</span>
             </div>
             """

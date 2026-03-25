@@ -130,6 +130,7 @@ def get_postgres_conn():
         return None
 
 # 4 SECCION -------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
+# DICCIONARIO POZOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
@@ -163,6 +164,37 @@ def cargar_mapa_pozos_desde_db():
         return nuevo_mapa
     except:
         return {}
+
+# DICCIONARIO DE TANQUES
+@st.cache_data(ttl=600)
+def cargar_tanques_desde_db():
+    engine = get_mysql_telemetria_engine()
+    if not engine: return {}
+    try:
+        query = "SELECT * FROM Diccionario_de_tanques"
+        df_tq = pd.read_sql(query, engine)
+        
+        nuevo_mapa_tq = {}
+        for _, row in df_tq.iterrows():
+            try:
+                # Limpiar y separar coordenadas
+                coords_str = str(row['coord']).strip().replace('(', '').replace(')', '')
+                lat, lon = map(float, coords_str.split(','))
+                
+                # Validación de Nivel Máximo para evitar división por cero o error
+                n_max = float(row['Nivel_max']) if row.get('Nivel_max') is not None else 1.0
+                if n_max <= 0: n_max = 1.0
+
+                nuevo_mapa_tq[row['TQ']] = {
+                    "nombre": row['Nombre_tq'],
+                    "coord": (lat, lon),
+                    "tag_nivel": row['nivel_tanque'], # Usamos el campo nivel_tanque
+                    "nivel_max": n_max,
+                    "sitios": row['Sitios']
+                }
+            except: continue
+        return nuevo_mapa_tq
+    except: return {}
 
 def cargar_datos_scada(mapa_pozos):
     engine = get_mysql_scada_engine()
@@ -211,8 +243,13 @@ def cargar_sectores_poligonos():
 # Carga de datos base
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
+mapa_tanques_dict = cargar_tanques_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
+# Unimos todos los tags (pozos + tanques) para una sola consulta al SCADA
+tags_tanques = [t['tag_nivel'] for t in mapa_tanques_dict.values() if t['tag_nivel']]
+# (Asegúrate de que tu función cargar_datos_scada incluya estos tags en la consulta)
+data_scada = cargar_datos_scada({**mapa_pozos_dict, **mapa_tanques_dict})
 # Inicialización de listas y contadores para el resumen
 pozos_on = []
 pozos_off = []
@@ -729,7 +766,7 @@ if ver_sectores and sectores:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # POPUP DE LOS POZOS
+        # POPUP DE LOS POZOS ------------------------------------------------------------------------------------------------------------------------------------------------------------
         html_popup = f"""
         <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -835,6 +872,56 @@ if ver_sectores and sectores:
                 ).add_to(m)
 
     # Renderizado final del mapa
+    
+    # 1. Capa de Resaltado (Brillo Blanco/Cyan para el sector seleccionado)
+    if datos_sector_resaltado:
+        folium.GeoJson(
+            json.loads(datos_sector_resaltado['geo']),
+            style_function=lambda x: {
+                'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 5, 'fillOpacity': 0.4
+            }
+        ).add_to(m)
+
+    # 2. Marcadores de Tanques
+    for id_tq, info in mapa_tanques_dict.items():
+        # Obtener valor del SCADA usando el campo nivel_tanque
+        raw_val, fecha_tq = data_scada.get(info['tag_nivel'], (0.0, "N/A"))
+        
+        # Convertir a float de forma segura
+        try:
+            val_nivel = float(raw_val) if raw_val is not None else 0.0
+        except:
+            val_nivel = 0.0
+
+        porcentaje = (val_nivel / info['nivel_max']) * 100
+        
+        html_tq = f"""
+        <div style="background:#050505; color:white; padding:12px; border-radius:10px; border:2px solid #00d4ff; width:220px; font-family:sans-serif;">
+            <b style="color:#00d4ff; font-size:14px;">{info['nombre']}</b><br>
+            <span style="font-size:11px;">Nivel Actual: <b>{val_nivel:.2f} m</b></span>
+            <div style="background:#222; height:10px; border-radius:5px; margin:8px 0; border:1px solid #444;">
+                <div style="background:linear-gradient(90deg, #005f73, #00d4ff); width:{min(max(porcentaje,0), 100)}%; height:100%; border-radius:5px;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:10px; color:#aaa;">
+                <span>0m</span><span>{info['nivel_max']}m</span>
+            </div>
+            <p style="font-size:9px; color:#FFFF00; margin-top:8px; border-top:1px solid #333; pt:4px;">🕒 {fecha_tq}</p>
+        </div>
+        """
+
+        folium.RegularPolygonMarker(
+            location=info['coord'],
+            number_of_sides=4, # Forma cuadrada
+            radius=10,
+            color="#ffffff",
+            weight=1,
+            fill=True,
+            fill_color="#00d4ff",
+            fill_opacity=0.8,
+            popup=folium.Popup(html_tq, max_width=260),
+            tooltip=f"TANQUE: {id_tq}"
+        ).add_to(m)
+    
     folium_static(m, width=None, height=750)
 
 

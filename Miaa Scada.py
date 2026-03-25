@@ -694,8 +694,8 @@ with col_mapa:
         </style>
         """
 
-# --- RENDERIZADO DE SECTORES (Solo si el checkbox está activo) ---
-if ver_sectores and sectores:
+    # --- RENDERIZADO DE SECTORES (Solo si el checkbox está activo) ---
+    if ver_sectores and sectores:
         for s in sectores:
             try:
                 nombre_sec = s['sector']
@@ -713,16 +713,15 @@ if ver_sectores and sectores:
                     style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1},
                     popup=folium.Popup(html_sector, max_width=250)
                 ).add_to(m)
-            except: continue
-                
-        
+            except: 
+                continue
 
-    #  RENDERIZADO DE POZOS
-        for id_p, info in mapa_pozos_dict.items():
+    # --- RENDERIZADO DE POZOS (Independiente de los sectores) ---
+    for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
         
-        # Extracción de datos y fechas (Tu diseño original)
+        # Extracción de datos y fechas
         q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
         p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
         sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
@@ -739,7 +738,7 @@ if ver_sectores and sectores:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # POPUP DE LOS POZOS ------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # POPUP DE LOS POZOS
         html_popup = f"""
         <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
             <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
@@ -825,47 +824,30 @@ if ver_sectores and sectores:
             ).add_to(m)
 
         # CAPA DEL MARCADOR (Puntos/Blinkers)
-# Solo dibujar si el checkbox de pozos está activo
-    if ver_pozos:
-        if info.get('blink'):
-            folium.Marker(
-                location=info['coord'],
-                icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                popup=folium.Popup(html_popup, max_width=450)
-            ).add_to(m)
-        else:
-            folium.CircleMarker(
-                location=info['coord'],
-                radius=4,
-                color=info['color_final'],
-                fill=True,
-                fill_color=info['color_final'],
-                fill_opacity=1,
-                popup=folium.Popup(html_popup, max_width=450)
-            ).add_to(m)
+        if ver_pozos:
+            if info.get('blink'):
+                folium.Marker(
+                    location=info['coord'],
+                    icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                    popup=folium.Popup(html_popup, max_width=450)
+                ).add_to(m)
+            else:
+                folium.CircleMarker(
+                    location=info['coord'],
+                    radius=4,
+                    color=info['color_final'],
+                    fill=True,
+                    fill_color=info['color_final'],
+                    fill_opacity=1,
+                    popup=folium.Popup(html_popup, max_width=450)
+                ).add_to(m)
 
-    # Solo dibujar etiquetas si el checkbox de etiquetas está activo
-    if ver_etiquetas:
-        folium.Marker(
-            location=info['coord'],
-            icon=folium.DivIcon(
-                icon_size=(150,36),
-                icon_anchor=(-12, 10),
-                html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_p}</div>'
-            )
-        ).add_to(m)
-
-    # Renderizado final del mapa pozos
-    
-# --- RENDERIZADO DE TANQUES --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    # --- RENDERIZADO DE TANQUES ---
     for id_tq, info in mapa_tanques_dict.items():
         val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
         n_max = info['nivel_max'] if info['nivel_max'] else 1.0
         porcentaje = (val_nivel / n_max) * 100
         
-        # Color según nivel: Cyan si está bien, Naranja si está bajo (ej. < 20%)
-        color_tq = "#00d4ff" if porcentaje > 20 else "#FFA500"
-
         html_popup_tq = f"""
         <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
             <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
@@ -886,10 +868,9 @@ if ver_sectores and sectores:
         </div>
         """
 
-        # Marcador Cuadrado para Tanques
         folium.RegularPolygonMarker(
             location=info['coord'],
-            number_of_sides=6, # <--- CAMBIA ESTO: 3=Triángulo, 4=Cuadrado, 6=Hexágono, 8=Octágono
+            number_of_sides=6,
             radius=5,
             color="#00d4ff",
             fill=True,
@@ -899,7 +880,6 @@ if ver_sectores and sectores:
             tooltip=f"Tanque: {info['nombre']}"
         ).add_to(m)
 
-        # Etiqueta del Tanque
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(
@@ -907,10 +887,8 @@ if ver_sectores and sectores:
                 html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
             )
         ).add_to(m)
-# Renderizado final del mapa tanques
 
-    
+    # 6. RENDERIZADO FINAL DEL MAPA (FUERA DE TODOS LOS IF Y FOR)
     folium_static(m, width=None, height=750)
-
 
 

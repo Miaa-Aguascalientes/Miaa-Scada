@@ -535,11 +535,6 @@ if sector_seleccionado:
     
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
-    # 1. INICIALIZACIÓN DE VARIABLES DE POSICIÓN (Importante: al principio)
-    centro_mapa = [21.8820, -102.2800]
-    zoom_inicial = 12.5
-    datos_sector_resaltado = None
-    
     # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
@@ -573,7 +568,9 @@ with st.sidebar:
         render_status_line("BD-Diccionarios:", status_mysql_tele)
         render_status_line("BD-PostgreSQL:", status_postgres)
 
-
+    # --- BUSCADORES ---
+    centro_mapa = [21.8820, -102.2800]
+    zoom_inicial = 12.5
 
     # 1. Localizar Sitio (Pozo)
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
@@ -583,20 +580,9 @@ with st.sidebar:
         format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}"
     )
 
-# LÓGICA DE POSICIONAMIENTO (Prioridad: Pozo > Sector > Default)
     if pozo_buscado and pozo_buscado in mapa_pozos_dict:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         zoom_inicial = 17 
-    elif sector_buscado:
-        datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
-        if datos_s:
-            datos_sector_resaltado = datos_s
-            try:
-                geom = json.loads(datos_s['geo'])
-                coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
-                centro_mapa = [coords_raw[1], coords_raw[0]]
-                zoom_inicial = 14.5
-            except: pass
 
 # --- BUSCADOR DE SECTORES (LOCALIZADOR) ---
     lista_sectores = sorted([s['sector'] for s in sectores])
@@ -909,4 +895,5 @@ with col_mapa:
 
     # FINAL: Renderizado del mapa
     folium_static(m, width=None, height=750)
+
 

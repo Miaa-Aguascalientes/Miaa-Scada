@@ -845,22 +845,32 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-# --- RENDERIZADO DE TANQUES (Ahora controlado por ver_etiquetas) ---
+# --- RENDERIZADO DE TANQUES
     if ver_tanques:
         for id_tq, info in mapa_tanques_dict.items():
             val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
             n_max = info['nivel_max'] if info['nivel_max'] else 1.0
             porcentaje = (val_nivel / n_max) * 100
             
-            html_popup_tq = f"""
-            <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
-                <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
+        html_popup_tq = f"""
+        <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
+            <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
+            <span style="font-size: 10px; color: #888;">ID: {id_tq}</span>
+            <hr style="border: 0.5px solid #333;">
+            <div style="margin-top: 8px;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                    <span>💧 Nivel Actual:</span>
+                    <b>{val_nivel:.2f} m</b>
+                </div>
                 <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
                     <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
                 </div>
-                <div style="font-size: 10px; color: #aaa;">Nivel: {val_nivel:.2f} m</div>
+                <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad Máx: {n_max} m</div>
             </div>
-            """
+            <div style="margin-top: 10px; font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
+            <div style="margin-top: 5px; font-size: 9px; color: #666;">📍 Sitios: {info['sitios']}</div>
+        </div>
+        """
 
             # Marcador del Tanque
             folium.RegularPolygonMarker(

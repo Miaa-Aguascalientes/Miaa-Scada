@@ -545,6 +545,20 @@ with st.sidebar:
     if pozo_buscado and pozo_buscado in mapa_pozos_dict:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         zoom_inicial = 17 # Zoom más cerrado para inspección
+
+    # --- NUEVO: BUSCADOR DE SECTORES ---
+    lista_sectores = sorted([s['sector'] for s in sectores])
+    sector_buscado = st.selectbox(
+        "🏘️ Analizar Sector",
+        options=[""] + lista_sectores,
+        format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
+        key="busqueda_sectores"
+    )
+
+    # Si se selecciona un sector en el buscador, recargamos con el parámetro en la URL
+    if sector_buscado:
+        st.query_params["sector"] = sector_buscado
+        st.rerun()
         
 # --- BOTON PARA REFRESCAR LAS CONEXIONES DE TODO EL PANEL ---
     if st.button("♻️ Actualizar Datos", use_container_width=True):

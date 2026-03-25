@@ -744,9 +744,8 @@ if ver_sectores and sectores:
         except Exception as e:
             continue # Si un polígono falla, continúa con el siguiente
                 
-        
+#  RENDERIZADO DE POZOS ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-    #  RENDERIZADO DE POZOS
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
@@ -873,7 +872,9 @@ if ver_sectores and sectores:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-                # --- RENDERIZADO DE TANQUES ---
+# --- RENDERIZADO DE TANQUES ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+if ver_tanques: # <-- Condición vinculada al checkbox
     for id_tq, info in mapa_tanques_dict.items():
         val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
         n_max = info['nivel_max'] if info['nivel_max'] else 1.0

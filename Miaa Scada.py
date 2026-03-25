@@ -770,19 +770,19 @@ with col_mapa:
                 <div style="margin-bottom: 12px;">
                     <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>📏 Sumergencia: <b>{sumer:.1f} m</b></span>
+                        <span>📏 Sumergencia: <b>{sumer:.2f} m</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>📉 Dinámico: <b>{dinam:.1f} m</b></span>
+                        <span>📉 Dinámico: <b>{dinam:.2f} m</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>🏗️ Columna: <b>{col:.1f} m</b></span>
+                        <span>🏗️ Columna: <b>{col:.2f} m</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
                     </div>
                     <div style="display: flex; align-items: baseline; font-size: 11px;">
-                        <span>🔋 Tanque: <b>{tanq:.1f} mts</b></span>
+                        <span>🔋 Tanque: <b>{tanq:.2f} mts</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
                     </div>
                 </div>
@@ -796,18 +796,18 @@ with col_mapa:
                         </tr>
                         <tr style="border-bottom: 1px solid #222;">
                             <td style="padding: 6px 4px;">L1-L2</td>
-                            <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
-                            <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
+                            <td><b>{v[0][0]:.0f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
+                            <td><b>{a[0][0]:.0f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
                         </tr>
                         <tr style="border-bottom: 1px solid #222;">
                             <td style="padding: 6px 4px;">L2-L3</td>
-                            <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
-                            <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
+                            <td><b>{v[1][0]:.0f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
+                            <td><b>{a[1][0]:.0f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
                         </tr>
                         <tr>
                             <td style="padding: 6px 4px;">L1-L3</td>
-                            <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
-                            <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
+                            <td><b>{v[2][0]:.0f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
+                            <td><b>{a[2][0]:.0f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
                         </tr>
                     </table>
                 </div>

@@ -628,7 +628,7 @@ with st.sidebar:
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
         ver_etiquetas = st.checkbox("Mostrar ID Pozos", value=True)
-        ver_tanques = st.checkbox("Mostrar Tanques", value=False)
+        
     
    # Sección de Bombas ON
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
@@ -874,57 +874,35 @@ if ver_sectores and sectores:
 
 # --- RENDERIZADO DE TANQUES ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-if ver_tanques: # <-- Condición vinculada al checkbox
-    for id_tq, info in mapa_tanques_dict.items():
-        val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
-        n_max = info['nivel_max'] if info['nivel_max'] else 1.0
-        porcentaje = (val_nivel / n_max) * 100
-        
-        # Color según nivel: Cyan si está bien, Naranja si está bajo (ej. < 20%)
-        color_tq = "#00d4ff" if porcentaje > 20 else "#FFA500"
-
-        html_popup_tq = f"""
-        <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
-            <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
-            <span style="font-size: 10px; color: #888;">ID: {id_tq}</span>
-            <hr style="border: 0.5px solid #333;">
-            <div style="margin-top: 8px;">
-                <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                    <span>💧 Nivel Actual:</span>
-                    <b>{val_nivel:.2f} m</b>
-                </div>
-                <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
-                    <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
-                </div>
-                <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad Máx: {n_max} m</div>
-            </div>
-            <div style="margin-top: 10px; font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
-            <div style="margin-top: 5px; font-size: 9px; color: #666;">📍 Sitios: {info['sitios']}</div>
+# B. DIBUJAR TANQUES
+for id_tq, info in mapa_tanques_dict.items():
+    # Obtener nivel del SCADA con validación de nulo
+    raw_val, fecha_tq = data_scada.get(info['tag_nivel'], (0.0, "N/A"))
+    val_nivel = float(raw_val) if raw_val is not None else 0.0
+    
+    porcentaje = (val_nivel / info['nivel_max']) * 100
+    
+    html_tq = f"""
+    <div style="background:#050505; color:white; padding:10px; border-radius:8px; border:2px solid #00d4ff; width:200px;">
+        <b style="color:#00d4ff;">{info['nombre']}</b><br>
+        <small>Nivel: {val_nivel:.2f} m ({porcentaje:.1f}%)</small>
+        <div style="background:#222; height:8px; border-radius:4px; margin-top:5px;">
+            <div style="background:#00d4ff; width:{min(porcentaje, 100)}%; height:100%; border-radius:4px;"></div>
         </div>
-        """
+        <p style="font-size:9px; color:#FFFF00; margin-top:5px;">Act: {fecha_tq}</p>
+    </div>
+    """
 
-# Dibujar el marcador del tanque
-        folium.RegularPolygonMarker(
-            location=info['coord'],
-            number_of_sides=4,
-            radius=10,
-            color="#ffffff",
-            weight=1,
-            fill=True,
-            fill_color="#00d4ff",
-            fill_opacity=0.8,
-            popup=folium.Popup(html_tq, max_width=260),
-            tooltip=f"TANQUE: {id_tq}"
-        ).add_to(m)
-
-        # Dibujar el ID del tanque
-        folium.Marker(
-            location=info['coord'],
-            icon=folium.DivIcon(
-                icon_anchor=(20, -10),
-                html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
-            )
-        ).add_to(m)
+    folium.RegularPolygonMarker(
+        location=info['coord'],
+        number_of_sides=4, # Cuadrado para tanques
+        radius=10,
+        color="#00d4ff",
+        fill=True,
+        fill_opacity=0.8,
+        popup=folium.Popup(html_tq, max_width=250),
+        tooltip=f"Tanque: {id_tq}"
+    ).add_to(m)
 
                 
 

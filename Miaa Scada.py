@@ -661,7 +661,7 @@ with col_mapa:
     m = folium.Map(location=centro_mapa, zoom_start=zoom_inicial, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # 2. CAPA DE SECTOR RESALTADO (Buscador)
+# 2. CAPA DE SECTOR RESALTADO (Buscador/Filtro externo)
     if datos_sector_resaltado:
         folium.GeoJson(
             json.loads(datos_sector_resaltado['geo']),
@@ -694,7 +694,7 @@ with col_mapa:
         </style>
         """
 
-    # --- RENDERIZADO DE SECTORES ---
+# --- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) ---
     if ver_sectores and sectores:
         for s in sectores:
             try:
@@ -708,13 +708,26 @@ with col_mapa:
                     <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
                 </div>
                 """
+                
+                # Aquí restauramos el estilo interactivo
                 folium.GeoJson(
                     geo_data, 
-                    style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1},
-                    popup=folium.Popup(html_sector, max_width=250)
+                    style_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#00d4ff', 
+                        'weight': 1.5, 
+                        'fillOpacity': 0.1
+                    },
+                    highlight_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#ffffff',  # Borde blanco al pasar el mouse
+                        'weight': 3, 
+                        'fillOpacity': 0.4
+                    },
+                    popup=folium.Popup(html_sector, max_width=250),
+                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
                 ).add_to(m)
-            except: 
-                continue
+            except: continue
 
     # --- RENDERIZADO DE POZOS (UNIFICADO) ---
     # Usamos solo 'ver_pozos' para controlar ambas cosas

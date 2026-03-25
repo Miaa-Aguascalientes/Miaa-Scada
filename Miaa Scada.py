@@ -903,20 +903,21 @@ if ver_tanques: # <-- Condición vinculada al checkbox
         </div>
         """
 
-        # Marcador Cuadrado para Tanques
+# Dibujar el marcador del tanque
         folium.RegularPolygonMarker(
             location=info['coord'],
-            number_of_sides=4, # Cuadrado para diferenciarlo de los pozos circulares
-            radius=8,
-            color="#00d4ff",
+            number_of_sides=4,
+            radius=10,
+            color="#ffffff",
+            weight=1,
             fill=True,
             fill_color="#00d4ff",
-            fill_opacity=0.7,
-            popup=folium.Popup(html_popup_tq, max_width=300),
-            tooltip=f"Tanque: {info['nombre']}"
+            fill_opacity=0.8,
+            popup=folium.Popup(html_tq, max_width=260),
+            tooltip=f"TANQUE: {id_tq}"
         ).add_to(m)
 
-        # Etiqueta del Tanque
+        # Dibujar el ID del tanque
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(

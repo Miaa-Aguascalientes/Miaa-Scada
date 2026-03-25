@@ -885,7 +885,7 @@ with col_mapa:
             ).add_to(m)
 
             # Etiqueta del Tanque
-            folium.Marker(
+        folium.Marker(
                 location=info['coord'],
                 icon=folium.DivIcon(
                     icon_anchor=(20, -10),

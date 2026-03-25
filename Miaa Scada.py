@@ -657,22 +657,16 @@ st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes<
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
 with col_mapa:
-    # Usamos las variables dinámicas centro_mapa y zoom_inicial definidas en el buscador
+    # 1. CREAR EL MAPA BASE (Esto se ejecuta SIEMPRE)
     m = folium.Map(location=centro_mapa, zoom_start=zoom_inicial, tiles="CartoDB dark_matter")
     Fullscreen().add_to(m)
 
-    # Si hay un sector seleccionado en el buscador, lo resaltamos con un estilo especial
+    # 2. CAPA DE SECTOR RESALTADO (Buscador)
     if datos_sector_resaltado:
         folium.GeoJson(
             json.loads(datos_sector_resaltado['geo']),
             name="Sector Resaltado",
-            style_function=lambda x: {
-                'fillColor': '#00d4ff',
-                'color': '#ffffff',  # Borde blanco para resaltar
-                'weight': 4,         # Borde más grueso
-                'fillOpacity': 0.4   # Relleno más intenso
-            },
-            tooltip=folium.Tooltip(f"SECTOR SELECCIONADO: {datos_sector_resaltado['sector']}")
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 4, 'fillOpacity': 0.4}
         ).add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00
@@ -702,32 +696,24 @@ with col_mapa:
 
 # --- RENDERIZADO DE SECTORES (Solo si el checkbox está activo) ---
 if ver_sectores and sectores:
-    for s in sectores:
-        try:
-            nombre_sec = s['sector']
-            url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-            geo_data = json.loads(s['geo'])
-            
-            html_sector = f"""
-            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                <a href="{url_sector}" target="_blank" 
-                   style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; 
-                          text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">
-                   🚀 Ver Detalles
-                </a>
-            </div>
-            """
-            
-            folium.GeoJson(
-                geo_data, 
-                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1},
-                highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
-                popup=folium.Popup(html_sector, max_width=250),
-                tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-            ).add_to(m)
-        except:
-            continue
+        for s in sectores:
+            try:
+                nombre_sec = s['sector']
+                url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
+                geo_data = json.loads(s['geo'])
+                
+                html_sector = f"""
+                <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+                    <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
+                    <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
+                </div>
+                """
+                folium.GeoJson(
+                    geo_data, 
+                    style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1},
+                    popup=folium.Popup(html_sector, max_width=250)
+                ).add_to(m)
+            except: continue
                 
         
 

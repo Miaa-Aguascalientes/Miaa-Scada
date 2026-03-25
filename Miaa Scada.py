@@ -538,11 +538,11 @@ with st.sidebar:
     # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
-    # 1. Inicializamos variables de control con valores por defecto
+    # 1. Inicializamos variables de estado (Solo si no existen)
     if 'centro_mapa' not in st.session_state:
         st.session_state.centro_mapa = [21.8820, -102.2800]
         st.session_state.zoom_inicial = 12.5
-    
+
     # --- RESUMEN GLOBAL ---
     st.markdown(f"""
         <div class="resumen-card">
@@ -552,7 +552,7 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
     
-    # --- ESTADO DE LAS CONEXIONES (ALINEADO A LA DERECHA) ---    
+    # --- ESTADO DE LAS CONEXIONES ---    
     with st.expander("🔌 Estado de las Conexiones", expanded=True):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
         status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
@@ -560,7 +560,6 @@ with st.sidebar:
 
         def render_status_line(label, status):
             cls = "status-ok" if status == "OK" else "status-err"
-            # Flexbox para empujar el tag a la derecha
             html = f"""
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <span style="font-weight: bold; font-size: 13px;">{label}</span>
@@ -573,11 +572,11 @@ with st.sidebar:
         render_status_line("BD-Diccionarios:", status_mysql_tele)
         render_status_line("BD-PostgreSQL:", status_postgres)
 
-    # --- BUSCADORES ---
-    centro_mapa = [21.8820, -102.2800]
-    zoom_inicial = 12.5
+    st.divider()
 
-# 2. Buscador de Pozos
+    # --- BUSCADORES (LÓGICA UNIFICADA) ---
+    
+    # 2. Buscador de Pozos
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
     pozo_buscado = st.selectbox(
         "🔍 Localizar Sitio",
@@ -585,11 +584,7 @@ with st.sidebar:
         format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}"
     )
 
-    if pozo_buscado and pozo_buscado in mapa_pozos_dict:
-        centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
-        zoom_inicial = 17 
-
-# --- BUSCADOR DE SECTORES (LOCALIZADOR) ---
+    # 3. Buscador de Sectores
     lista_sectores = sorted([s['sector'] for s in sectores])
     sector_buscado = st.selectbox(
         "🏘️ Localizar Sector",
@@ -598,20 +593,15 @@ with st.sidebar:
         key="busqueda_sectores"
     )
 
-    # Variables de control del mapa
-    centro_mapa = [21.8820, -102.2800]
-    zoom_inicial = 12.5
-    datos_sector_resaltado = None # Variable para guardar la geometría a resaltar
-
-# 4. ASIGNACIÓN DE PRIORIDAD (Aquí está la corrección)
+    # 4. ASIGNACIÓN DE POSICIÓN Y PRIORIDAD
     datos_sector_resaltado = None
 
     if pozo_buscado:
-        # Si seleccionas un pozo, el mapa va directo a sus coordenadas
+        # Prioridad 1: Pozo seleccionado
         st.session_state.centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
-        st.session_state.zoom_inicial = 18 
+        st.session_state.zoom_inicial = 18
     elif sector_buscado:
-        # Si no hay pozo, pero hay sector, centramos en el sector
+        # Prioridad 2: Sector seleccionado
         datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
         if datos_s:
             datos_sector_resaltado = datos_s
@@ -620,46 +610,39 @@ with st.sidebar:
                 coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
                 st.session_state.centro_mapa = [coords_raw[1], coords_raw[0]]
                 st.session_state.zoom_inicial = 14.5
-            except: pass
+            except:
+                pass
     else:
-        # Si ambos están vacíos, volvemos a la vista general
+        # Prioridad 3: Si no hay nada seleccionado, mantener o resetear a vista general
         st.session_state.centro_mapa = [21.8820, -102.2800]
         st.session_state.zoom_inicial = 12.5
-    
-    # Lógica de posicionamiento para POZOS (mantiene prioridad si se busca un pozo)
-    if pozo_buscado and pozo_buscado in mapa_pozos_dict:
-        centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
-        zoom_inicial = 17
         
-# --- BOTON PARA REFRESCAR LAS CONEXIONES DE TODO EL PANEL ---
+    # --- BOTON ACTUALIZAR ---
     if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
         st.cache_resource.clear()
         st.rerun()
         
-# --- CONTROL DE CAPAS DEL MAPA ---
+    # --- CONTROL DE CAPAS ---
     with st.expander("🗺️ Control de Capas", expanded=False):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
         ver_tanques = st.checkbox("Mostrar Tanques", value=True)
     
-   # Sección de Bombas ON
+    # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
         for p in sorted(pozos_on): 
             st.write(f"🟢 {p}")
     
-    # Sección de Bombas OFF
     with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
         for p in sorted(pozos_off): 
             st.write(f"🔴 {p}")
 
-    # Nueva Sección: Falla de Comunicación
     if pozos_falla_com:
         with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
             for p in sorted(pozos_falla_com):
                 st.write(f"🟠 {p}")
     
-    # Sección Sin Telemetría
     if pozos_sin_telemetria:
         with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
             for p in sorted(pozos_sin_telemetria): 

@@ -718,7 +718,7 @@ if ver_sectores and sectores:
         
 
     #  RENDERIZADO DE POZOS
-    for id_p, info in mapa_pozos_dict.items():
+        for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         is_st = (info['status_label'] == 'SIN TELEMETRÍA')
         

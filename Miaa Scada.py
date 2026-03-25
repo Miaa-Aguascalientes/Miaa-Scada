@@ -547,26 +547,37 @@ with st.sidebar:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         zoom_inicial = 17 
 
-    # 2. Localizar Sector
+# --- BUSCADOR DE SECTORES (LOCALIZADOR) ---
     lista_sectores = sorted([s['sector'] for s in sectores])
     sector_buscado = st.selectbox(
         "🏘️ Localizar Sector",
         options=[""] + lista_sectores,
-        format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}"
+        format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
+        key="busqueda_sectores"
     )
+
+    # Variables de control del mapa
+    centro_mapa = [21.8820, -102.2800]
+    zoom_inicial = 12.5
+    datos_sector_resaltado = None # Variable para guardar la geometría a resaltar
 
     if sector_buscado:
         datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
         if datos_s:
+            datos_sector_resaltado = datos_s # Guardamos para el mapa
             try:
                 geom = json.loads(datos_s['geo'])
-                # Extraemos primer punto: [longitud, latitud]
+                # Inversión de coordenadas para Folium [lat, lon]
                 coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
-                # INVERSIÓN CRÍTICA: de [lon, lat] a [lat, lon] para Folium
                 centro_mapa = [coords_raw[1], coords_raw[0]]
                 zoom_inicial = 14.5
             except:
                 pass
+    
+    # Lógica de posicionamiento para POZOS (mantiene prioridad si se busca un pozo)
+    if pozo_buscado and pozo_buscado in mapa_pozos_dict:
+        centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
+        zoom_inicial = 17
         
 # --- BOTON PARA REFRESCAR LAS CONEXIONES DE TODO EL PANEL ---
     if st.button("♻️ Actualizar Datos", use_container_width=True):

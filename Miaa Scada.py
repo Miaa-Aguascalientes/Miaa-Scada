@@ -571,10 +571,6 @@ with st.sidebar:
         render_status_line("BD-Scada:", status_mysql_scada)
         render_status_line("BD-Diccionarios:", status_mysql_tele)
         render_status_line("BD-PostgreSQL:", status_postgres)
-
-    st.divider()
-
-    # --- BUSCADORES (LÓGICA UNIFICADA) ---
     
     # 2. Buscador de Pozos
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
@@ -627,7 +623,7 @@ with st.sidebar:
     with st.expander("🗺️ Control de Capas", expanded=False):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
-        ver_tanques = st.checkbox("Mostrar Tanques", value=True)
+        ver_tanques = st.checkbox("Mostrar Tanques", value=False)
     
     # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):

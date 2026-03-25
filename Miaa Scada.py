@@ -495,6 +495,7 @@ if sector_seleccionado:
         st.error(f"No se encontró información para el sector {sector_seleccionado}")
     
     st.stop()
+    
 # 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo
@@ -517,6 +518,7 @@ with st.sidebar:
 
         def render_status_line(label, status):
             cls = "status-ok" if status == "OK" else "status-err"
+            # Flexbox para empujar el tag a la derecha
             html = f"""
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <span style="font-weight: bold; font-size: 13px;">{label}</span>
@@ -529,45 +531,40 @@ with st.sidebar:
         render_status_line("BD-Diccionarios:", status_mysql_tele)
         render_status_line("BD-PostgreSQL:", status_postgres)
 
-# --- BUSCADOR DE SITIOS (POZOS) ---
+    # --- BUSCADORES ---
+    centro_mapa = [21.8820, -102.2800]
+    zoom_inicial = 12.5
+
+    # 1. Localizar Sitio (Pozo)
     lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
     pozo_buscado = st.selectbox(
         "🔍 Localizar Sitio",
         options=[""] + lista_pozos_nombres,
-        format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}",
-        key="busqueda_pozos"
+        format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}"
     )
 
-    # Variables de control del mapa (Valores por defecto)
-    centro_mapa = [21.8820, -102.2800]
-    zoom_inicial = 12.5
-
-    # Lógica de posicionamiento para POZOS
     if pozo_buscado and pozo_buscado in mapa_pozos_dict:
         centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         zoom_inicial = 17 
 
-    # --- BUSCADOR DE SECTORES (LOCALIZADOR) ---
+    # 2. Localizar Sector
     lista_sectores = sorted([s['sector'] for s in sectores])
     sector_buscado = st.selectbox(
         "🏘️ Localizar Sector",
         options=[""] + lista_sectores,
-        format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
-        key="busqueda_sectores"
+        format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}"
     )
 
-    # Lógica de posicionamiento para SECTORES
     if sector_buscado:
-        # Buscamos los datos del sector seleccionado
         datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
         if datos_s:
             try:
-                # Extraemos el centroide del GeoJSON para centrar el mapa
                 geom = json.loads(datos_s['geo'])
-                coords = geom['coordinates'][0][0] # Tomamos un punto de referencia del polígono
-                # Invertimos de [lon, lat] a [lat, lon] que es lo que usa folium
-                centro_mapa = [coords[1], coords[0]]
-                zoom_inicial = 14.5 # Zoom ideal para ver un sector completo
+                # Extraemos primer punto: [longitud, latitud]
+                coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
+                # INVERSIÓN CRÍTICA: de [lon, lat] a [lat, lon] para Folium
+                centro_mapa = [coords_raw[1], coords_raw[0]]
+                zoom_inicial = 14.5
             except:
                 pass
         

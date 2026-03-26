@@ -982,7 +982,7 @@ if ver_rebombeos:
         ).add_to(m)      
 
     # FINAL: Renderizado del mapa
-    folium_static(m, width=None, height=750)
+folium_static(m, width=None, height=750)
 
 
 

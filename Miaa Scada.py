@@ -980,7 +980,7 @@ if ver_rebombeos:
                 html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
             )
         ).add_to(m)
-except: continue    
+        except: continue    
 
     # FINAL: Renderizado del mapa
 folium_static(m, width=None, height=750)

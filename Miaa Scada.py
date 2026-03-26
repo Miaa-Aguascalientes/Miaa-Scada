@@ -871,6 +871,7 @@ with col_mapa:
                     fill_opacity=1,
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
+                pass
 
 # --- RENDERIZADO DE TANQUES (Controlado por ver_etiquetas / "Mostrar Tanques") ---
     if ver_tanques:
@@ -919,6 +920,7 @@ with col_mapa:
                     html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
                 )
             ).add_to(m)
+            pass
             
 # --- RENDERIZADO DE REBOMBEOS (CAPA INDEPENDIENTE) ---
 if ver_rebombeos:

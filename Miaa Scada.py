@@ -692,40 +692,49 @@ with col_mapa:
         </style>
         """
 
-# --- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) ---
-    if ver_sectores and sectores:
-        for s in sectores:
-            try:
-                nombre_sec = s['sector']
-                url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-                geo_data = json.loads(s['geo'])
-                
-                html_sector = f"""
-                <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                    <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                    <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
-                </div>
-                """
-                
-                # Aquí restauramos el estilo interactivo
-                folium.GeoJson(
-                    geo_data, 
-                    style_function=lambda x: {
-                        'fillColor': '#00d4ff', 
-                        'color': '#00d4ff', 
-                        'weight': 1.5, 
-                        'fillOpacity': 0.1
-                    },
-                    highlight_function=lambda x: {
-                        'fillColor': '#00d4ff', 
-                        'color': '#ffffff',  # Borde blanco al pasar el mouse
-                        'weight': 3, 
-                        'fillOpacity': 0.4
-                    },
-                    popup=folium.Popup(html_sector, max_width=250),
-                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-                ).add_to(m)
-            except: continue
+# --- RENDERIZADO DE SECTORES (OPTIMIZADO PARA EVITAR PANTALLA EN BLANCO) ---
+if ver_sectores and sectores:
+    # Agrupamos los sectores en un FeatureGroup para mejorar el rendimiento
+    fg_sectores = folium.FeatureGroup(name="Capa de Sectores")
+    
+    for s in sectores:
+        try:
+            nombre_sec = s['sector']
+            url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
+            geo_data = json.loads(s['geo'])
+            
+            html_sector = f"""
+            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+                <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
+                <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
+            </div>
+            """
+            
+            # Usamos una representación más ligera de los polígonos
+            folium.GeoJson(
+                geo_data, 
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#00d4ff', 
+                    'weight': 1,      # Bajamos el grosor del borde
+                    'fillOpacity': 0.1
+                },
+                # Se recomienda comentar el highlight_function si el mapa sigue fallando
+                # ya que consume mucha memoria al procesar eventos del mouse
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 2, 
+                    'fillOpacity': 0.3
+                },
+                popup=folium.Popup(html_sector, max_width=250),
+                tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
+            ).add_to(fg_sectores)
+        except: 
+            continue
+    
+    # Añadimos todo el grupo al mapa de un solo golpe
+    fg_sectores.add_to(m)
 
     # --- RENDERIZADO DE POZOS (UNIFICADO) ---
     # Usamos solo 'ver_pozos' para controlar ambas cosas

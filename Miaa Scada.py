@@ -692,36 +692,28 @@ with col_mapa:
         </style>
         """
 
-# --- RENDERIZADO DE SECTORES (OPTIMIZADO) ---
-if ver_sectores and sectores:
-    fg_sectores = folium.FeatureGroup(name="Capa Sectores") # Agrupador
-    for s in sectores:
-        try:
-            nombre_sec = s['sector']
-            url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-            geo_data = json.loads(s['geo'])
-            
-            html_sector = f"""
-            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
-            </div>
-            """
-            
-            folium.GeoJson(
-                geo_data, 
-                style_function=lambda x: {
-                    'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1
-                },
-                # Si el mapa sigue fallando, comenta el highlight_function
-                highlight_function=lambda x: {
-                    'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.3
-                },
-                popup=folium.Popup(html_sector, max_width=250),
-                tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-            ).add_to(fg_sectores)
-        except: continue
-    fg_sectores.add_to(m) # Se añade el grupo completo al final
+# RENDERIZADO DE SECTORES
+    if ver_sectores and sectores:
+        for s in sectores:
+            try:
+                nombre_sec = s['sector']
+                url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
+                geo_data = json.loads(s['geo'])
+                
+                html_sector = f"""
+                <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+                    <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
+                    <a href="{url_sector}" target="_blank" style="padding: 6px 12px; background: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px; margin-top:5px; display: inline-block;">Ver Detalles</a>
+                </div>
+                """
+                folium.GeoJson(
+                    geo_data, 
+                    style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+                    popup=folium.Popup(html_sector, max_width=250),
+                    tooltip=f"Sector: {nombre_sec}"
+                ).add_to(m)
+            except: continue
+
 
     # --- RENDERIZADO DE POZOS (UNIFICADO) ---
     # Usamos solo 'ver_pozos' para controlar ambas cosas

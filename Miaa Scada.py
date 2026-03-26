@@ -655,7 +655,7 @@ with col_mapa:
     m = folium.Map(
         location=st.session_state.centro_mapa, 
         zoom_start=st.session_state.zoom_inicial, 
-        tiles="CartoDB dark_matter"
+        tiles="CartoDB dark_matter",
         prefer_canvas=True
     )
     Fullscreen().add_to(m)

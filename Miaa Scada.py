@@ -930,6 +930,6 @@ with col_mapa:
                 continue
 
     # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
-    folium_static(m, width=None, height=750)
+folium_static(m, width=None, height=750)
 
 

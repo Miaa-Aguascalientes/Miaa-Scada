@@ -872,12 +872,15 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-# --- RENDERIZADO DE TANQUES (Controlado por ver_etiquetas / "Mostrar Tanques") ---
-    if ver_tanques:
+# --- RENDERIZADO DE TANQUES 
+if ver_tanques: # ASEGÚRATE QUE ESTA VARIABLE SEA LA DEL CHECKBOX
         for id_tq, info in mapa_tanques_dict.items():
-            val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
-            n_max = info['nivel_max'] if info['nivel_max'] else 1.0
-            porcentaje = (val_nivel / n_max) * 100
+            try:
+                val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
+                # ... (resto de tu lógica de popup)
+                folium.RegularPolygonMarker(location=info['coord'], number_of_sides=6, radius=5, color="#00d4ff", fill=True, fill_color="#00d4ff", popup=folium.Popup(html_popup_tq, max_width=300)).add_to(m)
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(20, -10), html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>')).add_to(m)
+            except: continue
             
             # Restaurado el Popup Completo del Tanque
             html_popup_tq = f"""
@@ -956,33 +959,12 @@ with col_mapa:
 
                 # Dibujar el diamante o parpadeo
                 if info.get('blink'):
-                    folium.Marker(
-                        location=info['coord'],
-                        icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                        popup=folium.Popup(html_popup_rb, max_width=350)
-                    ).add_to(m)
+                    folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup_rb, max_width=350)).add_to(m)
                 else:
-                    folium.RegularPolygonMarker(
-                        location=info['coord'],
-                        number_of_sides=4,
-                        radius=6,
-                        color=info['color_final'],
-                        fill=True,
-                        fill_color=info['color_final'],
-                        fill_opacity=0.9,
-                        popup=folium.Popup(html_popup_rb, max_width=350)
-                    ).add_to(m)
-
-                # Etiqueta de ID (DENTRO del bucle y del try)
-                folium.Marker(
-                    location=info['coord'],
-                    icon=folium.DivIcon(
-                        icon_anchor=(-15, 15),
-                        html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
-                    )
-                ).add_to(m)
-            except:
-                continue
+                    folium.RegularPolygonMarker(location=info['coord'], number_of_sides=4, radius=6, color=info['color_final'], fill=True, fill_color=info['color_final'], popup=folium.Popup(html_popup_rb, max_width=350)).add_to(m)
+                
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-15, 15), html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>')).add_to(m)
+            except: continue
 
     # --- RENDERIZADO FINAL DEL MAPA ---
     # Debe estar alineado con los "if", dentro del "with col_mapa"

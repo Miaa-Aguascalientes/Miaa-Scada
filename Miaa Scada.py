@@ -931,5 +931,5 @@ with col_mapa:
 
     # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
     # IMPORTANTE: Esta línea debe tener EXACTAMENTE 4 espacios de sangría
-    folium_static(m, width=None, height=750)
+folium_static(m, width=None, height=750)
 

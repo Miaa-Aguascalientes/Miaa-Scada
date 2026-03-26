@@ -195,6 +195,34 @@ def cargar_tanques_desde_db():
             except: continue
         return nuevo_mapa_tq
     except: return {}
+        
+# DICCIONARIO DE REBOMBEOS
+@st.cache_data(ttl=600)
+def cargar_rebombeos_desde_db():
+    engine = get_mysql_telemetria_engine()
+    if not engine: return {}
+    try:
+        query = "SELECT * FROM Diccionario_de_rebombeos"
+        df_rb = pd.read_sql(query, engine)
+        
+        nuevo_mapa_rb = {}
+        for _, row in df_rb.iterrows():
+            try:
+                coords_str = str(row['coord']).strip().replace('(', '').replace(')', '')
+                lat, lon = map(float, coords_str.split(','))
+                
+                nuevo_mapa_rb[row['Rebombeo']] = {
+                    "nombre": row['Nombre_rebombeo'],
+                    "coord": (lat, lon),
+                    "telemetria": row['Telemetria'],
+                    "presion": row['presion'],
+                    "nivel_tanque": row['nivel_tanque'],
+                    "voltajes_l": [row['voltaje_L1'], row['voltaje_L2'], row['voltaje_L3']],
+                    "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']]
+                }
+            except: continue
+        return nuevo_mapa_rb
+    except: return {}
 
 def cargar_datos_scada(mapa_pozos):
     engine = get_mysql_scada_engine()
@@ -244,12 +272,13 @@ def cargar_sectores_poligonos():
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 mapa_tanques_dict = cargar_tanques_desde_db()
+mapa_rebombeos_dict = cargar_rebombeos_desde_db()
 data_scada = cargar_datos_scada(mapa_pozos_dict)
 
 # Unimos todos los tags (pozos + tanques) para una sola consulta al SCADA
 tags_tanques = [t['tag_nivel'] for t in mapa_tanques_dict.values() if t['tag_nivel']]
 # (Asegúrate de que tu función cargar_datos_scada incluya estos tags en la consulta)
-data_scada = cargar_datos_scada({**mapa_pozos_dict, **mapa_tanques_dict})
+data_scada = cargar_datos_scada({**mapa_pozos_dict, **mapa_tanques_dict, **mapa_rebombeos_dict})
 # Inicialización de listas y contadores para el resumen
 pozos_on = []
 pozos_off = []
@@ -624,6 +653,7 @@ with st.sidebar:
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
         ver_tanques = st.checkbox("Mostrar Tanques", value=True)
+        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=True)
     
     # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
@@ -890,6 +920,57 @@ with col_mapa:
                     html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
                 )
             ).add_to(m)
+            
+# --- RENDERIZADO DE REBOMBEOS  --------------------------------------------
+     if ver_rebombeos:
+    for id_rb, info in mapa_rebombeos_dict.items():
+        d = lambda tag: data_scada.get(tag, (0, "N/A"))
+        
+        # Extracción de valores
+        pres, f_p = d(info['presion'])
+        ntq, f_t = d(info['nivel_tanque'])
+        v_rb = [d(t) for t in info['voltajes_l']]
+        a_rb = [d(t) for t in info['amperajes_l']]
+
+        html_popup_rb = f"""
+        <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 300px; border: 2px solid #ff00ff; font-family: sans-serif;">
+            <b style="color: #ff00ff; font-size: 14px;">REBOMBEO: {info['nombre']}</b><br>
+            <span style="font-size: 10px; color: #888;">ID: {id_rb}</span>
+            <hr style="border: 0.5px solid #333;">
+            <div style="font-size: 11px; margin-bottom: 5px;">
+                🚀 Presión: <b>{pres:.2f} kg</b> <span style="color:#FFFF00; font-size:8px;">{f_p}</span><br>
+                🔋 Nivel Tanque: <b>{ntq:.2f} m</b> <span style="color:#FFFF00; font-size:8px;">{f_t}</span>
+            </div>
+            <table style="width: 100%; font-size: 9px; border-collapse: collapse;">
+                <tr style="color: #ff00ff; border-bottom: 1px solid #333;">
+                    <th>Fase</th><th>Voltaje</th><th>Amp</th>
+                </tr>
+                <tr><td>L1</td><td>{v_rb[0][0]:.0f}V</td><td>{a_rb[0][0]:.1f}A</td></tr>
+                <tr><td>L2</td><td>{v_rb[1][0]:.0f}V</td><td>{a_rb[1][0]:.1f}A</td></tr>
+                <tr><td>L3</td><td>{v_rb[2][0]:.0f}V</td><td>{a_rb[2][0]:.1f}A</td></tr>
+            </table>
+        </div>
+        """
+
+        folium.RegularPolygonMarker(
+            location=info['coord'],
+            number_of_sides=4, # Diamante
+            radius=6,
+            color="#ff00ff",
+            fill=True,
+            fill_color="#ff00ff",
+            fill_opacity=0.8,
+            popup=folium.Popup(html_popup_rb, max_width=350)
+        ).add_to(m)
+
+        # Etiqueta de ID
+        folium.Marker(
+            location=info['coord'],
+            icon=folium.DivIcon(
+                icon_anchor=(20, 20),
+                html=f'<div style="font-size: 9px; font-weight: bold; color: #ff00ff; text-shadow: 1px 1px #000;">{id_rb}</div>'
+            )
+        ).add_to(m)       
 
     # FINAL: Renderizado del mapa
     folium_static(m, width=None, height=750)

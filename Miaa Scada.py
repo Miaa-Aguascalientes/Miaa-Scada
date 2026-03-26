@@ -978,14 +978,15 @@ if ver_rebombeos:
             icon=folium.DivIcon(
                 icon_anchor=(-15, 15),
                 html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
-            )
-        ).add_to(m)
-        except: continue    
+)
+                ).add_to(m)
+            except: continue
 
-    # FINAL: Renderizado del mapa
-folium_static(m, width=None, height=750)
-
-
+    # =========================================================================
+    # CRUCIAL: folium_static DEBE ESTAR AQUÍ (ALINEADO CON LOS 'IF')
+    # Esto hace que el mapa se muestre SIEMPRE, con las capas que hayan entrado
+    # =========================================================================
+    folium_static(m, width=None, height=750)
 
 
 

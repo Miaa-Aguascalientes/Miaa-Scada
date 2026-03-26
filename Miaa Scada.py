@@ -924,7 +924,7 @@ if ver_tanques: # ASEGÚRATE QUE ESTA VARIABLE SEA LA DEL CHECKBOX
             ).add_to(m)
             
 # --- RENDERIZADO DE REBOMBEOS (CAPA INDEPENDIENTE) ---
-    if ver_rebombeos:
+if ver_rebombeos:
         for id_rb, info in mapa_rebombeos_dict.items():
             try:
                 # Usamos el helper d para los datos del Popup

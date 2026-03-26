@@ -999,8 +999,7 @@ if ver_rebombeos:
             continue
 
 # --- FINALIZACIÓN Y RENDERIZADO ---
-
-    folium_static(m, width=None, height=750)
+folium_static(m, width=None, height=750)
 
 
 

@@ -266,20 +266,43 @@ def cargar_sectores_poligonos():
         return []
 
 
-# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (OPTIMIZADO: TABLA ÚLTIMO VALOR + LÓGICA L1 + ZONA HORARIA) -----------------------------------------------------------------
+# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (OPTIMIZADO: LISTA MAESTRA DE TAGS) -----------------------------------------------------------------
 
-# Carga de datos base
+# 1. Carga de datos base desde MySQL
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 mapa_tanques_dict = cargar_tanques_desde_db()
 mapa_rebombeos_dict = cargar_rebombeos_desde_db()
-data_scada = cargar_datos_scada(mapa_pozos_dict)
 
-# Unimos todos los tags (pozos + tanques) para una sola consulta al SCADA
-tags_tanques = [t['tag_nivel'] for t in mapa_tanques_dict.values() if t['tag_nivel']]
-# (Asegúrate de que tu función cargar_datos_scada incluya estos tags en la consulta)
-data_scada = cargar_datos_scada({**mapa_pozos_dict, **mapa_tanques_dict, **mapa_rebombeos_dict})
-# Inicialización de listas y contadores para el resumen
+# 2. RECOLECCIÓN MAESTRA DE TAGS (Para evitar valores en 0.0)
+# Creamos una lista con absolutamente todos los nombres de tags de todas las tablas
+tags_para_scada = []
+
+# Extraer tags de Pozos
+for p in mapa_pozos_dict.values():
+    # Añadimos tags individuales
+    tags_para_scada.extend([p['bomba'], p['caudal'], p['presion'], p['nivel_tanque']])
+    # Añadimos listas de tags (voltajes y amperajes)
+    tags_para_scada.extend(p['voltajes_l'] + p['amperajes_l'])
+
+# Extraer tags de Tanques
+for t in mapa_tanques_dict.values():
+    if t['tag_nivel']:
+        tags_para_scada.append(t['tag_nivel'])
+
+# Extraer tags de Rebombeos (Aquí se incluye TQ_069_NIV)
+for r in mapa_rebombeos_dict.values():
+    tags_para_scada.extend([r['presion'], r['nivel_tanque']])
+    tags_para_scada.extend(r['voltajes_l'] + r['amperajes_l'])
+
+# Limpieza de la lista: Quitamos duplicados y valores no válidos
+tags_finales = list(set([str(t).strip() for t in tags_para_scada if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
+
+# 3. CONSULTA ÚNICA AL SCADA
+# Enviamos la lista completa de tags para obtener todos los valores de una sola vez
+data_scada = cargar_datos_scada(tags_finales)
+
+# 4. Inicialización de listas y contadores para el resumen
 pozos_on = []
 pozos_off = []
 pozos_sin_telemetria = []
@@ -288,99 +311,69 @@ total_q = 0.0
 total_p = 0.0
 
 # Ajuste de Hora Local (Aguascalientes UTC-6)
-# Esto evita que datos recientes se marquen como falla por el desfase del servidor
 import datetime as dt
 ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
 
+# --- PROCESAMIENTO DE POZOS ---
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
     
-    # FILTRO INICIAL: SIN TELEMETRÍA
     if bomba_val == "Sin telemetria":
-        info.update({
-            'status_label': 'SIN TELEMETRÍA', 
-            'color_final': '#808080', 
-            'blink': False
-        })
+        info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # VALIDACIÓN DE COMUNICACIÓN (SOLO L1)
+    # Validación de comunicación usando L1
     tag_l1 = info['voltajes_l'][0]
     _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
     
     es_falla_com = False
     if fecha_str != "N/A":
         try:
-            # Convertimos la fecha del SCADA (ej. "20/03 08:29") usando el año actual
             fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
-            
-            # Calculamos la antigüedad del dato en horas
             diff = ahora - fecha_dt
-            horas_atras = diff.total_seconds() / 3600
-            
-            # Si el último dato de L1 es de hace más de 4 horas -> FALLA COM.
-            if horas_atras > 4:
+            if (diff.total_seconds() / 3600) > 4:
                 es_falla_com = True
         except:
-            # Si hay error al procesar la fecha, se marca como falla por precaución
             es_falla_com = True
     else:
-        # Si no hay fecha registrada para L1, no hay comunicación
         es_falla_com = True
 
-    #  ASIGNACIÓN DE ESTADO FINAL Y PARPADEO
     if es_falla_com:
-        # FALLA DE COMUNICACIÓN: Naranja y Parpadea
-        info.update({
-            'status_label': 'FALLA COM.', 
-            'color_final': '#FFA500', 
-            'blink': True
-        })
+        info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
-        # Si hay comunicación (< 4h), evaluamos si la bomba está encendida
         val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
         q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
         p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
         
         if val_bba == 1:
-            # OPERANDO: Verde y Fijo
-            info.update({
-                'status_label': 'OPERANDO', 
-                'color_final': '#00FF00', 
-                'blink': False
-            })
+            info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
             pozos_on.append(id_p)
             total_q += q_val
             total_p += p_val
         else:
-            # APAGADO: Rojo y Parpadea
-            info.update({
-                'status_label': 'APAGADO', 
-                'color_final': '#FF0000', 
-                'blink': True
-            })
+            info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- LÓGICA DE ESTADO PARA REBOMBEO ---
+# --- PROCESAMIENTO DE REBOMBEOS (Lógica de presión < 0.10) ---
 for id_rb, info in mapa_rebombeos_dict.items():
+    # Helper para obtener datos de la consulta masiva
     d = lambda tag: data_scada.get(tag, (0, "N/A"))
     
-    # Obtenemos el valor de presión actual
-    pres_val, fecha_p = d(info['presion'])
+    pres_val, _ = d(info['presion'])
     
-    # Definir color y etiqueta según el umbral de 0.10
+    # Lógica solicitada: Menor a 0.10 = Rojo/Apagado
     if pres_val < 0.10:
         info['color_final'] = "#FF0000"  # Rojo
         info['status_label'] = "APAGADO"
-        info['blink'] = True             # Parpadeo para alertar que está apagado
+        info['blink'] = True
     else:
         info['color_final'] = "#00FF00"  # Verde
         info['status_label'] = "OPERANDO"
         info['blink'] = False
 
-# --- FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ---
+# 5.4-----------------------------------SECCIÓN FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ----------------------------------------------------------------------------------
 
 def formato_hora(decimal):
     try:

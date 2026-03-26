@@ -221,15 +221,15 @@ def cargar_sectores_poligonos():
     try:
         # Añadimos los campos numéricos solicitados en la consulta
         query = """
-            SELECT sector, "Pozos_Sector", 
-                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
-                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
-                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
-                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
-                   "Recaudacion", "Dotacion", "Balance_Estimado",
-                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
-            FROM "Sectorizacion"."Sectores_hidr"
-        """
+    SELECT sector, "Pozos_Sector", 
+           "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
+           "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
+           "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
+           "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
+           "Recaudacion", "Dotacion", "Balance_Estimado",
+           ST_AsGeoJSON(ST_Transform(ST_SimplifyPreserveTopology(geom, 0.0001), 4326)) as geo 
+    FROM "Sectorizacion"."Sectores_hidr"
+"""
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
@@ -656,6 +656,7 @@ with col_mapa:
         location=st.session_state.centro_mapa, 
         zoom_start=st.session_state.zoom_inicial, 
         tiles="CartoDB dark_matter"
+        prefer_canvas=True
     )
     Fullscreen().add_to(m)
 

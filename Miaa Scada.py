@@ -843,16 +843,19 @@ if ver_sectores and sectores:
 if ver_tanques:
         for id_tq, info in mapa_tanques_dict.items():
             val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
-            n_max = info['nivel_max'] if info['nivel_max'] else 1.0
+            n_max = info.get('nivel_max', 1.0)
             porcentaje = (val_nivel / n_max) * 100
             
-            # LA DEFINICIÓN DEBE ESTAR AQUÍ ADENTRO
+            # --- LA VARIABLE SE DEFINE AQUÍ ADENTRO ---
             html_popup_tq = f"""
             <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
                 <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
                 <hr style="border: 0.5px solid #333;">
                 <div style="margin-top: 8px;">
-                    <span>💧 Nivel: <b>{val_nivel:.2f} m</b></span>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                        <span>💧 Nivel:</span>
+                        <b>{val_nivel:.2f} m</b>
+                    </div>
                 </div>
             </div>
             """
@@ -860,15 +863,14 @@ if ver_tanques:
             folium.RegularPolygonMarker(
                 location=info['coord'],
                 number_of_sides=6,
-                radius=5,
+                radius=6,
                 color="#00d4ff",
                 fill=True,
                 fill_color="#00d4ff",
                 fill_opacity=0.7,
-                popup=folium.Popup(html_popup_tq, max_width=300), # Aquí ya no fallará
-                tooltip=f"Tanque: {info['nombre']}"
+                popup=folium.Popup(html_popup_tq, max_width=300)
             ).add_to(m)
-    # FINAL: Renderizado del mapa
-    folium_static(m, width=None, height=750)
 
+    # 5. MOSTRAR MAPA
+    folium_static(m, width=None, height=750)
 

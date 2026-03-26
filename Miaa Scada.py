@@ -857,117 +857,79 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-# --- RENDERIZADO DE TANQUES (Controlado por ver_etiquetas / "Mostrar Tanques") ---
-    if ver_tanques:
+# --- RENDERIZADO DE TANQUES ---
+    if ver_tanques: 
         for id_tq, info in mapa_tanques_dict.items():
-            val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
-            n_max = info['nivel_max'] if info['nivel_max'] else 1.0
-            porcentaje = (val_nivel / n_max) * 100
-            
-            # Restaurado el Popup Completo del Tanque
-            html_popup_tq = f"""
-            <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
-                <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
-                <span style="font-size: 10px; color: #888;">ID: {id_tq}</span>
-                <hr style="border: 0.5px solid #333;">
-                <div style="margin-top: 8px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                        <span>💧 Nivel Actual:</span>
-                        <b>{val_nivel:.2f} m</b>
+            try:
+                val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
+                n_max = info['nivel_max'] if info['nivel_max'] else 1.0
+                porcentaje = (val_nivel / n_max) * 100
+                
+                html_popup_tq = f"""
+                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
+                    <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
+                    <span style="font-size: 10px; color: #888;">ID: {id_tq}</span>
+                    <hr style="border: 0.5px solid #333;">
+                    <div style="margin-top: 8px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                            <span>💧 Nivel Actual:</span>
+                            <b>{val_nivel:.2f} m</b>
+                        </div>
+                        <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
+                            <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
+                        </div>
+                        <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad Máx: {n_max} m</div>
                     </div>
-                    <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
-                        <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
-                    </div>
-                    <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad Máx: {n_max} m</div>
+                    <div style="margin-top: 10px; font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
+                    <div style="margin-top: 5px; font-size: 9px; color: #666;">📍 Sitios: {info['sitios']}</div>
                 </div>
-                <div style="margin-top: 10px; font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
-                <div style="margin-top: 5px; font-size: 9px; color: #666;">📍 Sitios: {info['sitios']}</div>
-            </div>
-            """
-
-            folium.RegularPolygonMarker(
-                location=info['coord'],
-                number_of_sides=6,
-                radius=5,
-                color="#00d4ff",
-                fill=True,
-                fill_color="#00d4ff",
-                fill_opacity=0.7,
-                popup=folium.Popup(html_popup_tq, max_width=300),
-                tooltip=f"Tanque: {info['nombre']}"
-            ).add_to(m)
-
-            folium.Marker(
-                location=info['coord'],
-                icon=folium.DivIcon(
-                    icon_anchor=(20, -10),
-                    html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
-                )
-            ).add_to(m)
+                """
+                folium.RegularPolygonMarker(location=info['coord'], number_of_sides=6, radius=5, color="#00d4ff", fill=True, fill_color="#00d4ff", popup=folium.Popup(html_popup_tq, max_width=300)).add_to(m)
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(20, -10), html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>')).add_to(m)
+            except:
+                continue
             
-if ver_rebombeos:
-    for id_rb, info in mapa_rebombeos_dict.items():
-        # Usamos el helper d para los datos del Popup
-        d = lambda tag: data_scada.get(tag, (0, "N/A"))
-        pres, f_p = d(info['presion'])
-        ntq, f_t = d(info['nivel_tanque'])
-        v_rb = [d(t) for t in info['voltajes_l']]
-        a_rb = [d(t) for t in info['amperajes_l']]
+    # --- RENDERIZADO DE REBOMBEOS ---
+    if ver_rebombeos:
+        for id_rb, info in mapa_rebombeos_dict.items():
+            try:
+                d = lambda tag: data_scada.get(tag, (0, "N/A"))
+                pres, f_p = d(info['presion'])
+                ntq, f_t = d(info['nivel_tanque'])
+                v_rb = [d(t) for t in info['voltajes_l']]
+                a_rb = [d(t) for t in info['amperajes_l']]
 
-        # POPUP con el color dinámico en el borde
-        html_popup_rb = f"""
-        <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 300px; border: 2px solid {info['color_final']}; font-family: sans-serif;">
-            <div style="display: flex; justify-content: space-between;">
-                <b style="color: {info['color_final']}; font-size: 14px;">REBOMBEO: {id_rb}</b>
-                <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
-            </div>
-            <hr style="border: 0.5px solid #333; margin: 8px 0;">
-            <div style="font-size: 11px; margin-bottom: 5px;">
-                🚀 Presión: <b>{pres:.2f} kg</b> <span style="color:#FFFF00; font-size:8px;">{f_p}</span><br>
-                🔋 Nivel Tanque: <b>{ntq:.2f} m</b> <span style="color:#FFFF00; font-size:8px;">{f_t}</span>
-            </div>
-            <table style="width: 100%; font-size: 9px; border-collapse: collapse; margin-top: 5px;">
-                <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                    <th>Fase</th><th>Voltaje</th><th>Amp</th>
-                </tr>
-                <tr><td>L1-L2</td><td>{v_rb[0][0]:.0f}V</td><td>{a_rb[0][0]:.1f}A</td></tr>
-                <tr><td>L2-L3</td><td>{v_rb[1][0]:.0f}V</td><td>{a_rb[1][0]:.1f}A</td></tr>
-                <tr><td>L1-L3</td><td>{v_rb[2][0]:.0f}V</td><td>{a_rb[2][0]:.1f}A</td></tr>
-            </table>
-        </div>
-        """
+                html_popup_rb = f"""
+                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 300px; border: 2px solid {info['color_final']}; font-family: sans-serif;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <b style="color: {info['color_final']}; font-size: 14px;">REBOMBEO: {id_rb}</b>
+                        <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+                    </div>
+                    <hr style="border: 0.5px solid #333; margin: 8px 0;">
+                    <div style="font-size: 11px; margin-bottom: 5px;">
+                        🚀 Presión: <b>{pres:.2f} kg</b> <span style="color:#FFFF00; font-size:8px;">{f_p}</span><br>
+                        🔋 Nivel Tanque: <b>{ntq:.2f} m</b> <span style="color:#FFFF00; font-size:8px;">{f_t}</span>
+                    </div>
+                    <table style="width: 100%; font-size: 9px; border-collapse: collapse; margin-top: 5px;">
+                        <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
+                            <th>Fase</th><th>Voltaje</th><th>Amp</th>
+                        </tr>
+                        <tr><td>L1-L2</td><td>{v_rb[0][0]:.0f}V</td><td>{a_rb[0][0]:.1f}A</td></tr>
+                        <tr><td>L2-L3</td><td>{v_rb[1][0]:.0f}V</td><td>{a_rb[1][0]:.1f}A</td></tr>
+                        <tr><td>L1-L3</td><td>{v_rb[2][0]:.0f}V</td><td>{a_rb[2][0]:.1f}A</td></tr>
+                    </table>
+                </div>
+                """
+                if info.get('blink'):
+                    folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup_rb, max_width=350)).add_to(m)
+                else:
+                    folium.RegularPolygonMarker(location=info['coord'], number_of_sides=4, radius=6, color=info['color_final'], fill=True, fill_color=info['color_final'], popup=folium.Popup(html_popup_rb, max_width=350)).add_to(m)
+                
+                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-15, 15), html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>')).add_to(m)
+            except:
+                continue
 
-        # Dibujar el diamante con color dinámico
-        if info.get('blink'):
-            # Si está apagado (< 0.10), usamos el icono de parpadeo que ya definiste
-            folium.Marker(
-                location=info['coord'],
-                icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                popup=folium.Popup(html_popup_rb, max_width=350)
-            ).add_to(m)
-        else:
-            folium.RegularPolygonMarker(
-                location=info['coord'],
-                number_of_sides=4,
-                radius=6,
-                color=info['color_final'],
-                fill=True,
-                fill_color=info['color_final'],
-                fill_opacity=0.9,
-                popup=folium.Popup(html_popup_rb, max_width=350)
-            ).add_to(m)
-
-        # Etiqueta de ID con el color del estado
-        folium.Marker(
-            location=info['coord'],
-            icon=folium.DivIcon(
-                icon_anchor=(-15, 15),
-                html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
-            )
-        ).add_to(m)      
-
-    # FINAL: Renderizado del mapa
+    # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
     folium_static(m, width=None, height=750)
-
 
 

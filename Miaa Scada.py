@@ -224,23 +224,25 @@ def cargar_rebombeos_desde_db():
         return nuevo_mapa_rb
     except: return {}
 
-def cargar_datos_scada(mapa_pozos):
+def cargar_datos_scada(lista_tags):
     engine = get_mysql_scada_engine()
-    if not engine: return {}
-    all_tags = []
-    for p in mapa_pozos.values():
-        for k, v in p.items():
-            if isinstance(v, list): 
-                all_tags.extend([str(tag) for tag in v if tag and str(tag) not in ['0', 'Sin telemetria']])
-            elif isinstance(v, str) and (v.startswith("PZ_") or v.startswith("RB_")): 
-                all_tags.append(v)
-    if not all_tags: return {}
+    if not engine or not lista_tags: return {}
     try:
-        tags_str = "', '".join(list(set(all_tags)))
-        query = f"SELECT r.NAME, h.VALUE, h.FECHA FROM VfiTagNumHistory_Ultimo h JOIN VfiTagRef r ON h.GATEID = r.GATEID WHERE r.NAME IN ('{tags_str}') AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)"
+        # Convertimos la lista a un string separado por comas para el SQL
+        tags_str = "', '".join(lista_tags)
+        query = f"""
+            SELECT r.NAME, h.VALUE, h.FECHA 
+            FROM VfiTagNumHistory_Ultimo h 
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID 
+            WHERE r.NAME IN ('{tags_str}') 
+            AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)
+        """
         df = pd.read_sql(query, engine)
+        # Retornamos un diccionario con el nombre del tag como llave
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
-    except: return {}
+    except Exception as e:
+        # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
+        return {}
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
@@ -266,64 +268,52 @@ def cargar_sectores_poligonos():
         return []
 
 
-# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (OPTIMIZADO: LISTA MAESTRA DE TAGS) -----------------------------------------------------------------
+# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 
-# 1. Carga de datos base desde MySQL
+# 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 mapa_tanques_dict = cargar_tanques_desde_db()
 mapa_rebombeos_dict = cargar_rebombeos_desde_db()
 
-# 2. RECOLECCIÓN MAESTRA DE TAGS (Para evitar valores en 0.0)
-# Creamos una lista con absolutamente todos los nombres de tags de todas las tablas
-tags_para_scada = []
+# 2. Recolección de tags para la consulta masiva
+tags_a_consultar = []
 
-# Extraer tags de Pozos
+# Tags de Pozos
 for p in mapa_pozos_dict.values():
-    # Añadimos tags individuales
-    tags_para_scada.extend([p['bomba'], p['caudal'], p['presion'], p['nivel_tanque']])
-    # Añadimos listas de tags (voltajes y amperajes)
-    tags_para_scada.extend(p['voltajes_l'] + p['amperajes_l'])
+    tags_a_consultar.extend([p['bomba'], p['caudal'], p['presion'], p['nivel_tanque']])
+    tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
 
-# Extraer tags de Tanques
+# Tags de Tanques
 for t in mapa_tanques_dict.values():
-    if t['tag_nivel']:
-        tags_para_scada.append(t['tag_nivel'])
+    if t['tag_nivel']: tags_a_consultar.append(t['tag_nivel'])
 
-# Extraer tags de Rebombeos (Aquí se incluye TQ_069_NIV)
+# Tags de Rebombeos (Aquí entra TQ_069_NIV)
 for r in mapa_rebombeos_dict.values():
-    tags_para_scada.extend([r['presion'], r['nivel_tanque']])
-    tags_para_scada.extend(r['voltajes_l'] + r['amperajes_l'])
+    tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
+    tags_a_consultar.extend(r['voltajes_l'] + r['amperajes_l'])
 
-# Limpieza de la lista: Quitamos duplicados y valores no válidos
-tags_finales = list(set([str(t).strip() for t in tags_para_scada if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
+# Limpieza de la lista
+tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
 
-# 3. CONSULTA ÚNICA AL SCADA
-# Enviamos la lista completa de tags para obtener todos los valores de una sola vez
+# 3. Consulta al SCADA pasando la LISTA corregida
 data_scada = cargar_datos_scada(tags_finales)
 
-# 4. Inicialización de listas y contadores para el resumen
-pozos_on = []
-pozos_off = []
-pozos_sin_telemetria = []
-pozos_falla_com = []
-total_q = 0.0
-total_p = 0.0
+# 4. Inicialización de contadores
+pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
+total_q, total_p = 0.0, 0.0
 
-# Ajuste de Hora Local (Aguascalientes UTC-6)
 import datetime as dt
 ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
 
-# --- PROCESAMIENTO DE POZOS ---
+# --- LÓGICA DE POZOS ---
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
-    
     if bomba_val == "Sin telemetria":
         info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # Validación de comunicación usando L1
     tag_l1 = info['voltajes_l'][0]
     _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
     
@@ -331,47 +321,31 @@ for id_p, info in mapa_pozos_dict.items():
     if fecha_str != "N/A":
         try:
             fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
-            diff = ahora - fecha_dt
-            if (diff.total_seconds() / 3600) > 4:
-                es_falla_com = True
-        except:
-            es_falla_com = True
-    else:
-        es_falla_com = True
+            if (ahora - fecha_dt).total_seconds() / 3600 > 4: es_falla_com = True
+        except: es_falla_com = True
+    else: es_falla_com = True
 
     if es_falla_com:
         info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
         val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
-        q_val = data_scada.get(info['caudal'], (0, "N/A"))[0]
-        p_val = data_scada.get(info['presion'], (0, "N/A"))[0]
-        
         if val_bba == 1:
             info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
             pozos_on.append(id_p)
-            total_q += q_val
-            total_p += p_val
+            total_q += data_scada.get(info['caudal'], (0, ""))[0]
+            total_p += data_scada.get(info['presion'], (0, ""))[0]
         else:
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- PROCESAMIENTO DE REBOMBEOS (Lógica de presión < 0.10) ---
+# --- LÓGICA DE REBOMBEOS (Presión < 0.10) ---
 for id_rb, info in mapa_rebombeos_dict.items():
-    # Helper para obtener datos de la consulta masiva
-    d = lambda tag: data_scada.get(tag, (0, "N/A"))
-    
-    pres_val, _ = d(info['presion'])
-    
-    # Lógica solicitada: Menor a 0.10 = Rojo/Apagado
+    pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
     if pres_val < 0.10:
-        info['color_final'] = "#FF0000"  # Rojo
-        info['status_label'] = "APAGADO"
-        info['blink'] = True
+        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
     else:
-        info['color_final'] = "#00FF00"  # Verde
-        info['status_label'] = "OPERANDO"
-        info['blink'] = False
+        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
 
 # 5.4-----------------------------------SECCIÓN FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ----------------------------------------------------------------------------------
 

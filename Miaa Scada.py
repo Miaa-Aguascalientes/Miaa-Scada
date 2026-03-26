@@ -221,15 +221,15 @@ def cargar_sectores_poligonos():
     try:
         # Añadimos los campos numéricos solicitados en la consulta
         query = """
-    SELECT sector, "Pozos_Sector", 
-           "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
-           "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
-           "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
-           "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
-           "Recaudacion", "Dotacion", "Balance_Estimado",
-           ST_AsGeoJSON(ST_Transform(ST_SimplifyPreserveTopology(geom, 0.0001), 4326)) as geo 
-    FROM "Sectorizacion"."Sectores_hidr"
-"""
+            SELECT sector, "Pozos_Sector", 
+                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
+                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
+                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
+                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
+                   "Recaudacion", "Dotacion", "Balance_Estimado",
+                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
+            FROM "Sectorizacion"."Sectores_hidr"
+        """
         df = pd.read_sql(query, conn)
         conn.close()
         return df.to_dict('records')
@@ -623,7 +623,7 @@ with st.sidebar:
     with st.expander("🗺️ Control de Capas", expanded=False):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
-        ver_tanques = st.checkbox("Mostrar Tanques", value=False)
+        ver_tanques = st.checkbox("Mostrar Tanques", value=True)
     
     # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
@@ -655,8 +655,7 @@ with col_mapa:
     m = folium.Map(
         location=st.session_state.centro_mapa, 
         zoom_start=st.session_state.zoom_inicial, 
-        tiles="CartoDB dark_matter",
-        prefer_canvas=True
+        tiles="CartoDB dark_matter"
     )
     Fullscreen().add_to(m)
 
@@ -692,7 +691,7 @@ with col_mapa:
         </style>
         """
 
-# RENDERIZADO DE SECTORES
+# --- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) ---
     if ver_sectores and sectores:
         for s in sectores:
             try:
@@ -703,17 +702,29 @@ with col_mapa:
                 html_sector = f"""
                 <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
                     <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                    <a href="{url_sector}" target="_blank" style="padding: 6px 12px; background: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 11px; margin-top:5px; display: inline-block;">Ver Detalles</a>
+                    <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
                 </div>
                 """
+                
+                # Aquí restauramos el estilo interactivo
                 folium.GeoJson(
                     geo_data, 
-                    style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1},
+                    style_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#00d4ff', 
+                        'weight': 1.5, 
+                        'fillOpacity': 0.1
+                    },
+                    highlight_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#ffffff',  # Borde blanco al pasar el mouse
+                        'weight': 3, 
+                        'fillOpacity': 0.4
+                    },
                     popup=folium.Popup(html_sector, max_width=250),
-                    tooltip=f"Sector: {nombre_sec}"
+                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
                 ).add_to(m)
             except: continue
-
 
     # --- RENDERIZADO DE POZOS (UNIFICADO) ---
     # Usamos solo 'ver_pozos' para controlar ambas cosas
@@ -882,5 +893,11 @@ with col_mapa:
 
     # FINAL: Renderizado del mapa
     folium_static(m, width=None, height=750)
+
+
+
+
+
+
 
 

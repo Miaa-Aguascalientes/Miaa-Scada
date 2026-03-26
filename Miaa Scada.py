@@ -268,84 +268,99 @@ def cargar_sectores_poligonos():
         return []
 
 
-# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
+# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (ACTUALIZADO: FILTRO TELEMETRÍA) -----------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
-mapa_pozos_dict = cargar_mapa_pozos_desde_db()
-mapa_tanques_dict = cargar_tanques_desde_db()
-mapa_rebombeos_dict = cargar_rebombeos_desde_db()
+mapa_pozos_dict = cargar_mapa_pozos_desde_db() or {}
+mapa_tanques_dict = cargar_tanques_desde_db() or {}
+mapa_rebombeos_dict = cargar_rebombeos_desde_db() or {}
 
-# 2. Recolección de tags para la consulta masiva
+# 2. Recolección de Tags para consulta masiva
 tags_a_consultar = []
-
-# Tags de Pozos
 for p in mapa_pozos_dict.values():
     tags_a_consultar.extend([p['bomba'], p['caudal'], p['presion'], p['nivel_tanque']])
     tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
 
-# Tags de Tanques
 for t in mapa_tanques_dict.values():
-    if t['tag_nivel']: tags_a_consultar.append(t['tag_nivel'])
+    if t.get('tag_nivel'): tags_a_consultar.append(t['tag_nivel'])
 
-# Tags de Rebombeos (Aquí entra TQ_069_NIV)
 for r in mapa_rebombeos_dict.values():
-    tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
-    tags_a_consultar.extend(r['voltajes_l'] + r['amperajes_l'])
+    # Solo agregamos tags si tiene telemetría
+    if str(r.get('telemetria')).strip() != "Sin telemetria":
+        tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
+        tags_a_consultar.extend(r.get('voltajes_l', []) + r.get('amperajes_l', []))
 
-# Limpieza de la lista
 tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
 
-# 3. Consulta al SCADA pasando la LISTA corregida
+# 3. Consulta única al SCADA
 data_scada = cargar_datos_scada(tags_finales)
 
-# 4. Inicialización de contadores
+# 4. Inicialización de contadores y tiempo
 pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
 total_q, total_p = 0.0, 0.0
-
 import datetime as dt
 ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
 
 # --- LÓGICA DE POZOS ---
 for id_p, info in mapa_pozos_dict.items():
-    bomba_val = str(info['bomba']).strip()
-    if bomba_val == "Sin telemetria":
+    bomba_tag = str(info['bomba']).strip()
+    if bomba_tag == "Sin telemetria":
         info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
         continue
 
-    tag_l1 = info['voltajes_l'][0]
-    _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
-    
-    es_falla_com = False
+    # Validación de comunicación (L1)
+    _, fecha_str = data_scada.get(info['voltajes_l'][0], (0, "N/A"))
+    es_falla = True
     if fecha_str != "N/A":
         try:
             fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
-            if (ahora - fecha_dt).total_seconds() / 3600 > 4: es_falla_com = True
-        except: es_falla_com = True
-    else: es_falla_com = True
-
-    if es_falla_com:
+            if (ahora - fecha_dt).total_seconds() / 3600 <= 4: es_falla = False
+        except: pass
+    
+    if es_falla:
         info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
-        val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
+        val_bba = data_scada.get(info['bomba'], (0, ""))[0]
         if val_bba == 1:
             info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
             pozos_on.append(id_p)
-            total_q += data_scada.get(info['caudal'], (0, ""))[0]
-            total_p += data_scada.get(info['presion'], (0, ""))[0]
+            total_q += data_scada.get(info['caudal'], (0, 0))[0]
+            total_p += data_scada.get(info['presion'], (0, 0))[0]
         else:
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- LÓGICA DE REBOMBEOS (Presión < 0.10) ---
+# --- LÓGICA DE REBOMBEOS (NUEVA: GRIS SI NO HAY TELEMETRÍA) ---
 for id_rb, info in mapa_rebombeos_dict.items():
-    pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
+    telemetria_status = str(info.get('telemetria', '')).strip()
+    
+    # FILTRO: Si no tiene telemetría -> COLOR GRIS
+    if telemetria_status == "Sin telemetria":
+        info.update({
+            'status_label': 'SIN TELEMETRÍA',
+            'color_final': '#808080',  # Gris
+            'blink': False
+        })
+        continue
+
+    # Si tiene telemetría, evaluamos la presión
+    pres_val = data_scada.get(info['presion'], (0, ""))[0]
+    
     if pres_val < 0.10:
-        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
+        info.update({
+            'status_label': 'APAGADO',
+            'color_final': '#FF0000', # Rojo
+            'blink': True
+        })
     else:
-        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+        info.update({
+            'status_label': 'OPERANDO',
+            'color_final': '#00FF00', # Verde
+            'blink': False
+        })
 
 # 5.4-----------------------------------SECCIÓN FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ----------------------------------------------------------------------------------
 

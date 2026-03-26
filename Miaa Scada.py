@@ -268,99 +268,84 @@ def cargar_sectores_poligonos():
         return []
 
 
-# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (ACTUALIZADO: FILTRO TELEMETRÍA) -----------------------------------------------------------------
+# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
-mapa_pozos_dict = cargar_mapa_pozos_desde_db() or {}
-mapa_tanques_dict = cargar_tanques_desde_db() or {}
-mapa_rebombeos_dict = cargar_rebombeos_desde_db() or {}
+mapa_pozos_dict = cargar_mapa_pozos_desde_db()
+mapa_tanques_dict = cargar_tanques_desde_db()
+mapa_rebombeos_dict = cargar_rebombeos_desde_db()
 
-# 2. Recolección de Tags para consulta masiva
+# 2. Recolección de tags para la consulta masiva
 tags_a_consultar = []
+
+# Tags de Pozos
 for p in mapa_pozos_dict.values():
     tags_a_consultar.extend([p['bomba'], p['caudal'], p['presion'], p['nivel_tanque']])
     tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
 
+# Tags de Tanques
 for t in mapa_tanques_dict.values():
-    if t.get('tag_nivel'): tags_a_consultar.append(t['tag_nivel'])
+    if t['tag_nivel']: tags_a_consultar.append(t['tag_nivel'])
 
+# Tags de Rebombeos (Aquí entra TQ_069_NIV)
 for r in mapa_rebombeos_dict.values():
-    # Solo agregamos tags si tiene telemetría
-    if str(r.get('telemetria')).strip() != "Sin telemetria":
-        tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
-        tags_a_consultar.extend(r.get('voltajes_l', []) + r.get('amperajes_l', []))
+    tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
+    tags_a_consultar.extend(r['voltajes_l'] + r['amperajes_l'])
 
+# Limpieza de la lista
 tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
 
-# 3. Consulta única al SCADA
+# 3. Consulta al SCADA pasando la LISTA corregida
 data_scada = cargar_datos_scada(tags_finales)
 
-# 4. Inicialización de contadores y tiempo
+# 4. Inicialización de contadores
 pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
 total_q, total_p = 0.0, 0.0
+
 import datetime as dt
 ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
 
 # --- LÓGICA DE POZOS ---
 for id_p, info in mapa_pozos_dict.items():
-    bomba_tag = str(info['bomba']).strip()
-    if bomba_tag == "Sin telemetria":
+    bomba_val = str(info['bomba']).strip()
+    if bomba_val == "Sin telemetria":
         info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
         pozos_sin_telemetria.append(id_p)
         continue
 
-    # Validación de comunicación (L1)
-    _, fecha_str = data_scada.get(info['voltajes_l'][0], (0, "N/A"))
-    es_falla = True
+    tag_l1 = info['voltajes_l'][0]
+    _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
+    
+    es_falla_com = False
     if fecha_str != "N/A":
         try:
             fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
-            if (ahora - fecha_dt).total_seconds() / 3600 <= 4: es_falla = False
-        except: pass
-    
-    if es_falla:
+            if (ahora - fecha_dt).total_seconds() / 3600 > 4: es_falla_com = True
+        except: es_falla_com = True
+    else: es_falla_com = True
+
+    if es_falla_com:
         info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
         pozos_falla_com.append(id_p)
     else:
-        val_bba = data_scada.get(info['bomba'], (0, ""))[0]
+        val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
         if val_bba == 1:
             info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
             pozos_on.append(id_p)
-            total_q += data_scada.get(info['caudal'], (0, 0))[0]
-            total_p += data_scada.get(info['presion'], (0, 0))[0]
+            total_q += data_scada.get(info['caudal'], (0, ""))[0]
+            total_p += data_scada.get(info['presion'], (0, ""))[0]
         else:
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- LÓGICA DE REBOMBEOS (NUEVA: GRIS SI NO HAY TELEMETRÍA) ---
+# --- LÓGICA DE REBOMBEOS (Presión < 0.10) ---
 for id_rb, info in mapa_rebombeos_dict.items():
-    telemetria_status = str(info.get('telemetria', '')).strip()
-    
-    # FILTRO: Si no tiene telemetría -> COLOR GRIS
-    if telemetria_status == "Sin telemetria":
-        info.update({
-            'status_label': 'SIN TELEMETRÍA',
-            'color_final': '#808080',  # Gris
-            'blink': False
-        })
-        continue
-
-    # Si tiene telemetría, evaluamos la presión
-    pres_val = data_scada.get(info['presion'], (0, ""))[0]
-    
+    pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
     if pres_val < 0.10:
-        info.update({
-            'status_label': 'APAGADO',
-            'color_final': '#FF0000', # Rojo
-            'blink': True
-        })
+        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
     else:
-        info.update({
-            'status_label': 'OPERANDO',
-            'color_final': '#00FF00', # Verde
-            'blink': False
-        })
+        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
 
 # 5.4-----------------------------------SECCIÓN FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ----------------------------------------------------------------------------------
 
@@ -872,118 +857,116 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-# --- RENDERIZADO DE TANQUES ---
-    if ver_tanques: 
+# --- RENDERIZADO DE TANQUES (Controlado por ver_etiquetas / "Mostrar Tanques") ---
+    if ver_tanques:
         for id_tq, info in mapa_tanques_dict.items():
-            try:
-                val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
-                n_max = info['nivel_max'] if info['nivel_max'] else 1.0
-                porcentaje = (val_nivel / n_max) * 100
-                
-                html_popup_tq = f"""
-                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
-                    <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
-                    <span style="font-size: 10px; color: #888;">ID: {id_tq}</span>
-                    <hr style="border: 0.5px solid #333;">
-                    <div style="margin-top: 8px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                            <span>💧 Nivel Actual:</span>
-                            <b>{val_nivel:.2f} m</b>
-                        </div>
-                        <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
-                            <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
-                        </div>
-                        <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad Máx: {n_max} m</div>
-                    </div>
-                    <div style="margin-top: 10px; font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
-                    <div style="margin-top: 5px; font-size: 9px; color: #666;">📍 Sitios: {info['sitios']}</div>
-                </div>
-                """
-                # Marcador Hexagonal con TOOLTIP restaurado
-                folium.RegularPolygonMarker(
-                    location=info['coord'],
-                    number_of_sides=6,
-                    radius=5,
-                    color="#00d4ff",
-                    fill=True,
-                    fill_color="#00d4ff",
-                    fill_opacity=0.7,
-                    popup=folium.Popup(html_popup_tq, max_width=300),
-                    tooltip=f"Tanque: {info['nombre']}" # <--- ETIQUETA AL PASAR PUNTERO
-                ).add_to(m)
-
-                # Etiqueta de texto ID fija
-                folium.Marker(
-                    location=info['coord'],
-                    icon=folium.DivIcon(
-                        icon_anchor=(20, -10),
-                        html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
-                    )
-                ).add_to(m)
-            except:
-                continue
+            val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
+            n_max = info['nivel_max'] if info['nivel_max'] else 1.0
+            porcentaje = (val_nivel / n_max) * 100
             
-    # --- RENDERIZADO DE REBOMBEOS ---
-    if ver_rebombeos:
-        for id_rb, info in mapa_rebombeos_dict.items():
-            try:
-                d = lambda tag: data_scada.get(tag, (0, "N/A"))
-                pres, f_p = d(info['presion'])
-                ntq, f_t = d(info['nivel_tanque'])
-                v_rb = [d(t) for t in info['voltajes_l']]
-                a_rb = [d(t) for t in info['amperajes_l']]
-
-                html_popup_rb = f"""
-                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 300px; border: 2px solid {info['color_final']}; font-family: sans-serif;">
-                    <div style="display: flex; justify-content: space-between;">
-                        <b style="color: {info['color_final']}; font-size: 14px;">REBOMBEO: {id_rb}</b>
-                        <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+            # Restaurado el Popup Completo del Tanque
+            html_popup_tq = f"""
+            <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
+                <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
+                <span style="font-size: 10px; color: #888;">ID: {id_tq}</span>
+                <hr style="border: 0.5px solid #333;">
+                <div style="margin-top: 8px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                        <span>💧 Nivel Actual:</span>
+                        <b>{val_nivel:.2f} m</b>
                     </div>
-                    <hr style="border: 0.5px solid #333; margin: 8px 0;">
-                    <div style="font-size: 11px; margin-bottom: 5px;">
-                        🚀 Presión: <b>{pres:.2f} kg</b> <span style="color:#FFFF00; font-size:8px;">{f_p}</span><br>
-                        🔋 Nivel Tanque: <b>{ntq:.2f} m</b> <span style="color:#FFFF00; font-size:8px;">{f_t}</span>
+                    <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
+                        <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
                     </div>
-                    <table style="width: 100%; font-size: 9px; border-collapse: collapse; margin-top: 5px;">
-                        <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                            <th>Fase</th><th>Voltaje</th><th>Amp</th>
-                        </tr>
-                        <tr><td>L1-L2</td><td>{v_rb[0][0]:.0f}V</td><td>{a_rb[0][0]:.1f}A</td></tr>
-                        <tr><td>L2-L3</td><td>{v_rb[1][0]:.0f}V</td><td>{a_rb[1][0]:.1f}A</td></tr>
-                        <tr><td>L1-L3</td><td>{v_rb[2][0]:.0f}V</td><td>{a_rb[2][0]:.1f}A</td></tr>
-                    </table>
+                    <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad Máx: {n_max} m</div>
                 </div>
-                """
-                if info.get('blink'):
-                    folium.Marker(
-                        location=info['coord'],
-                        icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                        popup=folium.Popup(html_popup_rb, max_width=350),
-                        tooltip=f"Rebombeo: {id_rb}" # Tooltip para rebombeos también
-                    ).add_to(m)
-                else:
-                    folium.RegularPolygonMarker(
-                        location=info['coord'],
-                        number_of_sides=4,
-                        radius=6,
-                        color=info['color_final'],
-                        fill=True,
-                        fill_color=info['color_final'],
-                        popup=folium.Popup(html_popup_rb, max_width=350),
-                        tooltip=f"Rebombeo: {id_rb}"
-                    ).add_to(m)
-                
-                folium.Marker(
-                    location=info['coord'],
-                    icon=folium.DivIcon(
-                        icon_anchor=(-15, 15),
-                        html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
-                    )
-                ).add_to(m)
-            except:
-                continue
+                <div style="margin-top: 10px; font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
+                <div style="margin-top: 5px; font-size: 9px; color: #666;">📍 Sitios: {info['sitios']}</div>
+            </div>
+            """
 
-    # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF PARA QUE NO DESAPAREZCA) ---
+            folium.RegularPolygonMarker(
+                location=info['coord'],
+                number_of_sides=6,
+                radius=5,
+                color="#00d4ff",
+                fill=True,
+                fill_color="#00d4ff",
+                fill_opacity=0.7,
+                popup=folium.Popup(html_popup_tq, max_width=300),
+                tooltip=f"Tanque: {info['nombre']}"
+            ).add_to(m)
+
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(
+                    icon_anchor=(20, -10),
+                    html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
+                )
+            ).add_to(m)
+            
+if ver_rebombeos:
+    for id_rb, info in mapa_rebombeos_dict.items():
+        # Usamos el helper d para los datos del Popup
+        d = lambda tag: data_scada.get(tag, (0, "N/A"))
+        pres, f_p = d(info['presion'])
+        ntq, f_t = d(info['nivel_tanque'])
+        v_rb = [d(t) for t in info['voltajes_l']]
+        a_rb = [d(t) for t in info['amperajes_l']]
+
+        # POPUP con el color dinámico en el borde
+        html_popup_rb = f"""
+        <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 300px; border: 2px solid {info['color_final']}; font-family: sans-serif;">
+            <div style="display: flex; justify-content: space-between;">
+                <b style="color: {info['color_final']}; font-size: 14px;">REBOMBEO: {id_rb}</b>
+                <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+            </div>
+            <hr style="border: 0.5px solid #333; margin: 8px 0;">
+            <div style="font-size: 11px; margin-bottom: 5px;">
+                🚀 Presión: <b>{pres:.2f} kg</b> <span style="color:#FFFF00; font-size:8px;">{f_p}</span><br>
+                🔋 Nivel Tanque: <b>{ntq:.2f} m</b> <span style="color:#FFFF00; font-size:8px;">{f_t}</span>
+            </div>
+            <table style="width: 100%; font-size: 9px; border-collapse: collapse; margin-top: 5px;">
+                <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
+                    <th>Fase</th><th>Voltaje</th><th>Amp</th>
+                </tr>
+                <tr><td>L1-L2</td><td>{v_rb[0][0]:.0f}V</td><td>{a_rb[0][0]:.1f}A</td></tr>
+                <tr><td>L2-L3</td><td>{v_rb[1][0]:.0f}V</td><td>{a_rb[1][0]:.1f}A</td></tr>
+                <tr><td>L1-L3</td><td>{v_rb[2][0]:.0f}V</td><td>{a_rb[2][0]:.1f}A</td></tr>
+            </table>
+        </div>
+        """
+
+        # Dibujar el diamante con color dinámico
+        if info.get('blink'):
+            # Si está apagado (< 0.10), usamos el icono de parpadeo que ya definiste
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                popup=folium.Popup(html_popup_rb, max_width=350)
+            ).add_to(m)
+        else:
+            folium.RegularPolygonMarker(
+                location=info['coord'],
+                number_of_sides=4,
+                radius=6,
+                color=info['color_final'],
+                fill=True,
+                fill_color=info['color_final'],
+                fill_opacity=0.9,
+                popup=folium.Popup(html_popup_rb, max_width=350)
+            ).add_to(m)
+
+        # Etiqueta de ID con el color del estado
+        folium.Marker(
+            location=info['coord'],
+            icon=folium.DivIcon(
+                icon_anchor=(-15, 15),
+                html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
+            )
+        ).add_to(m)      
+
+    # FINAL: Renderizado del mapa
     folium_static(m, width=None, height=750)
 
 

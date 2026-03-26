@@ -889,7 +889,7 @@ with col_mapa:
             except:
                 continue
             
-    # --- RENDERIZADO DE REBOMBEOS ---
+# --- RENDERIZADO DE REBOMBEOS ---
     if ver_rebombeos:
         for id_rb, info in mapa_rebombeos_dict.items():
             try:
@@ -921,15 +921,15 @@ with col_mapa:
                 </div>
                 """
                 if info.get('blink'):
-                    folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup_rb, max_width=350)).add_to(m)
+                    folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup_rb, max_width=350), tooltip=f"Rebombeo: {id_rb}").add_to(m)
                 else:
-                    folium.RegularPolygonMarker(location=info['coord'], number_of_sides=4, radius=6, color=info['color_final'], fill=True, fill_color=info['color_final'], popup=folium.Popup(html_popup_rb, max_width=350)).add_to(m)
+                    folium.RegularPolygonMarker(location=info['coord'], number_of_sides=4, radius=6, color=info['color_final'], fill=True, fill_color=info['color_final'], popup=folium.Popup(html_popup_rb, max_width=350), tooltip=f"Rebombeo: {id_rb}").add_to(m)
                 
                 folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-15, 15), html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>')).add_to(m)
             except:
                 continue
 
     # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
-folium_static(m, width=None, height=750)
-
+    # IMPORTANTE: Esta línea debe tener EXACTAMENTE 4 espacios de sangría
+    folium_static(m, width=None, height=750)
 

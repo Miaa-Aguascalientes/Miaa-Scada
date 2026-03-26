@@ -968,7 +968,7 @@ if ver_rebombeos:
 
     # --- RENDERIZADO FINAL DEL MAPA ---
     # Debe estar alineado con los "if", dentro del "with col_mapa"
-    folium_static(m, width=None, height=750)
+folium_static(m, width=None, height=750)
 
 
 

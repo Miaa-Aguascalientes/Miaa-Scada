@@ -906,7 +906,11 @@ with col_mapa:
                 tooltip=f"Tanque: {info['nombre']}"
 
                 
-                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(20, -10), html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>')).add_to(m)
+                folium.Marker(location=info['coord'],
+                icon=folium.DivIcon(icon_anchor=(20, -10),
+                html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
+
+                
             except:
                 continue
             

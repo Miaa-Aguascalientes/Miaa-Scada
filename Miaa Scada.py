@@ -922,8 +922,8 @@ with col_mapa:
             ).add_to(m)
             
 # --- RENDERIZADO DE REBOMBEOS  --------------------------------------------
-     if ver_rebombeos:
-    for id_rb, info in mapa_rebombeos_dict.items():
+    if ver_rebombeos:
+        for id_rb, info in mapa_rebombeos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
         
         # Extracción de valores

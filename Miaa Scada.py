@@ -899,14 +899,20 @@ with col_mapa:
                     <div style="margin-top: 5px; font-size: 9px; color: #666;">📍 Sitios: {info['sitios']}</div>
                 </div>
                 """
-                folium.RegularPolygonMarker(location=info['coord'],
-                number_of_sides=6, radius=5, color="#00d4ff",
-                fill=True, fill_color="#00d4ff",
-                popup=folium.Popup(html_popup_tq, max_width=300)).add_to(m)
-                tooltip=f"Tanque: {info['nombre']}"
+                # Marcador Hexagonal con TOOLTIP restaurado
+                folium.RegularPolygonMarker(
+                    location=info['coord'],
+                    number_of_sides=6,
+                    radius=5,
+                    color="#00d4ff",
+                    fill=True,
+                    fill_color="#00d4ff",
+                    fill_opacity=0.7,
+                    popup=folium.Popup(html_popup_tq, max_width=300),
+                    tooltip=f"Tanque: {info['nombre']}" # <--- ETIQUETA AL PASAR PUNTERO
+                ).add_to(m)
 
-                
-# Etiqueta de texto ID fija
+                # Etiqueta de texto ID fija
                 folium.Marker(
                     location=info['coord'],
                     icon=folium.DivIcon(
@@ -949,17 +955,36 @@ with col_mapa:
                 </div>
                 """
                 if info.get('blink'):
-                    folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), popup=folium.Popup(html_popup_rb, max_width=350)).add_to(m)
+                    folium.Marker(
+                        location=info['coord'],
+                        icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                        popup=folium.Popup(html_popup_rb, max_width=350),
+                        tooltip=f"Rebombeo: {id_rb}" # Tooltip para rebombeos también
+                    ).add_to(m)
                 else:
-                    folium.RegularPolygonMarker(location=info['coord'], number_of_sides=4, radius=6, color=info['color_final'], fill=True, fill_color=info['color_final'], popup=folium.Popup(html_popup_rb, max_width=350)).add_to(m)
+                    folium.RegularPolygonMarker(
+                        location=info['coord'],
+                        number_of_sides=4,
+                        radius=6,
+                        color=info['color_final'],
+                        fill=True,
+                        fill_color=info['color_final'],
+                        popup=folium.Popup(html_popup_rb, max_width=350),
+                        tooltip=f"Rebombeo: {id_rb}"
+                    ).add_to(m)
                 
-                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(-15, 15), html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>')).add_to(m)
+                folium.Marker(
+                    location=info['coord'],
+                    icon=folium.DivIcon(
+                        icon_anchor=(-15, 15),
+                        html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
+                    )
+                ).add_to(m)
             except:
                 continue
 
-    # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
+    # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF PARA QUE NO DESAPAREZCA) ---
     folium_static(m, width=None, height=750)
-
 
 
 

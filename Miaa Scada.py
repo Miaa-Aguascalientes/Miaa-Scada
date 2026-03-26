@@ -363,6 +363,23 @@ for id_p, info in mapa_pozos_dict.items():
             })
             pozos_off.append(id_p)
 
+# --- LÓGICA DE ESTADO PARA REBOMBEO ---
+for id_rb, info in mapa_rebombeos_dict.items():
+    d = lambda tag: data_scada.get(tag, (0, "N/A"))
+    
+    # Obtenemos el valor de presión actual
+    pres_val, fecha_p = d(info['presion'])
+    
+    # Definir color y etiqueta según el umbral de 0.10
+    if pres_val < 0.10:
+        info['color_final'] = "#FF0000"  # Rojo
+        info['status_label'] = "APAGADO"
+        info['blink'] = True             # Parpadeo para alertar que está apagado
+    else:
+        info['color_final'] = "#00FF00"  # Verde
+        info['status_label'] = "OPERANDO"
+        info['blink'] = False
+
 # --- FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ---
 
 def formato_hora(decimal):
@@ -921,56 +938,66 @@ with col_mapa:
                 )
             ).add_to(m)
             
-# --- RENDERIZADO DE REBOMBEOS  --------------------------------------------
-    if ver_rebombeos:
-     for id_rb, info in mapa_rebombeos_dict.items():
+if ver_rebombeos:
+    for id_rb, info in mapa_rebombeos_dict.items():
+        # Usamos el helper d para los datos del Popup
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
-        
-        # Extracción de valores
         pres, f_p = d(info['presion'])
         ntq, f_t = d(info['nivel_tanque'])
         v_rb = [d(t) for t in info['voltajes_l']]
         a_rb = [d(t) for t in info['amperajes_l']]
 
+        # POPUP con el color dinámico en el borde
         html_popup_rb = f"""
-        <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 300px; border: 2px solid #ff00ff; font-family: sans-serif;">
-            <b style="color: #ff00ff; font-size: 14px;">REBOMBEO: {info['nombre']}</b><br>
-            <span style="font-size: 10px; color: #888;">ID: {id_rb}</span>
-            <hr style="border: 0.5px solid #333;">
+        <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 300px; border: 2px solid {info['color_final']}; font-family: sans-serif;">
+            <div style="display: flex; justify-content: space-between;">
+                <b style="color: {info['color_final']}; font-size: 14px;">REBOMBEO: {id_rb}</b>
+                <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+            </div>
+            <hr style="border: 0.5px solid #333; margin: 8px 0;">
             <div style="font-size: 11px; margin-bottom: 5px;">
                 🚀 Presión: <b>{pres:.2f} kg</b> <span style="color:#FFFF00; font-size:8px;">{f_p}</span><br>
                 🔋 Nivel Tanque: <b>{ntq:.2f} m</b> <span style="color:#FFFF00; font-size:8px;">{f_t}</span>
             </div>
-            <table style="width: 100%; font-size: 9px; border-collapse: collapse;">
-                <tr style="color: #ff00ff; border-bottom: 1px solid #333;">
+            <table style="width: 100%; font-size: 9px; border-collapse: collapse; margin-top: 5px;">
+                <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
                     <th>Fase</th><th>Voltaje</th><th>Amp</th>
                 </tr>
-                <tr><td>L1</td><td>{v_rb[0][0]:.0f}V</td><td>{a_rb[0][0]:.1f}A</td></tr>
-                <tr><td>L2</td><td>{v_rb[1][0]:.0f}V</td><td>{a_rb[1][0]:.1f}A</td></tr>
-                <tr><td>L3</td><td>{v_rb[2][0]:.0f}V</td><td>{a_rb[2][0]:.1f}A</td></tr>
+                <tr><td>L1-L2</td><td>{v_rb[0][0]:.0f}V</td><td>{a_rb[0][0]:.1f}A</td></tr>
+                <tr><td>L2-L3</td><td>{v_rb[1][0]:.0f}V</td><td>{a_rb[1][0]:.1f}A</td></tr>
+                <tr><td>L1-L3</td><td>{v_rb[2][0]:.0f}V</td><td>{a_rb[2][0]:.1f}A</td></tr>
             </table>
         </div>
         """
 
-        folium.RegularPolygonMarker(
-            location=info['coord'],
-            number_of_sides=4, # Diamante
-            radius=6,
-            color="#ff00ff",
-            fill=True,
-            fill_color="#ff00ff",
-            fill_opacity=0.8,
-            popup=folium.Popup(html_popup_rb, max_width=350)
-        ).add_to(m)
+        # Dibujar el diamante con color dinámico
+        if info.get('blink'):
+            # Si está apagado (< 0.10), usamos el icono de parpadeo que ya definiste
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                popup=folium.Popup(html_popup_rb, max_width=350)
+            ).add_to(m)
+        else:
+            folium.RegularPolygonMarker(
+                location=info['coord'],
+                number_of_sides=4,
+                radius=6,
+                color=info['color_final'],
+                fill=True,
+                fill_color=info['color_final'],
+                fill_opacity=0.9,
+                popup=folium.Popup(html_popup_rb, max_width=350)
+            ).add_to(m)
 
-        # Etiqueta de ID
+        # Etiqueta de ID con el color del estado
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(
-                icon_anchor=(20, 20),
-                html=f'<div style="font-size: 9px; font-weight: bold; color: #ff00ff; text-shadow: 1px 1px #000;">{id_rb}</div>'
+                icon_anchor=(-15, 15),
+                html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
             )
-        ).add_to(m)       
+        ).add_to(m)      
 
     # FINAL: Renderizado del mapa
     folium_static(m, width=None, height=750)

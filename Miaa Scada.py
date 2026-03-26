@@ -920,54 +920,84 @@ with col_mapa:
                 )
             ).add_to(m)
             
-# --- CAPA DE REBOMBEOS (AISLADA) ---
+# --- RENDERIZADO DE REBOMBEOS (CAPA INDEPENDIENTE) ---
 if ver_rebombeos:
     for id_rb, info in mapa_rebombeos_dict.items():
+        # Usamos try/except para que si un rebombeo falla, no rompa el mapa completo
         try:
-            # Determinamos el icono según el estado procesado en la Sección 5
-            color_rb = info.get('color_final', '#808080')
-            estado_rb = info.get('status_label', 'SIN DATOS')
-            
-            # Helper para datos del Popup
+            # Helper para obtener datos del SCADA para el Popup
             d = lambda tag: data_scada.get(tag, (0, "N/A"))
-            pres, f_p = d(info['presion'])
-            ntq, f_t = d(info['nivel_tanque'])
+            
+            # Determinamos color y parpadeo según lo procesado en la Sección 5
+            color_final = info.get('color_final', '#808080') # Gris por defecto si falla algo
+            status_tag = info.get('status_label', 'SIN DATOS')
+            
+            # Recolección de datos para el Popup
+            pres_val, f_p = d(info['presion'])
+            ntq_val, f_t = d(info['nivel_tanque'])
+            v_rb = [d(t) for t in info['voltajes_l']]
+            a_rb = [d(t) for t in info['amperajes_l']]
 
+            # POPUP del Rebombeo
             html_popup_rb = f"""
-            <div style="background: #050505; color: white; padding: 10px; border-radius: 8px; width: 250px; border: 2px solid {color_rb};">
-                <b style="color: {color_rb};">{info['nombre']}</b><br>
-                <span style="font-size: 10px;">Estado: {estado_rb}</span>
-                <hr style="border: 0.5px solid #333;">
-                <div style="font-size: 11px;">
-                    Presión: {pres:.2f} kg<br>
-                    Nivel: {ntq:.2f} m
+            <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 300px; border: 2px solid {color_final}; font-family: sans-serif;">
+                <div style="display: flex; justify-content: space-between;">
+                    <b style="color: {color_final}; font-size: 14px;">REBOMBEO: {id_rb}</b>
+                    <span style="font-size: 10px; background: {color_final}; color: black; padding: 2px 6px; border-radius: 4px; font-weight: bold;">{status_tag}</span>
                 </div>
+                <hr style="border: 0.5px solid #333; margin: 8px 0;">
+                <div style="font-size: 11px; margin-bottom: 5px;">
+                    🚀 Presión: <b>{pres_val:.2f} kg</b> <span style="color:#FFFF00; font-size:8px;">{f_p}</span><br>
+                    🔋 Nivel Tanque: <b>{ntq_val:.2f} m</b> <span style="color:#FFFF00; font-size:8px;">{f_t}</span>
+                </div>
+                <table style="width: 100%; font-size: 9px; border-collapse: collapse; margin-top: 5px;">
+                    <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
+                        <th>Fase</th><th>Voltaje</th><th>Amp</th>
+                    </tr>
+                    <tr><td>L1-L2</td><td>{v_rb[0][0]:.0f}V</td><td>{a_rb[0][0]:.1f}A</td></tr>
+                    <tr><td>L2-L3</td><td>{v_rb[1][0]:.0f}V</td><td>{a_rb[1][0]:.1f}A</td></tr>
+                    <tr><td>L1-L3</td><td>{v_rb[2][0]:.0f}V</td><td>{a_rb[2][0]:.1f}A</td></tr>
+                </table>
             </div>
             """
 
-            # Si parpadea (Falla o Apagado con telemetría), usamos DivIcon
+            # 1. Dibujar Marcador (Geometría/Operación)
             if info.get('blink'):
+                # Icono de parpadeo (Rojo/Naranja) si está apagado o en falla
                 folium.Marker(
                     location=info['coord'],
-                    icon=folium.DivIcon(html=get_blink_icon(color_rb)),
-                    popup=folium.Popup(html_popup_rb, max_width=300)
+                    icon=folium.DivIcon(html=get_blink_icon(color_final)),
+                    popup=folium.Popup(html_popup_rb, max_width=350)
                 ).add_to(m)
             else:
-                # Marcador fijo (Operando o Sin Telemetría)
+                # Diamante fijo (Verde u Operando)
                 folium.RegularPolygonMarker(
                     location=info['coord'],
-                    number_of_sides=4,
+                    number_of_sides=4, # Forma de diamante
                     radius=6,
-                    color=color_rb,
+                    color=color_final,
                     fill=True,
-                    fill_color=color_rb,
-                    fill_opacity=0.8,
-                    popup=folium.Popup(html_popup_rb, max_width=300)
+                    fill_color=color_final,
+                    fill_opacity=0.9,
+                    popup=folium.Popup(html_popup_rb, max_width=350)
                 ).add_to(m)
-        except Exception as e:
-            continue # Si un rebombeo falla, no rompe el resto del mapa
 
-    # FINAL: Renderizado del mapa
+            # 2. Dibujar Etiqueta ID (Nombre/Número)
+            # ESTE ES EL CAMBIO CLAVE: Estaba fuera del if, ahora está DENTRO.
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(
+                    icon_anchor=(-15, 15), # Ajuste de posición (arriba y a la derecha)
+                    html=f'<div style="font-size: 10px; font-weight: bold; color: {color_final}; text-shadow: 1px 1px #000;">{id_rb}</div>'
+                )
+            ).add_to(m)
+
+        except Exception as e:
+            # Si un rebombeo falla, se salta ese marcador y continúa con el mapa
+            continue
+
+# --- FINALIZACIÓN Y RENDERIZADO ---
+
     folium_static(m, width=None, height=750)
 
 

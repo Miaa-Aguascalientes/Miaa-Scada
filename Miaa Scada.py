@@ -978,7 +978,7 @@ if ver_rebombeos:
             icon=folium.DivIcon(
                 icon_anchor=(-15, 15),
                 html=f'<div style="font-size: 10px; font-weight: bold; color: {info["color_final"]}; text-shadow: 1px 1px #000;">{id_rb}</div>'
-)
+            )
                 ).add_to(m)
             except: continue
 

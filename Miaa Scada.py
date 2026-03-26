@@ -692,11 +692,9 @@ with col_mapa:
         </style>
         """
 
-# --- RENDERIZADO DE SECTORES (OPTIMIZADO PARA EVITAR PANTALLA EN BLANCO) ---
+# --- RENDERIZADO DE SECTORES (OPTIMIZADO) ---
 if ver_sectores and sectores:
-    # Agrupamos los sectores en un FeatureGroup para mejorar el rendimiento
-    fg_sectores = folium.FeatureGroup(name="Capa de Sectores")
-    
+    fg_sectores = folium.FeatureGroup(name="Capa Sectores") # Agrupador
     for s in sectores:
         try:
             nombre_sec = s['sector']
@@ -710,31 +708,20 @@ if ver_sectores and sectores:
             </div>
             """
             
-            # Usamos una representación más ligera de los polígonos
             folium.GeoJson(
                 geo_data, 
                 style_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#00d4ff', 
-                    'weight': 1,      # Bajamos el grosor del borde
-                    'fillOpacity': 0.1
+                    'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1, 'fillOpacity': 0.1
                 },
-                # Se recomienda comentar el highlight_function si el mapa sigue fallando
-                # ya que consume mucha memoria al procesar eventos del mouse
+                # Si el mapa sigue fallando, comenta el highlight_function
                 highlight_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#ffffff', 
-                    'weight': 2, 
-                    'fillOpacity': 0.3
+                    'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 2, 'fillOpacity': 0.3
                 },
                 popup=folium.Popup(html_sector, max_width=250),
                 tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
             ).add_to(fg_sectores)
-        except: 
-            continue
-    
-    # Añadimos todo el grupo al mapa de un solo golpe
-    fg_sectores.add_to(m)
+        except: continue
+    fg_sectores.add_to(m) # Se añade el grupo completo al final
 
     # --- RENDERIZADO DE POZOS (UNIFICADO) ---
     # Usamos solo 'ver_pozos' para controlar ambas cosas

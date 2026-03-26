@@ -343,6 +343,23 @@ for id_rb, info in mapa_rebombeos_dict.items():
         info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
     else:
         info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+# --- 5.2 RECOLECCIÓN DE TAGS (CORREGIDO LÍNEA 231) ---
+tags_a_consultar = []
+# Corregido: usamos mapa_pozos_dict en lugar de mapa_pozos
+for p in mapa_pozos_dict.values(): 
+    tags_a_consultar.extend([p['bomba'], p['caudal'], p['presion'], p['nivel_tanque']])
+    tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
+
+for t in mapa_tanques_dict.values():
+    if t.get('tag_nivel'): tags_a_consultar.append(t['tag_nivel'])
+
+for r in mapa_rebombeos_dict.values():
+    if str(r.get('telemetria')).strip() != "Sin telemetria":
+        tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
+        tags_a_consultar.extend(r.get('voltajes_l', []) + r.get('amperajes_l', []))
+
+tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
+
 
 # 5.4-----------------------------------SECCIÓN FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ----------------------------------------------------------------------------------
 
@@ -862,24 +879,13 @@ with col_mapa:
                 n_max = info['nivel_max'] if info['nivel_max'] else 1.0
                 porcentaje = (val_nivel / n_max) * 100
                 
-                html_popup_tq = f"""
-                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff;">
-                    <b style="color: #00d4ff;">TANQUE: {info['nombre']}</b><br>
-                    <hr style="border: 0.5px solid #333;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                        <span>Nivel: <b>{val_nivel:.2f} m</b></span>
-                    </div>
-                    <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
-                        <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
-                    </div>
-                    <div style="font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
-                </div>
-                """
+                html_popup_tq = f"<div style='color:white; background:black; padding:10px;'><b>TANQUE: {info['nombre']}</b><br>Nivel: {val_nivel:.2f} m</div>"
+                
                 folium.RegularPolygonMarker(
                     location=info['coord'],
                     number_of_sides=6, radius=5, color="#00d4ff", fill=True, fill_color="#00d4ff",
                     popup=folium.Popup(html_popup_tq, max_width=300),
-                    tooltip=f"Tanque: {info['nombre']}" # ETIQUETA RESTAURADA
+                    tooltip=f"Tanque: {info['nombre']}" # <--- ETIQUETA RESTAURADA
                 ).add_to(m)
             except: continue
 
@@ -888,15 +894,15 @@ with col_mapa:
         for id_rb, info in mapa_rebombeos_dict.items():
             try:
                 d_func = lambda tag: data_scada.get(tag, (0, "N/A"))
-                pres, f_p = d_func(info['presion'])
-                html_popup_rb = f"<div style='color:white; background:black; padding:10px;'><b>RB: {id_rb}</b><br>Presión: {pres:.2f} kg</div>"
+                pres, _ = d_func(info['presion'])
+                html_popup_rb = f"<div style='color:white; background:black; padding:10px;'><b>RB: {id_rb}</b></div>"
                 
                 if info.get('blink'):
                     folium.Marker(
                         location=info['coord'],
                         icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
                         popup=folium.Popup(html_popup_rb, max_width=300),
-                        tooltip=f"Rebombeo: {id_rb}"
+                        tooltip=f"Rebombeo: {id_rb}" # <--- ETIQUETA RESTAURADA
                     ).add_to(m)
                 else:
                     folium.RegularPolygonMarker(
@@ -907,7 +913,7 @@ with col_mapa:
                     ).add_to(m)
             except: continue
 
-    # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
-    # IMPORTANTE: Esta línea debe tener EXACTAMENTE 4 espacios de sangría
+    # --- RENDERIZADO FINAL DEL MAPA ---
+    # MUY IMPORTANTE: Esta línea debe estar indentada con 4 espacios exactos
     folium_static(m, width=None, height=750)
 

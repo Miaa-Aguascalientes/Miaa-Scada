@@ -721,32 +721,52 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 # 9  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL -----------------------------------------------------------------------------------------------------------
+
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
-# Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
+
+# Proporción ultra-ancha para el mapa (90% mapa, 10% capas para controles)
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
 with col_mapa:
-    # Usamos las variables guardadas en el estado de la sesión
+    # 1. Inicialización del objeto Mapa
     m = folium.Map(
         location=[21.8820, -102.2800], 
         zoom_start=12, 
         tiles="CartoDB dark_matter",
-        prefer_canvas=True # ESTO ES VITAL: Renderiza todo por GPU, no por HTML pesado
+        prefer_canvas=True  # VITAL: Renderiza por GPU para evitar que se trabe
     )
 
-# Creamos grupos de capas independientes para que el navegador no se confunda
-        fg_sectores = folium.FeatureGroup(name="Sectores Hidrométricos")
-        fg_pozos = folium.FeatureGroup(name="Pozos")
-        fg_tanques = folium.FeatureGroup(name="Tanques")
-        fg_rebombeos = folium.FeatureGroup(name="Rebombeos")
+    # 2. Creación de Grupos de Capas (Organización interna del navegador)
+    fg_sectores = folium.FeatureGroup(name="Sectores Hidrométricos")
+    fg_pozos = folium.FeatureGroup(name="Pozos")
+    fg_tanques = folium.FeatureGroup(name="Tanques")
+    fg_rebombeos = folium.FeatureGroup(name="Rebombeos")
 
-# Añadir el resaltado del sector si existe
+    # 3. Lógica de Resaltado de Sector (Si existe selección)
     if datos_sector_resaltado:
-        folium.GeoJson(
-            json.loads(datos_sector_resaltado['geo']),
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4}
-        ).add_to(m)
+        try:
+            folium.GeoJson(
+                json.loads(datos_sector_resaltado['geo']),
+                smooth_factor=1.5, # Suaviza bordes para mayor fluidez
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
+                tooltip=f"Sector Resaltado: {datos_sector_resaltado.get('sector', '')}"
+            ).add_to(m) # Este va directo al mapa para prioridad visual
+        except Exception as e:
+            st.warning(f"Error al cargar polígono de sector: {e}")
+
+    # 4. Plugins adicionales
+    Fullscreen(
+        position="topright", 
+        title="Pantalla Completa", 
+        title_cancel="Salir", 
+        force_separate_button=True
+    ).add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):

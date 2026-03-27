@@ -626,30 +626,43 @@ with st.sidebar:
     # 1. Inicializamos variables de estado (Solo si no existen)
     if 'centro_mapa' not in st.session_state:
         st.session_state.centro_mapa = [21.8820, -102.2800]
+    if 'zoom_inicial' not in st.session_state:
         st.session_state.zoom_inicial = 12.5
 
-    # Inicializamos el estado si no existe (esto va antes de los checkboxes)
+    # Inicializamos el estado de las capas si no existe
     for capa in ['ver_pozos', 'ver_tanques', 'ver_rebombeos', 'ver_sectores']:
-       if capa not in st.session_state:
-        st.session_state[capa] = True # Por defecto todo encendido
+        if capa not in st.session_state:
+            st.session_state[capa] = True # Por defecto todo encendido
 
-        # Creamos los checkboxes vinculados al estado
-        ver_pozos = st.sidebar.checkbox("Mostrar Pozos", value=st.session_state.ver_pozos, key="ver_pozos")
-        ver_tanques = st.sidebar.checkbox("Mostrar Tanques", value=st.session_state.ver_tanques, key="ver_tanques")
-        ver_rebombeos = st.sidebar.checkbox("Mostrar Rebombeos", value=st.session_state.ver_rebombeos, key="ver_rebombeos")
-        ver_sectores = st.sidebar.checkbox("Mostrar Sectores", value=st.session_state.ver_sectores, key="ver_sectores")    
+    # --- BOTON ACTUALIZAR (FORZA TODO A TRUE) ---
+    if st.button("🔄 ACTUALIZAR DATOS Y CAPAS", use_container_width=True):
+        st.session_state.ver_pozos = True
+        st.session_state.ver_tanques = True
+        st.session_state.ver_rebombeos = True
+        st.session_state.ver_sectores = True
+        st.cache_data.clear()
+        st.success("Refrescando sistema...")
+        st.rerun()
+
+    # --- CONTROL DE CAPAS ---
+    with st.expander("🗺️ Control de Capas", expanded=True):
+        ver_pozos = st.checkbox("Mostrar Pozos", value=st.session_state.ver_pozos, key="ver_pozos")
+        ver_tanques = st.checkbox("Mostrar Tanques", value=st.session_state.ver_tanques, key="ver_tanques")
+        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=st.session_state.ver_rebombeos, key="ver_rebombeos")
+        ver_sectores = st.checkbox("Mostrar Sectores", value=st.session_state.ver_sectores, key="ver_sectores")
 
     # --- RESUMEN GLOBAL ---
+    total_p_prom = total_p/max(len(pozos_on), 1)
     st.markdown(f"""
         <div class="resumen-card">
-            <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
-            <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
-            <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
+            <h4 style="color:#00d4ff; margin-top:0; font-size:14px;">RESUMEN GLOBAL</h4>
+            <p style="margin:2px 0;">Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+            <p style="margin:2px 0;">Presión Prom: <b style="color:#FFFF00;">{total_p_prom:.2f} Kg/cm²</b></p>
         </div>
     """, unsafe_allow_html=True)
     
     # --- ESTADO DE LAS CONEXIONES ---    
-    with st.expander("🔌 Estado de las Conexiones", expanded=True):
+    with st.expander("🔌 Estado de las Conexiones", expanded=False):
         status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
         status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
         status_postgres = "OK" if get_postgres_conn() else "ERROR"
@@ -658,8 +671,8 @@ with st.sidebar:
             cls = "status-ok" if status == "OK" else "status-err"
             html = f"""
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <span style="font-weight: bold; font-size: 13px;">{label}</span>
-                <span class="status-tag {cls}">{status}</span>
+                <span style="font-weight: bold; font-size: 11px; color: white;">{label}</span>
+                <span class="status-tag {cls}" style="font-size:10px; padding:2px 5px; border-radius:4px;">{status}</span>
             </div>
             """
             st.markdown(html, unsafe_allow_html=True)
@@ -677,61 +690,37 @@ with st.sidebar:
     )
 
     # 3. Buscador de Sectores
-    lista_sectores = sorted([s['sector'] for s in sectores])
+    lista_sectores_nombres = sorted([s['sector'] for s in sectores])
     sector_buscado = st.selectbox(
         "🏘️ Localizar Sector",
-        options=[""] + lista_sectores,
+        options=[""] + lista_sectores_nombres,
         format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
         key="busqueda_sectores"
     )
 
-    # 4. ASIGNACIÓN DE POSICIÓN Y PRIORIDAD
+    # 4. LÓGICA DE LOCALIZACIÓN
     datos_sector_resaltado = None
 
     if pozo_buscado:
-        # Prioridad 1: Pozo seleccionado
         st.session_state.centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         st.session_state.zoom_inicial = 18
     elif sector_buscado:
-        # Prioridad 2: Sector seleccionado
         datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
         if datos_s:
             datos_sector_resaltado = datos_s
             try:
                 geom = json.loads(datos_s['geo'])
-                coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
+                if geom['type'] == 'MultiPolygon':
+                    coords_raw = geom['coordinates'][0][0][0]
+                else:
+                    coords_raw = geom['coordinates'][0][0]
                 st.session_state.centro_mapa = [coords_raw[1], coords_raw[0]]
                 st.session_state.zoom_inicial = 14.5
             except:
                 pass
-    else:
-        # Prioridad 3: Si no hay nada seleccionado, mantener o resetear a vista general
-        st.session_state.centro_mapa = [21.8820, -102.2800]
-        st.session_state.zoom_inicial = 12.5
-        
-    # --- BOTON ACTUALIZAR ---
-    if st.sidebar.button("🔄 ACTUALIZAR DATOS Y CAPAS", use_container_width=True):
-    # 1. Forzamos el encendido de todas las capas en el estado
-    st.session_state.ver_pozos = True
-    st.session_state.ver_tanques = True
-    st.session_state.ver_rebombeos = True
-    st.session_state.ver_sectores = True
     
-    # 2. Limpiamos el cache de los datos para forzar nueva consulta al SCADA
-    st.cache_data.clear()
-    
-    # 3. Mensaje de éxito y reinicio
-    st.success("Refrescando sistema...")
-    st.rerun()
-        
-    # --- CONTROL DE CAPAS ---
-    with st.expander("🗺️ Control de Capas", expanded=False):
-        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
-        ver_pozos = st.checkbox("Mostrar Pozos", value=True)
-        ver_tanques = st.checkbox("Mostrar Tanques", value=True)
-        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=True)
-    
-    # --- LISTADO DE ESTADOS ---
+    # --- LISTADO DE ESTADOS DE BOMBAS ---
+    st.markdown("---")
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
         for p in sorted(pozos_on): 
             st.write(f"🟢 {p}")
@@ -749,7 +738,6 @@ with st.sidebar:
         with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
-
 # 7  SECCION--------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)

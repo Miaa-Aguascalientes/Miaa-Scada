@@ -25,7 +25,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 3  SECCION--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
+# 1.1  SECCION--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -55,7 +55,7 @@ def get_postgres_conn():
     except: 
         return None
 
-# 4 SECCION -------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
+# 1.2 SECCION -------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
 # DICCIONARIO POZOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
@@ -174,9 +174,8 @@ def obtener_historia_7_dias(tag_name):
     engine = get_mysql_scada_engine()
     if not engine or not tag_name: return pd.DataFrame()
     try:
-        # Aquí NO usamos MAX(FECHA) porque queremos TODOS los puntos de la semana
         query = f"""
-            SELECT h.FECHA as 'Fecha', h.VALUE as 'Nivel'
+            SELECT h.FECHA, h.VALUE 
             FROM vfitagnumhistory h
             JOIN VfiTagRef r ON h.GATEID = r.GATEID
             WHERE r.NAME = '{tag_name}'
@@ -184,6 +183,8 @@ def obtener_historia_7_dias(tag_name):
             ORDER BY h.FECHA ASC
         """
         df = pd.read_sql(query, engine)
+        # Forzamos a que sea datetime para que Streamlit detecte la hora
+        df['FECHA'] = pd.to_datetime(df['FECHA']) 
         return df
     except:
         return pd.DataFrame()

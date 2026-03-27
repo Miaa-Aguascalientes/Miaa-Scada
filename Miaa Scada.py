@@ -624,14 +624,8 @@ with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
     # 1. Inicializamos variables de estado (Solo si no existen)
-    if 'ver_sectores' not in st.session_state: st.session_state.ver_sectores = True
-    if 'ver_pozos' not in st.session_state: st.session_state.ver_pozos = True
-    if 'ver_tanques' not in st.session_state: st.session_state.ver_tanques = True
-    if 'ver_rebombeos' not in st.session_state: st.session_state.ver_rebombeos = True
-    
     if 'centro_mapa' not in st.session_state:
         st.session_state.centro_mapa = [21.8820, -102.2800]
-    if 'zoom_inicial' not in st.session_state:
         st.session_state.zoom_inicial = 12.5
 
     # --- RESUMEN GLOBAL ---
@@ -672,10 +666,10 @@ with st.sidebar:
     )
 
     # 3. Buscador de Sectores
-    lista_sectores_nombres = sorted([s['sector'] for s in sectores])
+    lista_sectores = sorted([s['sector'] for s in sectores])
     sector_buscado = st.selectbox(
         "🏘️ Localizar Sector",
-        options=[""] + lista_sectores_nombres,
+        options=[""] + lista_sectores,
         format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
         key="busqueda_sectores"
     )
@@ -684,9 +678,11 @@ with st.sidebar:
     datos_sector_resaltado = None
 
     if pozo_buscado:
+        # Prioridad 1: Pozo seleccionado
         st.session_state.centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
         st.session_state.zoom_inicial = 18
     elif sector_buscado:
+        # Prioridad 2: Sector seleccionado
         datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
         if datos_s:
             datos_sector_resaltado = datos_s
@@ -698,34 +694,22 @@ with st.sidebar:
             except:
                 pass
     else:
-        if not pozo_buscado and not sector_buscado:
-            st.session_state.centro_mapa = [21.8820, -102.2800]
-            st.session_state.zoom_inicial = 12.5
+        # Prioridad 3: Si no hay nada seleccionado, mantener o resetear a vista general
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+        st.session_state.zoom_inicial = 12.5
         
     # --- BOTON ACTUALIZAR ---
-    if st.button("🔄 ACTUALIZAR DATOS Y CAPAS", use_container_width=True):
-        st.session_state.ver_sectores = True
-        st.session_state.ver_pozos = True
-        st.session_state.ver_tanques = True
-        st.session_state.ver_rebombeos = True
+    if st.button("♻️ Actualizar Datos", use_container_width=True):
         st.cache_data.clear()
-        st.success("Refrescando...")
+        st.cache_resource.clear()
         st.rerun()
         
-    # --- CONTROL DE CAPAS (CORREGIDO PARA EVITAR EL ERROR DE DEFINICIÓN) ---
+    # --- CONTROL DE CAPAS ---
     with st.expander("🗺️ Control de Capas", expanded=False):
-        # Vinculamos directamente al session_state
-        st.checkbox("Mostrar Sectores", key="ver_sectores")
-        st.checkbox("Mostrar Pozos", key="ver_pozos")
-        st.checkbox("Mostrar Tanques", key="ver_tanques")
-        st.checkbox("Mostrar Rebombeos", key="ver_rebombeos")
-
-    # DEFINIMOS LAS VARIABLES PARA EL RESTO DEL SCRIPT
-    # Esto evita el NameError: name 'ver_sectores' is not defined
-    ver_sectores = st.session_state.ver_sectores
-    ver_pozos = st.session_state.ver_pozos
-    ver_tanques = st.session_state.ver_tanques
-    ver_rebombeos = st.session_state.ver_rebombeos
+        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
+        ver_pozos = st.checkbox("Mostrar Pozos", value=True)
+        ver_tanques = st.checkbox("Mostrar Tanques", value=True)
+        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=True)
     
     # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
@@ -735,6 +719,16 @@ with st.sidebar:
     with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
         for p in sorted(pozos_off): 
             st.write(f"🔴 {p}")
+
+    if pozos_falla_com:
+        with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
+            for p in sorted(pozos_falla_com):
+                st.write(f"🟠 {p}")
+    
+    if pozos_sin_telemetria:
+        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
+            for p in sorted(pozos_sin_telemetria): 
+                st.write(f"⚪ {p}")
 # 7  SECCION--------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)

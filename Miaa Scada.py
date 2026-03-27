@@ -221,18 +221,27 @@ if tag_a_graficar:
     st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
-    # USAMOS LA FUNCIÓN NUEVA
     df_hist = obtener_historia_7_dias(tag_a_graficar)
 
     if not df_hist.empty:
-        df_hist['Fecha'] = pd.to_datetime(df_hist['Fecha'])
-        st.line_chart(df_hist.set_index('Fecha'))
+        # Renombramos para que se vea bien en la etiqueta del puntero
+        df_hist.columns = ['Fecha y Hora', 'Nivel (m)']
         
-        with st.expander("Ver tabla de datos detallada"):
-            st.dataframe(df_hist.sort_values(by='Fecha', ascending=False), use_container_width=True)
+        # Al usar 'Fecha y Hora' como X, Streamlit mostrará el tiempo en el tooltip
+        st.line_chart(
+            df_hist, 
+            x='Fecha y Hora', 
+            y='Nivel (m)', 
+            use_container_width=True
+        )
+        
+        with st.expander("Ver registros exactos"):
+            # Formateamos la tabla para que también se vea la hora
+            df_tabla = df_hist.copy()
+            df_tabla['Fecha y Hora'] = df_tabla['Fecha y Hora'].dt.strftime('%d/%m/%Y %H:%M:%S')
+            st.dataframe(df_tabla.sort_values(by='Fecha y Hora', ascending=False), use_container_width=True)
     else:
-        st.error(f"❌ No se encontraron datos para el tag: {tag_a_graficar}")
-        st.info("Revisa si el tag existe en VfiTagRef y si tiene registros recientes en vfitagnumhistory.")
+        st.error(f"No hay datos para {tag_a_graficar}")
     
     if st.button("⬅️ Volver al Mapa"):
         st.query_params.clear()

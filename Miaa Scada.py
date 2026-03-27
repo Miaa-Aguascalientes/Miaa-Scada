@@ -858,36 +858,57 @@ with col_mapa:
                 ).add_to(m)
 
 # --- RENDERIZADO DE TANQUES ---
-    if ver_tanques: 
+    if ver_tanques:
         for id_tq, info in mapa_tanques_dict.items():
             try:
                 val_nivel, fecha_tq = data_scada.get(info['tag_nivel'], (0, "N/A"))
                 n_max = info['nivel_max'] if info['nivel_max'] else 1.0
                 porcentaje = (val_nivel / n_max) * 100
                 
+                # URL de destino (ajusta 'tu_pagina_de_graficos' por la URL real de tu app)
+                # Pasamos el ID del tanque para que la otra página sepa qué graficar
+                url_grafico = f"https://tu-app-miaa.streamlit.app/?tanque_id={id_tq}"
+
                 html_popup_tq = f"""
                 <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
                     <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
-                    <span style="font-size: 10px; color: #888;">ID: {id_tq}</span>
                     <hr style="border: 0.5px solid #333;">
-                    <div style="margin-top: 8px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                            <span>💧 Nivel Actual:</span>
-                            <b>{val_nivel:.2f} m</b>
-                        </div>
-                        <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
-                            <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
-                        </div>
-                        <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad Máx: {n_max} m</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                        <span>💧 Nivel: <b>{val_nivel:.2f} m</b></span>
                     </div>
+                    <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
+                        <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
+                    </div>
+                    <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad: {n_max} m</div>
+                    
+                    <div style="margin-top: 15px; text-align: center;">
+                        <a href="{url_grafico}" target="_blank" 
+                           style="background-color: #00d4ff; color: black; padding: 8px 15px; 
+                                  text-decoration: none; border-radius: 5px; font-weight: bold; 
+                                  font-size: 10px; display: inline-block;">
+                            📊 VER GRÁFICO 7 DÍAS
+                        </a>
+                    </div>
+                    
                     <div style="margin-top: 10px; font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
-                    <div style="margin-top: 5px; font-size: 9px; color: #666;">📍 Sitios: {info['sitios']}</div>
                 </div>
                 """
-                folium.RegularPolygonMarker(location=info['coord'], number_of_sides=6, radius=5, color="#00d4ff", fill=True, fill_color="#00d4ff", popup=folium.Popup(html_popup_tq, max_width=300)).add_to(m)
-                folium.Marker(location=info['coord'], icon=folium.DivIcon(icon_anchor=(20, -10), html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>')).add_to(m)
-            except:
-                continue
+                
+                folium.RegularPolygonMarker(
+                    location=info['coord'],
+                    number_of_sides=6, radius=5, color="#00d4ff", fill=True, fill_color="#00d4ff",
+                    popup=folium.Popup(html_popup_tq, max_width=300),
+                    tooltip=f"Tanque: {info['nombre']}"
+                ).add_to(m)
+
+                folium.Marker(
+                    location=info['coord'],
+                    icon=folium.DivIcon(
+                        icon_anchor=(20, -10),
+                        html=f'<div style="font-size: 9px; font-weight: bold; color: #00d4ff; text-shadow: 1px 1px #000;">{id_tq}</div>'
+                    )
+                ).add_to(m)
+            except: continue
             
     # --- RENDERIZADO DE REBOMBEOS ---
     if ver_rebombeos:

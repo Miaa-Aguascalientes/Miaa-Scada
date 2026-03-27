@@ -624,16 +624,15 @@ with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
     # 1. Inicializamos variables de estado (Solo si no existen)
-    if 'centro_mapa' not in st.session_state:
-        st.session_state.centro_mapa = [21.8820, -102.2800]
-    if 'zoom_inicial' not in st.session_state:
-        st.session_state.zoom_inicial = 12.5
-
-    # Inicializamos el estado de las capas para que el botón tenga qué activar
     if 'ver_sectores' not in st.session_state: st.session_state.ver_sectores = True
     if 'ver_pozos' not in st.session_state: st.session_state.ver_pozos = True
     if 'ver_tanques' not in st.session_state: st.session_state.ver_tanques = True
     if 'ver_rebombeos' not in st.session_state: st.session_state.ver_rebombeos = True
+    
+    if 'centro_mapa' not in st.session_state:
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+    if 'zoom_inicial' not in st.session_state:
+        st.session_state.zoom_inicial = 12.5
 
     # --- RESUMEN GLOBAL ---
     st.markdown(f"""
@@ -699,7 +698,6 @@ with st.sidebar:
             except:
                 pass
     else:
-        # Solo resetear si no hay búsqueda activa
         if not pozo_buscado and not sector_buscado:
             st.session_state.centro_mapa = [21.8820, -102.2800]
             st.session_state.zoom_inicial = 12.5
@@ -711,16 +709,23 @@ with st.sidebar:
         st.session_state.ver_tanques = True
         st.session_state.ver_rebombeos = True
         st.cache_data.clear()
-        st.success("Refrescando sistema...")
+        st.success("Refrescando...")
         st.rerun()
         
-    # --- CONTROL DE CAPAS ---
+    # --- CONTROL DE CAPAS (CORREGIDO PARA EVITAR EL ERROR DE DEFINICIÓN) ---
     with st.expander("🗺️ Control de Capas", expanded=False):
-        # Usamos los nombres de variables que tu mapa ya reconoce
-        ver_sectores = st.checkbox("Mostrar Sectores", value=st.session_state.ver_sectores, key="ver_sectores")
-        ver_pozos = st.checkbox("Mostrar Pozos", value=st.session_state.ver_pozos, key="ver_pozos")
-        ver_tanques = st.checkbox("Mostrar Tanques", value=st.session_state.ver_tanques, key="ver_tanques")
-        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=st.session_state.ver_rebombeos, key="ver_rebombeos")
+        # Vinculamos directamente al session_state
+        st.checkbox("Mostrar Sectores", key="ver_sectores")
+        st.checkbox("Mostrar Pozos", key="ver_pozos")
+        st.checkbox("Mostrar Tanques", key="ver_tanques")
+        st.checkbox("Mostrar Rebombeos", key="ver_rebombeos")
+
+    # DEFINIMOS LAS VARIABLES PARA EL RESTO DEL SCRIPT
+    # Esto evita el NameError: name 'ver_sectores' is not defined
+    ver_sectores = st.session_state.ver_sectores
+    ver_pozos = st.session_state.ver_pozos
+    ver_tanques = st.session_state.ver_tanques
+    ver_rebombeos = st.session_state.ver_rebombeos
     
     # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
@@ -730,16 +735,6 @@ with st.sidebar:
     with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
         for p in sorted(pozos_off): 
             st.write(f"🔴 {p}")
-
-    if pozos_falla_com:
-        with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
-            for p in sorted(pozos_falla_com):
-                st.write(f"🟠 {p}")
-    
-    if pozos_sin_telemetria:
-        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
-            for p in sorted(pozos_sin_telemetria): 
-                st.write(f"⚪ {p}")
 # 7  SECCION--------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)

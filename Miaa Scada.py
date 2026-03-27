@@ -726,7 +726,9 @@ st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes<
 # Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
-m = folium.Map(
+with col_mapa:
+    # Usamos las variables guardadas en el estado de la sesión
+    m = folium.Map(
     location=[21.8820, -102.2800], 
     zoom_start=12, 
     tiles="CartoDB dark_matter",
@@ -738,15 +740,6 @@ fg_sectores = folium.FeatureGroup(name="Sectores Hidrométricos")
 fg_pozos = folium.FeatureGroup(name="Pozos")
 fg_tanques = folium.FeatureGroup(name="Tanques")
 fg_rebombeos = folium.FeatureGroup(name="Rebombeos")
-
-with col_mapa:
-    # Usamos las variables guardadas en el estado de la sesión
-    m = folium.Map(
-        location=st.session_state.centro_mapa, 
-        zoom_start=st.session_state.zoom_inicial, 
-        tiles="CartoDB dark_matter"
-    )
-    Fullscreen().add_to(m)
 
 # Añadir el resaltado del sector si existe
     if datos_sector_resaltado:

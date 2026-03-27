@@ -628,7 +628,8 @@ with st.sidebar:
         st.session_state.centro_mapa = [21.8820, -102.2800]
         st.session_state.zoom_inicial = 12.5
 
-    for capa in ['ver_pozos', 'ver_tanques', 'ver_rebombeos', 'ver_sectores']:
+    # Inicializamos el estado si no existe (esto va antes de los checkboxes)
+for capa in ['ver_pozos', 'ver_tanques', 'ver_rebombeos', 'ver_sectores']:
     if capa not in st.session_state:
         st.session_state[capa] = True # Por defecto todo encendido
 

@@ -364,7 +364,7 @@ st.markdown("""
 
 
 
-# 7 SECCION------------------------------------------------------- 7. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
+# 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
@@ -443,7 +443,7 @@ for id_rb, info in mapa_rebombeos_dict.items():
     else:
         info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
 
-# 8 SECCIÓN --------------------------------------------------------------8 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
+# 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 
 if sector_seleccionado:
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
@@ -618,7 +618,7 @@ if sector_seleccionado:
     
     st.stop()
     
-# 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
+# 8 SECCION ------------------------------------------------------------------------------- 8. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
 with st.sidebar:
     # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
@@ -729,7 +729,7 @@ with st.sidebar:
         with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
-# 9  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
+# 9  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL -----------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 # Proporción ultra-ancha para el mapa (90% mapa, 10% capas)

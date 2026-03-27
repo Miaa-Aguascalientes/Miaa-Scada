@@ -25,22 +25,20 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
+
+# --- LÓGICA DE PANTALLA DE GRÁFICO (INICIO DEL ARCHIVO) ---
 params = st.query_params
-sector_seleccionado = params.get("sector", None)
-tag_a_graficar = params.get("graficar_tanque", None) # <-- Nuevo parámetro
+tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
-# --- LÓGICA DE PANTALLA DE GRÁFICO (SIMILAR A SECTORES) ---
 if tag_a_graficar:
     st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
     st.title(f"📊 Análisis Histórico: {nombre_tq}")
     
     engine_hist = get_mysql_scada_engine()
     if engine_hist:
-        # Buscamos los últimos 7 días en vfitagnumhistory
         query_hist = f"""
-            SELECT h.FECHA as 'Fecha', h.VALUE as 'Nivel (m)'
+            SELECT h.FECHA as 'Fecha', h.VALUE as 'Nivel'
             FROM vfitagnumhistory h
             JOIN VfiTagRef r ON h.GATEID = r.GATEID
             WHERE r.NAME = '{tag_a_graficar}'
@@ -49,31 +47,23 @@ if tag_a_graficar:
         """
         try:
             df_hist = pd.read_sql(query_hist, engine_hist)
-            if not df_hist.empty:
+            
+            # VALIDACIÓN CRÍTICA: Solo graficar si hay datos
+            if df_hist is not None and not df_hist.empty:
+                # Convertir fecha a datetime por si acaso
+                df_hist['Fecha'] = pd.to_datetime(df_hist['Fecha'])
                 st.line_chart(df_hist.set_index('Fecha'))
+                st.subheader("Datos detallados")
                 st.dataframe(df_hist.sort_values(by='Fecha', ascending=False), use_container_width=True)
             else:
-                st.warning("No hay datos para este tanque en los últimos 7 días.")
+                st.warning(f"No se encontraron registros en 'vfitagnumhistory' para el tag: {tag_a_graficar} en los últimos 7 días.")
         except Exception as e:
-            st.error(f"Error al consultar base de datos: {e}")
+            st.error(f"Error en la base de datos: {e}")
     
     if st.button("⬅️ Volver al Mapa Principal"):
         st.query_params.clear()
         st.rerun()
-    st.stop() # Esto evita que se cargue el resto del código (el mapa)
-
-# --- CONFIGURACIÓN NORMAL DEL MAPA ---
-if sector_seleccionado:
-    titulo_pestaña = f"MIAA - Estado de Sector: {sector_seleccionado}"
-else:
-    titulo_pestaña = "MIAA - Estado de Pozos"
-
-st.set_page_config(
-    page_title=titulo_pestaña, 
-    page_icon="https://www.miaa.mx/favicon.ico", 
-    layout="wide", 
-    initial_sidebar_state="expanded"
-)
+    st.stop()
 # 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>

@@ -8,6 +8,7 @@ import psycopg2
 import json
 import urllib.parse
 from datetime import datetime
+import datetime as dt
 
 # 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 params = st.query_params
@@ -26,6 +27,17 @@ st.set_page_config(
 )
 
 # 2  SECCION------------------------------------------------------------------------------2. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
+
+@st.cache_resource(ttl=3600)
+def get_engine(secret_key):
+    try:
+        c = st.secrets[secret_key]
+        pwd = urllib.parse.quote_plus(c["password"])
+        if "mysql" in secret_key:
+            return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
+        return None
+    except: return None
+
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -46,34 +58,26 @@ def get_mysql_telemetria_engine():
         return engine
     except: return None
 
-@st.cache_resource
+@st.cache_resource(ttl=3600)
 def get_postgres_conn():
-    try: 
-        conn = psycopg2.connect(**st.secrets["postgres"])
-        conn.close() 
-        return psycopg2.connect(**st.secrets["postgres"])
-    except: 
-        return None
+    try: return psycopg2.connect(**st.secrets["postgres"])
+    except: return None
 
+@st.cache_data(ttl=300) # 5 minutos de caché para estabilidad
 def cargar_datos_scada(lista_tags):
-    engine = get_mysql_scada_engine()
+    engine = get_engine("mysql_scada")
     if not engine or not lista_tags: return {}
     try:
-        # Convertimos la lista a un string separado por comas para el SQL
         tags_str = "', '".join(lista_tags)
         query = f"""
             SELECT r.NAME, h.VALUE, h.FECHA 
             FROM VfiTagNumHistory_Ultimo h 
             JOIN VfiTagRef r ON h.GATEID = r.GATEID 
-            WHERE r.NAME IN ('{tags_str}') 
-            AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)
+            WHERE r.NAME IN ('{tags_str}')
         """
         df = pd.read_sql(query, engine)
-        # Retornamos un diccionario con el nombre del tag como llave
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
-    except Exception as e:
-        # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
-        return {}
+    except: return {}
 
 def obtener_historia_7_dias(tag_name):
     engine = get_mysql_scada_engine()
@@ -94,28 +98,15 @@ def obtener_historia_7_dias(tag_name):
     except:
         return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=600)
 def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Añadimos los campos numéricos solicitados en la consulta
-        query = """
-            SELECT sector, "Pozos_Sector", 
-                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
-                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
-                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
-                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
-                   "Recaudacion", "Dotacion", "Balance_Estimado",
-                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
-            FROM "Sectorizacion"."Sectores_hidr"
-        """
+        query = 'SELECT sector, "Pozos_Sector", "Poblacion", "U_Tot", "Cons_m3", "Dotacion", "Balance_Estimado", ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
         df = pd.read_sql(query, conn)
-        conn.close()
         return df.to_dict('records')
-    except Exception as e:
-        st.error(f"Error al cargar sectores: {e}")
-        return []
+    except: return []
 
 def formato_hora(decimal):
     try:
@@ -734,6 +725,19 @@ with st.sidebar:
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 # Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
+
+m = folium.Map(
+    location=[21.8820, -102.2800], 
+    zoom_start=12, 
+    tiles="CartoDB dark_matter",
+    prefer_canvas=True # ESTO ES VITAL: Renderiza todo por GPU, no por HTML pesado
+)
+
+# Creamos grupos de capas independientes para que el navegador no se confunda
+fg_sectores = folium.FeatureGroup(name="Sectores Hidrométricos")
+fg_pozos = folium.FeatureGroup(name="Pozos")
+fg_tanques = folium.FeatureGroup(name="Tanques")
+fg_rebombeos = folium.FeatureGroup(name="Rebombeos")
 
 with col_mapa:
     # Usamos las variables guardadas en el estado de la sesión

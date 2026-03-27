@@ -737,11 +737,7 @@ with col_mapa:
         prefer_canvas=True  # VITAL: Renderiza por GPU para evitar que se trabe
     )
 
-    # 2. Creación de Grupos de Capas (Organización interna del navegador)
-    fg_sectores = folium.FeatureGroup(name="Sectores Hidrométricos")
-    fg_pozos = folium.FeatureGroup(name="Pozos")
-    fg_tanques = folium.FeatureGroup(name="Tanques")
-    fg_rebombeos = folium.FeatureGroup(name="Rebombeos")
+
 
     # 3. Lógica de Resaltado de Sector (Si existe selección)
     if datos_sector_resaltado:

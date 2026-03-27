@@ -623,13 +623,17 @@ with st.sidebar:
     # Contenedor del logo
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
-    # 1. INICIALIZACIÓN DE ESTADOS (Crucial para que el botón funcione)
+    # 1. Inicializamos variables de estado (Solo si no existen)
+    if 'centro_mapa' not in st.session_state:
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+    if 'zoom_inicial' not in st.session_state:
+        st.session_state.zoom_inicial = 12.5
+
+    # Inicializamos el estado de las capas para que el botón tenga qué activar
     if 'ver_sectores' not in st.session_state: st.session_state.ver_sectores = True
     if 'ver_pozos' not in st.session_state: st.session_state.ver_pozos = True
     if 'ver_tanques' not in st.session_state: st.session_state.ver_tanques = True
     if 'ver_rebombeos' not in st.session_state: st.session_state.ver_rebombeos = True
-    if 'centro_mapa' not in st.session_state: st.session_state.centro_mapa = [21.8820, -102.2800]
-    if 'zoom_inicial' not in st.session_state: st.session_state.zoom_inicial = 12.5
 
     # --- RESUMEN GLOBAL ---
     st.markdown(f"""
@@ -694,32 +698,29 @@ with st.sidebar:
                 st.session_state.zoom_inicial = 14.5
             except:
                 pass
-    
-    st.markdown("---")
-
-    # --- BOTÓN ACTUALIZAR: FUERZA TODAS LAS CAPAS A TRUE ---
+    else:
+        # Solo resetear si no hay búsqueda activa
+        if not pozo_buscado and not sector_buscado:
+            st.session_state.centro_mapa = [21.8820, -102.2800]
+            st.session_state.zoom_inicial = 12.5
+        
+    # --- BOTON ACTUALIZAR ---
     if st.button("🔄 ACTUALIZAR DATOS Y CAPAS", use_container_width=True):
         st.session_state.ver_sectores = True
         st.session_state.ver_pozos = True
         st.session_state.ver_tanques = True
         st.session_state.ver_rebombeos = True
         st.cache_data.clear()
-        st.success("Refrescando...")
+        st.success("Refrescando sistema...")
         st.rerun()
         
-    # --- CONTROL DE CAPAS (Vinculado directamente al session_state) ---
+    # --- CONTROL DE CAPAS ---
     with st.expander("🗺️ Control de Capas", expanded=False):
-        # Al usar 'key', Streamlit vincula el checkbox con el session_state automáticamente
-        st.checkbox("Mostrar Sectores", key="ver_sectores")
-        st.checkbox("Mostrar Pozos", key="ver_pozos")
-        st.checkbox("Mostrar Tanques", key="ver_tanques")
-        st.checkbox("Mostrar Rebombeos", key="ver_rebombeos")
-    
-    # Asignación final de variables para el mapa (Estas DEBEN usarse en la Sección 7/8)
-    ver_sectores = st.session_state.ver_sectores
-    ver_pozos = st.session_state.ver_pozos
-    ver_tanques = st.session_state.ver_tanques
-    ver_rebombeos = st.session_state.ver_rebombeos
+        # Usamos los nombres de variables que tu mapa ya reconoce
+        ver_sectores = st.checkbox("Mostrar Sectores", value=st.session_state.ver_sectores, key="ver_sectores")
+        ver_pozos = st.checkbox("Mostrar Pozos", value=st.session_state.ver_pozos, key="ver_pozos")
+        ver_tanques = st.checkbox("Mostrar Tanques", value=st.session_state.ver_tanques, key="ver_tanques")
+        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=st.session_state.ver_rebombeos, key="ver_rebombeos")
     
     # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):

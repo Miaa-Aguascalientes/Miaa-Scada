@@ -629,8 +629,8 @@ with st.sidebar:
         st.session_state.zoom_inicial = 12.5
 
     # Inicializamos el estado si no existe (esto va antes de los checkboxes)
-for capa in ['ver_pozos', 'ver_tanques', 'ver_rebombeos', 'ver_sectores']:
-    if capa not in st.session_state:
+    for capa in ['ver_pozos', 'ver_tanques', 'ver_rebombeos', 'ver_sectores']:
+       if capa not in st.session_state:
         st.session_state[capa] = True # Por defecto todo encendido
 
         # Creamos los checkboxes vinculados al estado

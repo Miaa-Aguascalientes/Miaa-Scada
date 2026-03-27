@@ -8,7 +8,6 @@ import psycopg2
 import json
 import urllib.parse
 from datetime import datetime
-import datetime as dt
 
 # 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 params = st.query_params
@@ -27,17 +26,6 @@ st.set_page_config(
 )
 
 # 2  SECCION------------------------------------------------------------------------------2. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
-
-@st.cache_resource(ttl=3600)
-def get_engine(secret_key):
-    try:
-        c = st.secrets[secret_key]
-        pwd = urllib.parse.quote_plus(c["password"])
-        if "mysql" in secret_key:
-            return create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        return None
-    except: return None
-
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -58,26 +46,34 @@ def get_mysql_telemetria_engine():
         return engine
     except: return None
 
-@st.cache_resource(ttl=3600)
+@st.cache_resource
 def get_postgres_conn():
-    try: return psycopg2.connect(**st.secrets["postgres"])
-    except: return None
+    try: 
+        conn = psycopg2.connect(**st.secrets["postgres"])
+        conn.close() 
+        return psycopg2.connect(**st.secrets["postgres"])
+    except: 
+        return None
 
-@st.cache_data(ttl=300) # 5 minutos de caché para estabilidad
 def cargar_datos_scada(lista_tags):
-    engine = get_engine("mysql_scada")
+    engine = get_mysql_scada_engine()
     if not engine or not lista_tags: return {}
     try:
+        # Convertimos la lista a un string separado por comas para el SQL
         tags_str = "', '".join(lista_tags)
         query = f"""
             SELECT r.NAME, h.VALUE, h.FECHA 
             FROM VfiTagNumHistory_Ultimo h 
             JOIN VfiTagRef r ON h.GATEID = r.GATEID 
-            WHERE r.NAME IN ('{tags_str}')
+            WHERE r.NAME IN ('{tags_str}') 
+            AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)
         """
         df = pd.read_sql(query, engine)
+        # Retornamos un diccionario con el nombre del tag como llave
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
-    except: return {}
+    except Exception as e:
+        # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
+        return {}
 
 def obtener_historia_7_dias(tag_name):
     engine = get_mysql_scada_engine()
@@ -98,15 +94,28 @@ def obtener_historia_7_dias(tag_name):
     except:
         return pd.DataFrame()
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        query = 'SELECT sector, "Pozos_Sector", "Poblacion", "U_Tot", "Cons_m3", "Dotacion", "Balance_Estimado", ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo FROM "Sectorizacion"."Sectores_hidr"'
+        # Añadimos los campos numéricos solicitados en la consulta
+        query = """
+            SELECT sector, "Pozos_Sector", 
+                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
+                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
+                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
+                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
+                   "Recaudacion", "Dotacion", "Balance_Estimado",
+                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
+            FROM "Sectorizacion"."Sectores_hidr"
+        """
         df = pd.read_sql(query, conn)
+        conn.close()
         return df.to_dict('records')
-    except: return []
+    except Exception as e:
+        st.error(f"Error al cargar sectores: {e}")
+        return []
 
 def formato_hora(decimal):
     try:
@@ -721,48 +730,26 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 # 9  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL -----------------------------------------------------------------------------------------------------------
-
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
-
-# Proporción ultra-ancha para el mapa (90% mapa, 10% capas para controles)
+# Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
 with col_mapa:
-    # 1. Inicialización del objeto Mapa
+    # Usamos las variables guardadas en el estado de la sesión
     m = folium.Map(
-        location=[21.8820, -102.2800], 
-        zoom_start=12, 
-        tiles="CartoDB dark_matter",
-        prefer_canvas=True  # VITAL: Renderiza por GPU para evitar que se trabe
+        location=st.session_state.centro_mapa, 
+        zoom_start=st.session_state.zoom_inicial, 
+        tiles="CartoDB dark_matter"
     )
+    Fullscreen().add_to(m)
 
-
-
-    # 3. Lógica de Resaltado de Sector (Si existe selección)
+# Añadir el resaltado del sector si existe
     if datos_sector_resaltado:
-        try:
-            folium.GeoJson(
-                json.loads(datos_sector_resaltado['geo']),
-                smooth_factor=1.5, # Suaviza bordes para mayor fluidez
-                style_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#ffffff', 
-                    'weight': 3, 
-                    'fillOpacity': 0.4
-                },
-                tooltip=f"Sector Resaltado: {datos_sector_resaltado.get('sector', '')}"
-            ).add_to(m) # Este va directo al mapa para prioridad visual
-        except Exception as e:
-            st.warning(f"Error al cargar polígono de sector: {e}")
-
-    # 4. Plugins adicionales
-    Fullscreen(
-        position="topright", 
-        title="Pantalla Completa", 
-        title_cancel="Salir", 
-        force_separate_button=True
-    ).add_to(m)
+        folium.GeoJson(
+            json.loads(datos_sector_resaltado['geo']),
+            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4}
+        ).add_to(m)
 
     # FUNCIÓN PARA HORARIO 00:00
     def formato_hora(decimal):
@@ -1031,5 +1018,11 @@ with col_mapa:
 
     # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
     folium_static(m, width=None, height=750)
+
+
+
+
+
+
 
 

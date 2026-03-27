@@ -628,6 +628,16 @@ with st.sidebar:
         st.session_state.centro_mapa = [21.8820, -102.2800]
         st.session_state.zoom_inicial = 12.5
 
+    for capa in ['ver_pozos', 'ver_tanques', 'ver_rebombeos', 'ver_sectores']:
+    if capa not in st.session_state:
+        st.session_state[capa] = True # Por defecto todo encendido
+
+        # Creamos los checkboxes vinculados al estado
+        ver_pozos = st.sidebar.checkbox("Mostrar Pozos", value=st.session_state.ver_pozos, key="ver_pozos")
+        ver_tanques = st.sidebar.checkbox("Mostrar Tanques", value=st.session_state.ver_tanques, key="ver_tanques")
+        ver_rebombeos = st.sidebar.checkbox("Mostrar Rebombeos", value=st.session_state.ver_rebombeos, key="ver_rebombeos")
+        ver_sectores = st.sidebar.checkbox("Mostrar Sectores", value=st.session_state.ver_sectores, key="ver_sectores")    
+
     # --- RESUMEN GLOBAL ---
     st.markdown(f"""
         <div class="resumen-card">
@@ -699,10 +709,19 @@ with st.sidebar:
         st.session_state.zoom_inicial = 12.5
         
     # --- BOTON ACTUALIZAR ---
-    if st.button("♻️ Actualizar Datos", use_container_width=True):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.rerun()
+    if st.sidebar.button("🔄 ACTUALIZAR DATOS Y CAPAS", use_container_width=True):
+    # 1. Forzamos el encendido de todas las capas en el estado
+    st.session_state.ver_pozos = True
+    st.session_state.ver_tanques = True
+    st.session_state.ver_rebombeos = True
+    st.session_state.ver_sectores = True
+    
+    # 2. Limpiamos el cache de los datos para forzar nueva consulta al SCADA
+    st.cache_data.clear()
+    
+    # 3. Mensaje de éxito y reinicio
+    st.success("Refrescando sistema...")
+    st.rerun()
         
     # --- CONTROL DE CAPAS ---
     with st.expander("🗺️ Control de Capas", expanded=False):

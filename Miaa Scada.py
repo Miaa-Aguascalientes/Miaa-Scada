@@ -25,7 +25,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 1.1  SECCION--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
+# 1.1  SECCION--------------------------------------------------------------------------------1.1. FUNCIONES DE CONEXIÓN -----------------------------------------------------------------------------
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -116,6 +116,31 @@ def cargar_sectores_poligonos():
     except Exception as e:
         st.error(f"Error al cargar sectores: {e}")
         return []
+
+# 4 SECCIÓN------------------------------------------------------------------4 FUNCIONES DE UTILIDAD  ----------------------------------------------------------------------------------------------
+
+def formato_hora(decimal):
+    try:
+        if decimal == "N/A" or decimal is None: return "00:00"
+        horas = int(float(decimal))
+        minutos = int((float(decimal) - horas) * 60)
+        return f"{horas:02d}:{minutos:02d}"
+    except:
+        return "00:00"
+
+def get_blink_icon(color):
+    return f"""
+    <div style="
+        width: 8px; height: 8px; 
+        background-color: {color}; 
+        border-radius: 50%; 
+        box-shadow: 0 0 8px {color};
+        animation: blinker 1s linear infinite;">
+    </div>
+    <style>
+    @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
+    </style>
+    """
 
 # 1.2 SECCION -------------------------------------------------------------------------------- 1.2. CARGA DE DATOS DE DICCIONARIOS ----------------------------------------------------------------------------------------------------------
 # DICCIONARIO POZOS
@@ -213,8 +238,7 @@ def cargar_rebombeos_desde_db():
     except: return {}
 
 
-
-# --- 1. DETECCIÓN DE PARÁMETROS PARA GRAFICAR LOS TANQUES ---
+# 1.3 SECCION -------------------------------------------------------------------------------- 1.3. DETECCIÓN DE PARÁMETROS PARA GRAFICAR LOS TANQUES --------------------------------------------------------------------
 params = st.query_params
 tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
@@ -342,7 +366,7 @@ st.markdown("""
 
 
 
-# 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
+# 3 SECCION------------------------------------------------------- 3. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
@@ -421,32 +445,9 @@ for id_rb, info in mapa_rebombeos_dict.items():
     else:
         info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
 
-# 5.4-----------------------------------SECCIÓN FUNCIONES DE UTILIDAD (Mover arriba de la sección 5.5) ----------------------------------------------------------------------------------
 
-def formato_hora(decimal):
-    try:
-        if decimal == "N/A" or decimal is None: return "00:00"
-        horas = int(float(decimal))
-        minutos = int((float(decimal) - horas) * 60)
-        return f"{horas:02d}:{minutos:02d}"
-    except:
-        return "00:00"
 
-def get_blink_icon(color):
-    return f"""
-    <div style="
-        width: 8px; height: 8px; 
-        background-color: {color}; 
-        border-radius: 50%; 
-        box-shadow: 0 0 8px {color};
-        animation: blinker 1s linear infinite;">
-    </div>
-    <style>
-    @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
-    </style>
-    """
-
-# 5.5 SECCIÓN ------------------------------------------- VISTA DETALLE DEL SECTOR (NUEVA PESTAÑA) -------------------------------------------
+# 5 SECCIÓN -------------------------------------------------------------- VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 if sector_seleccionado:
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     

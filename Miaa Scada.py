@@ -27,43 +27,52 @@ st.set_page_config(
 
 
 # --- LÓGICA DE PANTALLA DE GRÁFICO (INICIO DEL ARCHIVO) ---
+# --- 1. CONFIGURACIÓN DE PÁGINA Y DETECCIÓN DE PARÁMETROS ---
 params = st.query_params
-tag_a_graficar = params.get("graficar_tanque", None)
+sector_seleccionado = params.get("sector", None)
+tanque_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
-if tag_a_graficar:
+# --- NUEVA LÓGICA: VISTA DE GRÁFICO (IGUAL A LA DE SECTORES) ---
+if tanque_a_graficar:
     st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
-    st.title(f"📊 Análisis Histórico: {nombre_tq}")
+    st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
     engine_hist = get_mysql_scada_engine()
     if engine_hist:
+        # Consulta a vfitagnumhistory usando el NAME del tag
         query_hist = f"""
-            SELECT h.FECHA as 'Fecha', h.VALUE as 'Nivel'
+            SELECT h.FECHA as 'Fecha', h.VALUE as 'Nivel (m)'
             FROM vfitagnumhistory h
             JOIN VfiTagRef r ON h.GATEID = r.GATEID
-            WHERE r.NAME = '{tag_a_graficar}'
+            WHERE r.NAME = '{tanque_a_graficar}'
             AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
             ORDER BY h.FECHA ASC
         """
         try:
             df_hist = pd.read_sql(query_hist, engine_hist)
-            
-            # VALIDACIÓN CRÍTICA: Solo graficar si hay datos
             if df_hist is not None and not df_hist.empty:
-                # Convertir fecha a datetime por si acaso
                 df_hist['Fecha'] = pd.to_datetime(df_hist['Fecha'])
                 st.line_chart(df_hist.set_index('Fecha'))
-                st.subheader("Datos detallados")
+                st.write("### Tabla de valores (Últimos 7 días)")
                 st.dataframe(df_hist.sort_values(by='Fecha', ascending=False), use_container_width=True)
             else:
-                st.warning(f"No se encontraron registros en 'vfitagnumhistory' para el tag: {tag_a_graficar} en los últimos 7 días.")
+                st.warning(f"No hay datos históricos para el tag {tanque_a_graficar}")
         except Exception as e:
-            st.error(f"Error en la base de datos: {e}")
+            st.error(f"Error de base de datos: {e}")
     
-    if st.button("⬅️ Volver al Mapa Principal"):
+    if st.button("⬅️ Volver al Mapa"):
         st.query_params.clear()
         st.rerun()
-    st.stop()
+    st.stop() # Detiene el resto de la app para que no cargue el mapa
+
+# --- CONFIGURACIÓN NORMAL (Si no hay sector ni tanque elegido) ---
+if sector_seleccionado:
+    titulo_pestaña = f"MIAA - Sector: {sector_seleccionado}"
+else:
+    titulo_pestaña = "MIAA - Estado de Pozos"
+
+st.set_page_config(page_title=titulo_pestaña, layout="wide")
 # 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
@@ -904,30 +913,29 @@ with col_mapa:
                 n_max = info['nivel_max'] if info['nivel_max'] else 1.0
                 porcentaje = (val_nivel / n_max) * 100
                 
-                # --- Dentro del bucle de tanques ---
-            # Esta URL le dice a la app: "Recárgate a ti misma pero activa el modo gráfico"
-            url_grafico = f"?graficar_tanque={info['tag_nivel']}&nombre={info['nombre'].replace(' ', '%20')}"
+# URL que apunta a la misma app con el nuevo parámetro
+                # Usamos target="_blank" para que sea en pestaña nueva
+                url_grafico = f"?graficar_tanque={info['tag_nivel']}&nombre={info['nombre'].replace(' ', '%20')}"
 
-            html_popup_tq = f"""
-            <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
-                <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
-                <hr style="border: 0.5px solid #333;">
-                <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                    <span>💧 Nivel Actual: <b>{val_nivel:.2f} m</b></span>
+                html_popup_tq = f"""
+                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
+                    <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
+                    <hr style="border: 0.5px solid #333;">
+                    <div style="font-size: 12px; margin-bottom: 10px;">
+                        💧 Nivel Actual: <b>{val_nivel:.2f} m</b>
+                    </div>
+                    
+                    <div style="text-align: center;">
+                        <a href="{url_grafico}" target="_blank" 
+                           style="background-color: #00d4ff; color: black; padding: 10px; 
+                                  text-decoration: none; border-radius: 5px; font-weight: bold; 
+                                  font-size: 11px; display: inline-block; width: 90%; border: 1px solid #00d4ff;">
+                            📊 VER GRÁFICO HISTÓRICO
+                        </a>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 9px; color: #888; text-align: center;">ID: {id_tq}</div>
                 </div>
-                
-                <div style="margin-top: 15px; text-align: center;">
-                    <a href="{url_grafico}" target="_self" 
-                       style="background-color: #00d4ff; color: black; padding: 8px 12px; 
-                              text-decoration: none; border-radius: 5px; font-weight: bold; 
-                              font-size: 11px; display: inline-block; width: 90%;">
-                        📊 VER HISTORIAL 7 DÍAS
-                    </a>
-                </div>
-                
-                <div style="margin-top: 10px; font-size: 9px; color: #FFFF00; text-align: center;">🕒 Act: {fecha_tq}</div>
-            </div>
-            """
+                """
                 
                 folium.RegularPolygonMarker(
                     location=info['coord'],

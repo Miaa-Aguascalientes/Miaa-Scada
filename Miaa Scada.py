@@ -25,115 +25,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
-# --- 1. DETECCIÓN DE PARÁMETROS ---
-params = st.query_params
-tag_a_graficar = params.get("graficar_tanque", None)
-nombre_tq = params.get("nombre", "Tanque")
-
-if tag_a_graficar:
-    st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
-    st.title(f"📊 Análisis de Nivel: {nombre_tq}")
-    
-    # USAMOS LA FUNCIÓN NUEVA
-    df_hist = obtener_historia_7_dias(tag_a_graficar)
-
-    if not df_hist.empty:
-        df_hist['Fecha'] = pd.to_datetime(df_hist['Fecha'])
-        st.line_chart(df_hist.set_index('Fecha'))
-        
-        with st.expander("Ver tabla de datos detallada"):
-            st.dataframe(df_hist.sort_values(by='Fecha', ascending=False), use_container_width=True)
-    else:
-        st.error(f"❌ No se encontraron datos para el tag: {tag_a_graficar}")
-        st.info("Revisa si el tag existe en VfiTagRef y si tiene registros recientes en vfitagnumhistory.")
-    
-    if st.button("⬅️ Volver al Mapa"):
-        st.query_params.clear()
-        st.rerun()
-    st.stop()
-
-# --- CONFIGURACIÓN NORMAL (Si no hay sector ni tanque elegido) ---
-if sector_seleccionado:
-    titulo_pestaña = f"MIAA - Sector: {sector_seleccionado}"
-else:
-    titulo_pestaña = "MIAA - Estado de Pozos"
-
-st.set_page_config(page_title=titulo_pestaña, layout="wide")
-# 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
-st.markdown("""
-    <style>
-
-        .titulo-superior {
-            position: fixed;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999999;
-            color: #00d4ff; /* Azul vivo / Cyan */
-            font-size: 1.5rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            white-space: nowrap;
-            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-            /* Animación de pulso */
-            animation: glow 2s ease-in-out infinite alternate;
-          }
-
-        @keyframes glow {
-            from {
-                text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
-                transform: translateX(-50%) scale(1);
-          }
-            to {
-              text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
-              transform: translateX(-50%) scale(1.02);
-          }
-        }
-    
-        .stApp { background-color: #000000; color: white; }
-        [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
-        
-        /* ELIMINAR ESPACIO SUPERIOR POR DEFECTO DE STREAMLIT EN SIDEBAR */
-        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
-        
-        /* AJUSTE MÁXIMO DEL LOGO HACIA ARRIBA */
-        .sidebar-logo { 
-            display: flex; 
-            justify-content: center; 
-            padding: 0px !important; 
-            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
-            margin-bottom: 10px;
-        }
-
-        /* Maximizar el ancho del contenedor principal */
-           .block-container {
-           padding-top: 1rem !important;
-           padding-bottom: 0rem !important;
-           padding-left: 1rem !important;
-           padding-right: 1rem !important;
-}
-
-/* Forzar que las columnas no se encimen */
-[data-testid="column"] {
-    width: 100% !important;
-    flex: 1 1 auto !important;
-}
-        
-        .sidebar-logo img { max-width: 85%; height: auto; }
-        
-        .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
-        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
-        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
-        .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-        .blink_me { animation: blink 1.2s infinite; }
-    </style>
-""", unsafe_allow_html=True)
-
 # 3  SECCION--------------------------------------------------------------------------------3. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
 @st.cache_resource
 def get_mysql_scada_engine():
@@ -319,6 +210,116 @@ def cargar_sectores_poligonos():
     except Exception as e:
         st.error(f"Error al cargar sectores: {e}")
         return []
+
+# --- 1. DETECCIÓN DE PARÁMETROS ---
+params = st.query_params
+tag_a_graficar = params.get("graficar_tanque", None)
+nombre_tq = params.get("nombre", "Tanque")
+
+if tag_a_graficar:
+    st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
+    st.title(f"📊 Análisis de Nivel: {nombre_tq}")
+    
+    # USAMOS LA FUNCIÓN NUEVA
+    df_hist = obtener_historia_7_dias(tag_a_graficar)
+
+    if not df_hist.empty:
+        df_hist['Fecha'] = pd.to_datetime(df_hist['Fecha'])
+        st.line_chart(df_hist.set_index('Fecha'))
+        
+        with st.expander("Ver tabla de datos detallada"):
+            st.dataframe(df_hist.sort_values(by='Fecha', ascending=False), use_container_width=True)
+    else:
+        st.error(f"❌ No se encontraron datos para el tag: {tag_a_graficar}")
+        st.info("Revisa si el tag existe en VfiTagRef y si tiene registros recientes en vfitagnumhistory.")
+    
+    if st.button("⬅️ Volver al Mapa"):
+        st.query_params.clear()
+        st.rerun()
+    st.stop()
+
+# --- CONFIGURACIÓN NORMAL (Si no hay sector ni tanque elegido) ---
+if sector_seleccionado:
+    titulo_pestaña = f"MIAA - Sector: {sector_seleccionado}"
+else:
+    titulo_pestaña = "MIAA - Estado de Pozos"
+
+st.set_page_config(page_title=titulo_pestaña, layout="wide")
+# 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
+st.markdown("""
+    <style>
+
+        .titulo-superior {
+            position: fixed;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999999;
+            color: #00d4ff; /* Azul vivo / Cyan */
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            white-space: nowrap;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+            /* Animación de pulso */
+            animation: glow 2s ease-in-out infinite alternate;
+          }
+
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
+                transform: translateX(-50%) scale(1);
+          }
+            to {
+              text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
+              transform: translateX(-50%) scale(1.02);
+          }
+        }
+    
+        .stApp { background-color: #000000; color: white; }
+        [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
+        
+        /* ELIMINAR ESPACIO SUPERIOR POR DEFECTO DE STREAMLIT EN SIDEBAR */
+        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
+        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
+        
+        /* AJUSTE MÁXIMO DEL LOGO HACIA ARRIBA */
+        .sidebar-logo { 
+            display: flex; 
+            justify-content: center; 
+            padding: 0px !important; 
+            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
+            margin-bottom: 10px;
+        }
+
+        /* Maximizar el ancho del contenedor principal */
+           .block-container {
+           padding-top: 1rem !important;
+           padding-bottom: 0rem !important;
+           padding-left: 1rem !important;
+           padding-right: 1rem !important;
+}
+
+/* Forzar que las columnas no se encimen */
+[data-testid="column"] {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+}
+        
+        .sidebar-logo img { max-width: 85%; height: auto; }
+        
+        .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
+        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
+        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
+        .status-err { background-color: #b71c1c; color: #ef9a9a; }
+        .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
+    </style>
+""", unsafe_allow_html=True)
+
+
 
 
 # 5 SECCION------------------------------------------------------- 5. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------

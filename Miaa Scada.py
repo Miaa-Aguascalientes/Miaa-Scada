@@ -26,45 +26,32 @@ st.set_page_config(
 )
 
 
-# --- LÓGICA DE PANTALLA DE GRÁFICO (INICIO DEL ARCHIVO) ---
-# --- 1. CONFIGURACIÓN DE PÁGINA Y DETECCIÓN DE PARÁMETROS ---
+# --- 1. DETECCIÓN DE PARÁMETROS ---
 params = st.query_params
-sector_seleccionado = params.get("sector", None)
-tanque_a_graficar = params.get("graficar_tanque", None)
+tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
-# --- NUEVA LÓGICA: VISTA DE GRÁFICO (IGUAL A LA DE SECTORES) ---
-if tanque_a_graficar:
+if tag_a_graficar:
     st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
-    engine_hist = get_mysql_scada_engine()
-    if engine_hist:
-        # Consulta a vfitagnumhistory usando el NAME del tag
-        query_hist = f"""
-            SELECT h.FECHA as 'Fecha', h.VALUE as 'Nivel (m)'
-            FROM vfitagnumhistory h
-            JOIN VfiTagRef r ON h.GATEID = r.GATEID
-            WHERE r.NAME = '{tanque_a_graficar}'
-            AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-            ORDER BY h.FECHA ASC
-        """
-        try:
-            df_hist = pd.read_sql(query_hist, engine_hist)
-            if df_hist is not None and not df_hist.empty:
-                df_hist['Fecha'] = pd.to_datetime(df_hist['Fecha'])
-                st.line_chart(df_hist.set_index('Fecha'))
-                st.write("### Tabla de valores (Últimos 7 días)")
-                st.dataframe(df_hist.sort_values(by='Fecha', ascending=False), use_container_width=True)
-            else:
-                st.warning(f"No hay datos históricos para el tag {tanque_a_graficar}")
-        except Exception as e:
-            st.error(f"Error de base de datos: {e}")
+    # USAMOS LA FUNCIÓN NUEVA
+    df_hist = obtener_historia_7_dias(tag_a_graficar)
+
+    if not df_hist.empty:
+        df_hist['Fecha'] = pd.to_datetime(df_hist['Fecha'])
+        st.line_chart(df_hist.set_index('Fecha'))
+        
+        with st.expander("Ver tabla de datos detallada"):
+            st.dataframe(df_hist.sort_values(by='Fecha', ascending=False), use_container_width=True)
+    else:
+        st.error(f"❌ No se encontraron datos para el tag: {tag_a_graficar}")
+        st.info("Revisa si el tag existe en VfiTagRef y si tiene registros recientes en vfitagnumhistory.")
     
     if st.button("⬅️ Volver al Mapa"):
         st.query_params.clear()
         st.rerun()
-    st.stop() # Detiene el resto de la app para que no cargue el mapa
+    st.stop()
 
 # --- CONFIGURACIÓN NORMAL (Si no hay sector ni tanque elegido) ---
 if sector_seleccionado:
@@ -291,6 +278,24 @@ def cargar_datos_scada(lista_tags):
     except Exception as e:
         # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
         return {}
+
+def obtener_historia_7_dias(tag_name):
+    engine = get_mysql_scada_engine()
+    if not engine or not tag_name: return pd.DataFrame()
+    try:
+        # Aquí NO usamos MAX(FECHA) porque queremos TODOS los puntos de la semana
+        query = f"""
+            SELECT h.FECHA as 'Fecha', h.VALUE as 'Nivel'
+            FROM vfitagnumhistory h
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID
+            WHERE r.NAME = '{tag_name}'
+            AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ORDER BY h.FECHA ASC
+        """
+        df = pd.read_sql(query, engine)
+        return df
+    except:
+        return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():

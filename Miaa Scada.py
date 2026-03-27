@@ -55,7 +55,7 @@ def get_postgres_conn():
     except: 
         return None
 
-# 1.2 SECCION -------------------------------------------------------------------------------- 4. CARGA DE DATOS ----------------------------------------------------------------------------------------------------------
+# 1.2 SECCION -------------------------------------------------------------------------------- 1.2. CARGA DE DATOS DE DICCIONARIOS ----------------------------------------------------------------------------------------------------------
 # DICCIONARIO POZOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
@@ -212,7 +212,7 @@ def cargar_sectores_poligonos():
         st.error(f"Error al cargar sectores: {e}")
         return []
 
-# --- 1. DETECCIÓN DE PARÁMETROS ---
+# --- 1. DETECCIÓN DE PARÁMETROS PARA GRAFICAR LOS TANQUES ---
 params = st.query_params
 tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
@@ -224,10 +224,15 @@ if tag_a_graficar:
     df_hist = obtener_historia_7_dias(tag_a_graficar)
 
     if not df_hist.empty:
-        # Renombramos para que se vea bien en la etiqueta del puntero
-        df_hist.columns = ['Fecha y Hora', 'Nivel (m)']
+        # 1. Aseguramos que sea datetime
+        df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
         
-        # Al usar 'Fecha y Hora' como X, Streamlit mostrará el tiempo en el tooltip
+        # 2. CREAMOS UNA COLUMNA DE TEXTO PARA EL EJE X / TOOLTIP
+        # Esto obliga a Streamlit a mostrar la hora exacta en la etiqueta
+        df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
+        df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
+
+        # 3. GRAFICAMOS USANDO LA COLUMNA DE TEXTO
         st.line_chart(
             df_hist, 
             x='Fecha y Hora', 
@@ -235,11 +240,14 @@ if tag_a_graficar:
             use_container_width=True
         )
         
-        with st.expander("Ver registros exactos"):
-            # Formateamos la tabla para que también se vea la hora
+        with st.expander("Ver tabla de datos detallada"):
+            # Formato completo para la tabla
             df_tabla = df_hist.copy()
-            df_tabla['Fecha y Hora'] = df_tabla['Fecha y Hora'].dt.strftime('%d/%m/%Y %H:%M:%S')
-            st.dataframe(df_tabla.sort_values(by='Fecha y Hora', ascending=False), use_container_width=True)
+            df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
+            st.dataframe(
+                df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='Fecha y Hora Full', ascending=False), 
+                use_container_width=True
+            )
     else:
         st.error(f"No hay datos para {tag_a_graficar}")
     

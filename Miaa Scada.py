@@ -55,6 +55,68 @@ def get_postgres_conn():
     except: 
         return None
 
+def cargar_datos_scada(lista_tags):
+    engine = get_mysql_scada_engine()
+    if not engine or not lista_tags: return {}
+    try:
+        # Convertimos la lista a un string separado por comas para el SQL
+        tags_str = "', '".join(lista_tags)
+        query = f"""
+            SELECT r.NAME, h.VALUE, h.FECHA 
+            FROM VfiTagNumHistory_Ultimo h 
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID 
+            WHERE r.NAME IN ('{tags_str}') 
+            AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)
+        """
+        df = pd.read_sql(query, engine)
+        # Retornamos un diccionario con el nombre del tag como llave
+        return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
+    except Exception as e:
+        # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
+        return {}
+
+def obtener_historia_7_dias(tag_name):
+    engine = get_mysql_scada_engine()
+    if not engine or not tag_name: return pd.DataFrame()
+    try:
+        query = f"""
+            SELECT h.FECHA, h.VALUE 
+            FROM vfitagnumhistory h
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID
+            WHERE r.NAME = '{tag_name}'
+            AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ORDER BY h.FECHA ASC
+        """
+        df = pd.read_sql(query, engine)
+        # Forzamos a que sea datetime para que Streamlit detecte la hora
+        df['FECHA'] = pd.to_datetime(df['FECHA']) 
+        return df
+    except:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=3600)
+def cargar_sectores_poligonos():
+    conn = get_postgres_conn()
+    if not conn: return []
+    try:
+        # Añadimos los campos numéricos solicitados en la consulta
+        query = """
+            SELECT sector, "Pozos_Sector", 
+                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
+                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
+                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
+                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
+                   "Recaudacion", "Dotacion", "Balance_Estimado",
+                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
+            FROM "Sectorizacion"."Sectores_hidr"
+        """
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return df.to_dict('records')
+    except Exception as e:
+        st.error(f"Error al cargar sectores: {e}")
+        return []
+
 # 1.2 SECCION -------------------------------------------------------------------------------- 1.2. CARGA DE DATOS DE DICCIONARIOS ----------------------------------------------------------------------------------------------------------
 # DICCIONARIO POZOS
 @st.cache_data(ttl=600)
@@ -150,67 +212,7 @@ def cargar_rebombeos_desde_db():
         return nuevo_mapa_rb
     except: return {}
 
-def cargar_datos_scada(lista_tags):
-    engine = get_mysql_scada_engine()
-    if not engine or not lista_tags: return {}
-    try:
-        # Convertimos la lista a un string separado por comas para el SQL
-        tags_str = "', '".join(lista_tags)
-        query = f"""
-            SELECT r.NAME, h.VALUE, h.FECHA 
-            FROM VfiTagNumHistory_Ultimo h 
-            JOIN VfiTagRef r ON h.GATEID = r.GATEID 
-            WHERE r.NAME IN ('{tags_str}') 
-            AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)
-        """
-        df = pd.read_sql(query, engine)
-        # Retornamos un diccionario con el nombre del tag como llave
-        return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
-    except Exception as e:
-        # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
-        return {}
 
-def obtener_historia_7_dias(tag_name):
-    engine = get_mysql_scada_engine()
-    if not engine or not tag_name: return pd.DataFrame()
-    try:
-        query = f"""
-            SELECT h.FECHA, h.VALUE 
-            FROM vfitagnumhistory h
-            JOIN VfiTagRef r ON h.GATEID = r.GATEID
-            WHERE r.NAME = '{tag_name}'
-            AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-            ORDER BY h.FECHA ASC
-        """
-        df = pd.read_sql(query, engine)
-        # Forzamos a que sea datetime para que Streamlit detecte la hora
-        df['FECHA'] = pd.to_datetime(df['FECHA']) 
-        return df
-    except:
-        return pd.DataFrame()
-
-@st.cache_data(ttl=3600)
-def cargar_sectores_poligonos():
-    conn = get_postgres_conn()
-    if not conn: return []
-    try:
-        # Añadimos los campos numéricos solicitados en la consulta
-        query = """
-            SELECT sector, "Pozos_Sector", 
-                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
-                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
-                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
-                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
-                   "Recaudacion", "Dotacion", "Balance_Estimado",
-                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
-            FROM "Sectorizacion"."Sectores_hidr"
-        """
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df.to_dict('records')
-    except Exception as e:
-        st.error(f"Error al cargar sectores: {e}")
-        return []
 
 # --- 1. DETECCIÓN DE PARÁMETROS PARA GRAFICAR LOS TANQUES ---
 params = st.query_params

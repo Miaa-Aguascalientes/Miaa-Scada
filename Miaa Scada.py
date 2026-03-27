@@ -25,7 +25,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 1.1  SECCION--------------------------------------------------------------------------------1.1. FUNCIONES DE CONEXIÓN -----------------------------------------------------------------------------
+# 2  SECCION------------------------------------------------------------------------------2. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
@@ -117,8 +117,6 @@ def cargar_sectores_poligonos():
         st.error(f"Error al cargar sectores: {e}")
         return []
 
-# 4 SECCIÓN------------------------------------------------------------------4 FUNCIONES DE UTILIDAD  ----------------------------------------------------------------------------------------------
-
 def formato_hora(decimal):
     try:
         if decimal == "N/A" or decimal is None: return "00:00"
@@ -142,7 +140,7 @@ def get_blink_icon(color):
     </style>
     """
 
-# 1.2 SECCION -------------------------------------------------------------------------------- 1.2. CARGA DE DATOS DE DICCIONARIOS ----------------------------------------------------------------------------------------------------------
+# 3 SECCION -------------------------------------------------------------------------------- 3. CARGA DE DATOS DE DICCIONARIOS -------------------------------------------------------------------------------------------
 # DICCIONARIO POZOS
 @st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
@@ -238,7 +236,7 @@ def cargar_rebombeos_desde_db():
     except: return {}
 
 
-# 1.3 SECCION -------------------------------------------------------------------------------- 1.3. DETECCIÓN DE PARÁMETROS PARA GRAFICAR LOS TANQUES --------------------------------------------------------------------
+# 4 SECCION -------------------------------------------------------------------------------- 4. DETECCIÓN DE PARÁMETROS PARA GRAFICAR LOS TANQUES --------------------------------------------------------------------
 params = st.query_params
 tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
@@ -289,7 +287,8 @@ else:
     titulo_pestaña = "MIAA - Estado de Pozos"
 
 st.set_page_config(page_title=titulo_pestaña, layout="wide")
-# 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
+
+# 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
 
@@ -363,10 +362,119 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
+with st.sidebar:
+    # Contenedor del logo
+    st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
+    # 1. Inicializamos variables de estado (Solo si no existen)
+    if 'centro_mapa' not in st.session_state:
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+        st.session_state.zoom_inicial = 12.5
 
+    # --- RESUMEN GLOBAL ---
+    st.markdown(f"""
+        <div class="resumen-card">
+            <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
+            <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+            <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # --- ESTADO DE LAS CONEXIONES ---    
+    with st.expander("🔌 Estado de las Conexiones", expanded=True):
+        status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
+        status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
+        status_postgres = "OK" if get_postgres_conn() else "ERROR"
 
-# 3 SECCION------------------------------------------------------- 3. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
+        def render_status_line(label, status):
+            cls = "status-ok" if status == "OK" else "status-err"
+            html = f"""
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <span style="font-weight: bold; font-size: 13px;">{label}</span>
+                <span class="status-tag {cls}">{status}</span>
+            </div>
+            """
+            st.markdown(html, unsafe_allow_html=True)
+
+        render_status_line("BD-Scada:", status_mysql_scada)
+        render_status_line("BD-Diccionarios:", status_mysql_tele)
+        render_status_line("BD-PostgreSQL:", status_postgres)
+    
+    # 2. Buscador de Pozos
+    lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
+    pozo_buscado = st.selectbox(
+        "🔍 Localizar Sitio",
+        options=[""] + lista_pozos_nombres,
+        format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}"
+    )
+
+    # 3. Buscador de Sectores
+    lista_sectores = sorted([s['sector'] for s in sectores])
+    sector_buscado = st.selectbox(
+        "🏘️ Localizar Sector",
+        options=[""] + lista_sectores,
+        format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
+        key="busqueda_sectores"
+    )
+
+    # 4. ASIGNACIÓN DE POSICIÓN Y PRIORIDAD
+    datos_sector_resaltado = None
+
+    if pozo_buscado:
+        # Prioridad 1: Pozo seleccionado
+        st.session_state.centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
+        st.session_state.zoom_inicial = 18
+    elif sector_buscado:
+        # Prioridad 2: Sector seleccionado
+        datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
+        if datos_s:
+            datos_sector_resaltado = datos_s
+            try:
+                geom = json.loads(datos_s['geo'])
+                coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
+                st.session_state.centro_mapa = [coords_raw[1], coords_raw[0]]
+                st.session_state.zoom_inicial = 14.5
+            except:
+                pass
+    else:
+        # Prioridad 3: Si no hay nada seleccionado, mantener o resetear a vista general
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+        st.session_state.zoom_inicial = 12.5
+        
+    # --- BOTON ACTUALIZAR ---
+    if st.button("♻️ Actualizar Datos", use_container_width=True):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.rerun()
+        
+    # --- CONTROL DE CAPAS ---
+    with st.expander("🗺️ Control de Capas", expanded=False):
+        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
+        ver_pozos = st.checkbox("Mostrar Pozos", value=True)
+        ver_tanques = st.checkbox("Mostrar Tanques", value=True)
+        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=True)
+    
+    # --- LISTADO DE ESTADOS ---
+    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
+        for p in sorted(pozos_on): 
+            st.write(f"🟢 {p}")
+    
+    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
+        for p in sorted(pozos_off): 
+            st.write(f"🔴 {p}")
+
+    if pozos_falla_com:
+        with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
+            for p in sorted(pozos_falla_com):
+                st.write(f"🟠 {p}")
+    
+    if pozos_sin_telemetria:
+        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
+            for p in sorted(pozos_sin_telemetria): 
+                st.write(f"⚪ {p}")
+
+# 7 SECCION------------------------------------------------------- 7. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
@@ -445,9 +553,8 @@ for id_rb, info in mapa_rebombeos_dict.items():
     else:
         info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
 
+# 8 SECCIÓN --------------------------------------------------------------8 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 
-
-# 5 SECCIÓN -------------------------------------------------------------- VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 if sector_seleccionado:
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
@@ -621,118 +728,8 @@ if sector_seleccionado:
     
     st.stop()
     
-# 6 SECCION ------------------------------------------------------------------------------- 6. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
-with st.sidebar:
-    # Contenedor del logo
-    st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
-    # 1. Inicializamos variables de estado (Solo si no existen)
-    if 'centro_mapa' not in st.session_state:
-        st.session_state.centro_mapa = [21.8820, -102.2800]
-        st.session_state.zoom_inicial = 12.5
-
-    # --- RESUMEN GLOBAL ---
-    st.markdown(f"""
-        <div class="resumen-card">
-            <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
-            <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
-            <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # --- ESTADO DE LAS CONEXIONES ---    
-    with st.expander("🔌 Estado de las Conexiones", expanded=True):
-        status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
-        status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
-        status_postgres = "OK" if get_postgres_conn() else "ERROR"
-
-        def render_status_line(label, status):
-            cls = "status-ok" if status == "OK" else "status-err"
-            html = f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <span style="font-weight: bold; font-size: 13px;">{label}</span>
-                <span class="status-tag {cls}">{status}</span>
-            </div>
-            """
-            st.markdown(html, unsafe_allow_html=True)
-
-        render_status_line("BD-Scada:", status_mysql_scada)
-        render_status_line("BD-Diccionarios:", status_mysql_tele)
-        render_status_line("BD-PostgreSQL:", status_postgres)
-    
-    # 2. Buscador de Pozos
-    lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
-    pozo_buscado = st.selectbox(
-        "🔍 Localizar Sitio",
-        options=[""] + lista_pozos_nombres,
-        format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}"
-    )
-
-    # 3. Buscador de Sectores
-    lista_sectores = sorted([s['sector'] for s in sectores])
-    sector_buscado = st.selectbox(
-        "🏘️ Localizar Sector",
-        options=[""] + lista_sectores,
-        format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
-        key="busqueda_sectores"
-    )
-
-    # 4. ASIGNACIÓN DE POSICIÓN Y PRIORIDAD
-    datos_sector_resaltado = None
-
-    if pozo_buscado:
-        # Prioridad 1: Pozo seleccionado
-        st.session_state.centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
-        st.session_state.zoom_inicial = 18
-    elif sector_buscado:
-        # Prioridad 2: Sector seleccionado
-        datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
-        if datos_s:
-            datos_sector_resaltado = datos_s
-            try:
-                geom = json.loads(datos_s['geo'])
-                coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
-                st.session_state.centro_mapa = [coords_raw[1], coords_raw[0]]
-                st.session_state.zoom_inicial = 14.5
-            except:
-                pass
-    else:
-        # Prioridad 3: Si no hay nada seleccionado, mantener o resetear a vista general
-        st.session_state.centro_mapa = [21.8820, -102.2800]
-        st.session_state.zoom_inicial = 12.5
-        
-    # --- BOTON ACTUALIZAR ---
-    if st.button("♻️ Actualizar Datos", use_container_width=True):
-        st.cache_data.clear()
-        st.cache_resource.clear()
-        st.rerun()
-        
-    # --- CONTROL DE CAPAS ---
-    with st.expander("🗺️ Control de Capas", expanded=False):
-        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
-        ver_pozos = st.checkbox("Mostrar Pozos", value=True)
-        ver_tanques = st.checkbox("Mostrar Tanques", value=True)
-        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=True)
-    
-    # --- LISTADO DE ESTADOS ---
-    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
-        for p in sorted(pozos_on): 
-            st.write(f"🟢 {p}")
-    
-    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
-        for p in sorted(pozos_off): 
-            st.write(f"🔴 {p}")
-
-    if pozos_falla_com:
-        with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
-            for p in sorted(pozos_falla_com):
-                st.write(f"🟠 {p}")
-    
-    if pozos_sin_telemetria:
-        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
-            for p in sorted(pozos_sin_telemetria): 
-                st.write(f"⚪ {p}")
-# 7  SECCION--------------------------------------------------------------------------------- 7. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
+# 9  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL ------------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 # Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
@@ -779,7 +776,7 @@ with col_mapa:
         </style>
         """
 
-# --- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) ---
+# -------------------------------------------------------------------------------------- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) --------------------------------------------------------------------------
     if ver_sectores and sectores:
         for s in sectores:
             try:
@@ -814,7 +811,7 @@ with col_mapa:
                 ).add_to(m)
             except: continue
 
-    # --- RENDERIZADO DE POZOS (UNIFICADO) ---
+    # ------------------------------------------------------------------------------ RENDERIZADO DE POZOS (UNIFICADO) ---------------------------------------------------------------------------------------------
     # Usamos solo 'ver_pozos' para controlar ambas cosas
     for id_p, info in mapa_pozos_dict.items():
         if ver_pozos:  # Si el checkbox está activo, dibujamos todo
@@ -931,7 +928,7 @@ with col_mapa:
                     popup=folium.Popup(html_popup, max_width=450)
                 ).add_to(m)
 
-# --- RENDERIZADO DE TANQUES ---
+# ------------------------------------------------------------------------------------------------- RENDERIZADO DE TANQUES ---------------------------------------------------------------------------------------
     if ver_tanques:
         for id_tq, info in mapa_tanques_dict.items():
             try:
@@ -979,7 +976,7 @@ with col_mapa:
                 ).add_to(m)
             except: continue
             
-    # --- RENDERIZADO DE REBOMBEOS ---
+    # ------------------------------------------------------------------------------- RENDERIZADO DE REBOMBEOS --------------------------------------------------------------------------------------
     if ver_rebombeos:
         for id_rb, info in mapa_rebombeos_dict.items():
             try:

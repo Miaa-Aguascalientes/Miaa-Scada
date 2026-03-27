@@ -25,6 +25,55 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
+params = st.query_params
+sector_seleccionado = params.get("sector", None)
+tag_a_graficar = params.get("graficar_tanque", None) # <-- Nuevo parámetro
+nombre_tq = params.get("nombre", "Tanque")
+
+# --- LÓGICA DE PANTALLA DE GRÁFICO (SIMILAR A SECTORES) ---
+if tag_a_graficar:
+    st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
+    st.title(f"📊 Análisis Histórico: {nombre_tq}")
+    
+    engine_hist = get_mysql_scada_engine()
+    if engine_hist:
+        # Buscamos los últimos 7 días en vfitagnumhistory
+        query_hist = f"""
+            SELECT h.FECHA as 'Fecha', h.VALUE as 'Nivel (m)'
+            FROM vfitagnumhistory h
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID
+            WHERE r.NAME = '{tag_a_graficar}'
+            AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ORDER BY h.FECHA ASC
+        """
+        try:
+            df_hist = pd.read_sql(query_hist, engine_hist)
+            if not df_hist.empty:
+                st.line_chart(df_hist.set_index('Fecha'))
+                st.dataframe(df_hist.sort_values(by='Fecha', ascending=False), use_container_width=True)
+            else:
+                st.warning("No hay datos para este tanque en los últimos 7 días.")
+        except Exception as e:
+            st.error(f"Error al consultar base de datos: {e}")
+    
+    if st.button("⬅️ Volver al Mapa Principal"):
+        st.query_params.clear()
+        st.rerun()
+    st.stop() # Esto evita que se cargue el resto del código (el mapa)
+
+# --- CONFIGURACIÓN NORMAL DEL MAPA ---
+if sector_seleccionado:
+    titulo_pestaña = f"MIAA - Estado de Sector: {sector_seleccionado}"
+else:
+    titulo_pestaña = "MIAA - Estado de Pozos"
+
+st.set_page_config(
+    page_title=titulo_pestaña, 
+    page_icon="https://www.miaa.mx/favicon.ico", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 # 2  SECCION-----------------------------------------------------------------------------------2. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
@@ -865,34 +914,30 @@ with col_mapa:
                 n_max = info['nivel_max'] if info['nivel_max'] else 1.0
                 porcentaje = (val_nivel / n_max) * 100
                 
-                # URL de destino (ajusta 'tu_pagina_de_graficos' por la URL real de tu app)
-                # Pasamos el ID del tanque para que la otra página sepa qué graficar
-                url_grafico = f"https://tu-app-miaa.streamlit.app/?tanque_id={id_tq}"
+                # --- Dentro del bucle de tanques ---
+            # Esta URL le dice a la app: "Recárgate a ti misma pero activa el modo gráfico"
+            url_grafico = f"?graficar_tanque={info['tag_nivel']}&nombre={info['nombre'].replace(' ', '%20')}"
 
-                html_popup_tq = f"""
-                <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
-                    <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
-                    <hr style="border: 0.5px solid #333;">
-                    <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                        <span>💧 Nivel: <b>{val_nivel:.2f} m</b></span>
-                    </div>
-                    <div style="background: #222; border-radius: 5px; height: 10px; margin: 8px 0;">
-                        <div style="background: #00d4ff; width: {min(porcentaje, 100):.0f}%; height: 100%; border-radius: 5px;"></div>
-                    </div>
-                    <div style="font-size: 10px; color: #aaa; text-align: right;">Capacidad: {n_max} m</div>
-                    
-                    <div style="margin-top: 15px; text-align: center;">
-                        <a href="{url_grafico}" target="_blank" 
-                           style="background-color: #00d4ff; color: black; padding: 8px 15px; 
-                                  text-decoration: none; border-radius: 5px; font-weight: bold; 
-                                  font-size: 10px; display: inline-block;">
-                            📊 VER GRÁFICO 7 DÍAS
-                        </a>
-                    </div>
-                    
-                    <div style="margin-top: 10px; font-size: 10px; color: #FFFF00;">🕒 Act: {fecha_tq}</div>
+            html_popup_tq = f"""
+            <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">
+                <b style="color: #00d4ff; font-size: 14px;">TANQUE: {info['nombre']}</b><br>
+                <hr style="border: 0.5px solid #333;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                    <span>💧 Nivel Actual: <b>{val_nivel:.2f} m</b></span>
                 </div>
-                """
+                
+                <div style="margin-top: 15px; text-align: center;">
+                    <a href="{url_grafico}" target="_self" 
+                       style="background-color: #00d4ff; color: black; padding: 8px 12px; 
+                              text-decoration: none; border-radius: 5px; font-weight: bold; 
+                              font-size: 11px; display: inline-block; width: 90%;">
+                        📊 VER HISTORIAL 7 DÍAS
+                    </a>
+                </div>
+                
+                <div style="margin-top: 10px; font-size: 9px; color: #FFFF00; text-align: center;">🕒 Act: {fecha_tq}</div>
+            </div>
+            """
                 
                 folium.RegularPolygonMarker(
                     location=info['coord'],

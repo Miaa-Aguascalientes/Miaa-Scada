@@ -736,10 +736,10 @@ with col_mapa:
     )
 
 # Creamos grupos de capas independientes para que el navegador no se confunda
-   fg_sectores = folium.FeatureGroup(name="Sectores Hidrométricos")
-   fg_pozos = folium.FeatureGroup(name="Pozos")
-   fg_tanques = folium.FeatureGroup(name="Tanques")
-   fg_rebombeos = folium.FeatureGroup(name="Rebombeos")
+        fg_sectores = folium.FeatureGroup(name="Sectores Hidrométricos")
+        fg_pozos = folium.FeatureGroup(name="Pozos")
+        fg_tanques = folium.FeatureGroup(name="Tanques")
+        fg_rebombeos = folium.FeatureGroup(name="Rebombeos")
 
 # Añadir el resaltado del sector si existe
     if datos_sector_resaltado:

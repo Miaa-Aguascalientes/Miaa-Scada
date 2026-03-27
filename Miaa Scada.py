@@ -729,11 +729,11 @@ col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 with col_mapa:
     # Usamos las variables guardadas en el estado de la sesión
     m = folium.Map(
-    location=[21.8820, -102.2800], 
-    zoom_start=12, 
-    tiles="CartoDB dark_matter",
-    prefer_canvas=True # ESTO ES VITAL: Renderiza todo por GPU, no por HTML pesado
-)
+        location=[21.8820, -102.2800], 
+        zoom_start=12, 
+        tiles="CartoDB dark_matter",
+        prefer_canvas=True # ESTO ES VITAL: Renderiza todo por GPU, no por HTML pesado
+    )
 
 # Creamos grupos de capas independientes para que el navegador no se confunda
    fg_sectores = folium.FeatureGroup(name="Sectores Hidrométricos")

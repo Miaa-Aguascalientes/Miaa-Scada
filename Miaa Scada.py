@@ -296,6 +296,13 @@ st.markdown("""
         #MainMenu {visibility: hidden;} /* Oculta el menú de 3 puntos */
         footer {visibility: hidden;} /* Oculta "Made with Streamlit" */
         
+        /* OCULTAR BOTÓN "MANAGE APP" (GESTIONAR LA APLICACIÓN) */
+        /* Este selector apunta al contenedor flotante de Streamlit en la esquina inferior derecha */
+        .stActionButton, [data-testid="stStatusWidget"] {
+            visibility: hidden;
+            display: none !important;
+        }
+
         /* --- AJUSTE DE CONTENEDOR PRINCIPAL --- */
         .stApp { background-color: #000000; color: white; }
         
@@ -308,7 +315,6 @@ st.markdown("""
         }
 
         /* --- AJUSTE ESPECÍFICO PARA BAJAR EL MAPA --- */
-        /* Esto empuja el iframe del mapa hacia abajo para que no choque con el título */
         .element-container:has(iframe) {
             margin-top: 50px !important;
         }
@@ -316,7 +322,7 @@ st.markdown("""
         /* --- TÍTULO SUPERIOR ANIMADO --- */
         .titulo-superior {
             position: fixed;
-            top: 15px; /* Ajustado para que flote centrado en el espacio superior */
+            top: 15px; 
             left: 50%;
             transform: translateX(-50%);
             z-index: 9999999;

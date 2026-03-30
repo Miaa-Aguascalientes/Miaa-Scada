@@ -763,6 +763,29 @@ st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes<
 # Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
+titulo_mapa_html = '''
+             <div style="
+                position: fixed; 
+                top: 20px; left: 50%; width: 600px; height: 50px;
+                transform: translateX(-50%);
+                background-color: rgba(0, 0, 0, 0.85); /* Fondo negro sólido con ligera transparencia */
+                color: #00d4ff;
+                border: 2px solid #00d4ff;
+                border-radius: 10px;
+                padding: 10px;
+                z-index:9999;
+                font-size: 20px;
+                font-weight: bold;
+                text-align: center;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+                pointer-events: none; /* Para que no interfiera si haces clic detrás */
+                ">
+                SISTEMA DE MONITOREO - AGUASCALIENTES
+            </div>
+             '''
+
 with col_mapa:
     # Usamos las variables guardadas en el estado de la sesión
     m = folium.Map(

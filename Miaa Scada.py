@@ -865,25 +865,25 @@ with col_mapa:
             a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
             html_popup = f"""
-            <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
-                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
-                    <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
-                    <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
-                </div>
-                <div style="margin-bottom: 12px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                        <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
+                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                        <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+                        <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
                     </div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px;">
-                        <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
+                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                            <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
+                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
+                        </div>
+                        <div style="display: flex; align-items: baseline; font-size: 11px;">
+                            <span>🚀 Presión: <b>{p:.2f} kg</b></span>
+                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
+                        </div>
                     </div>
-                </div>
-                <div style="margin-bottom: 12px;">
-                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
+                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
                         <span>🔋 Nivel de Tanque:<b>{tanq:.2f} mts</b></span>
                         <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
                     </div>

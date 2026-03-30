@@ -291,21 +291,27 @@ st.set_page_config(page_title=titulo_pestaña, layout="wide")
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT (NIVEL TOTAL) --- */
-        header {visibility: hidden;} 
-        #MainMenu {visibility: hidden;} 
-        footer {visibility: hidden;} 
+        /* --- ELIMINAR CUALQUIER ELEMENTO FLOTANTE DE STREAMLIT --- */
+        header {visibility: hidden !important; display: none !important;} 
+        #MainMenu {visibility: hidden !important; display: none !important;} 
+        footer {visibility: hidden !important; display: none !important;} 
         
-        /* OCULTAR "GESTIONAR LA APLICACIÓN" Y BARRA DE ESTADO */
-        /* Seleccionamos el contenedor de botones de acción y la barra inferior de herramientas */
-        .stActionButton, [data-testid="stStatusWidget"], .stAppToolbar, [data-testid="stStatusWidget"] {
+        /* 1. Ocultar la barra de herramientas superior derecha */
+        .stAppToolbar {display: none !important;}
+        
+        /* 2. Ocultar el botón de 'Manage App' y estado en la esquina inferior derecha */
+        [data-testid="stStatusWidget"], 
+        .stActionButton, 
+        button[title="Manage app"], 
+        #stDecoration,
+        .st-emotion-cache-zq5wmm, /* Selector específico de clase dinámica */
+        div[class^="st-emotion-cache"] > button {
             display: none !important;
             visibility: hidden !important;
-        }
-        
-        /* Regla específica para versiones recientes que usan una barra flotante */
-        div[data-testid="stStatusWidget"] {
-            display: none !important;
+            opacity: 0 !important;
+            height: 0 !important;
+            width: 0 !important;
+            pointer-events: none !important;
         }
 
         /* --- AJUSTE DE CONTENEDOR PRINCIPAL --- */
@@ -319,9 +325,9 @@ st.markdown("""
             margin-top: -30px !important;
         }
 
-        /* --- AJUSTE ESPECÍFICO PARA BAJAR EL MAPA --- */
+        /* --- AJUSTE PARA BAJAR EL MAPA (Espacio para el título) --- */
         .element-container:has(iframe) {
-            margin-top: 50px !important;
+            margin-top: 60px !important; /* Aumentado a 60px para mayor seguridad */
         }
 
         /* --- TÍTULO SUPERIOR ANIMADO --- */
@@ -371,36 +377,12 @@ st.markdown("""
         .sidebar-logo img { max-width: 85%; height: auto; }
 
         /* --- COMPONENTES DEL DASHBOARD --- */
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 auto !important;
-        }
-        
         .resumen-card { 
             background: #050505; 
             border: 1px solid #1f4068; 
             border-radius: 5px; 
             padding: 15px; 
             margin-bottom: 15px; 
-        }
-        
-        .status-tag { 
-            font-size: 10px; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            margin-left: 5px; 
-            font-weight: bold; 
-        }
-        
-        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
-        .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        
-        .section-header { 
-            padding: 10px; 
-            border-radius: 3px; 
-            font-weight: bold; 
-            margin-bottom: 5px; 
-            color: white; 
         }
 
         /* ANIMACIÓN DE PARPADEO */

@@ -291,78 +291,112 @@ st.set_page_config(page_title=titulo_pestaña, layout="wide")
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
+        /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT --- */
+        header {visibility: hidden;} /* Oculta la barra superior (Deploy, Share) */
+        #MainMenu {visibility: hidden;} /* Oculta el menú de 3 puntos */
+        footer {visibility: hidden;} /* Oculta "Made with Streamlit" */
+        
+        /* --- AJUSTE DE CONTENEDOR PRINCIPAL --- */
+        .stApp { background-color: #000000; color: white; }
+        
+        .block-container {
+            padding-top: 0rem !important;    /* Elimina el espacio muerto arriba */
+            padding-bottom: 0rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            margin-top: -30px !important;    /* Sube todo el contenido para cubrir el hueco del header */
+        }
 
+        /* --- AJUSTE ESPECÍFICO PARA BAJAR EL MAPA --- */
+        /* Esto empuja el iframe del mapa hacia abajo para que no choque con el título */
+        .element-container:has(iframe) {
+            margin-top: 50px !important;
+        }
+
+        /* --- TÍTULO SUPERIOR ANIMADO --- */
         .titulo-superior {
             position: fixed;
-            top: 15px;
+            top: 15px; /* Ajustado para que flote centrado en el espacio superior */
             left: 50%;
             transform: translateX(-50%);
             z-index: 9999999;
-            color: #00d4ff; /* Azul vivo / Cyan */
+            color: #00d4ff; 
             font-size: 1.5rem;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 2px;
             white-space: nowrap;
             text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-            /* Animación de pulso */
             animation: glow 2s ease-in-out infinite alternate;
-          }
+        }
 
         @keyframes glow {
             from {
                 text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
                 transform: translateX(-50%) scale(1);
-          }
+            }
             to {
-              text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
-              transform: translateX(-50%) scale(1.02);
-          }
+                text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
+                transform: translateX(-50%) scale(1.02);
+            }
         }
     
-        .stApp { background-color: #000000; color: white; }
-        [data-testid="stSidebar"] { background-color: #0b1a29; border-right: 2px solid #333; }
+        /* --- SIDEBAR Y LOGO --- */
+        [data-testid="stSidebar"] { 
+            background-color: #0b1a29; 
+            border-right: 2px solid #333; 
+        }
         
-        /* ELIMINAR ESPACIO SUPERIOR POR DEFECTO DE STREAMLIT EN SIDEBAR */
         [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
         [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
         
-        /* AJUSTE MÁXIMO DEL LOGO HACIA ARRIBA */
         .sidebar-logo { 
             display: flex; 
             justify-content: center; 
             padding: 0px !important; 
-            margin-top: -70px !important; /* Ajuste negativo para compensar el contenedor */
+            margin-top: -50px !important; 
             margin-bottom: 10px;
         }
-
-        /* Maximizar el ancho del contenedor principal */
-           .block-container {
-           padding-top: 1rem !important;
-           padding-bottom: 0rem !important;
-           padding-left: 1rem !important;
-           padding-right: 1rem !important;
-}
-
-/* Forzar que las columnas no se encimen */
-[data-testid="column"] {
-    width: 100% !important;
-    flex: 1 1 auto !important;
-}
-        
         .sidebar-logo img { max-width: 85%; height: auto; }
+
+        /* --- COMPONENTES DEL DASHBOARD --- */
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 auto !important;
+        }
         
-        .resumen-card { background: #050505; border: 1px solid #1f4068; border-radius: 5px; padding: 15px; margin-bottom: 15px; }
-        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold; }
+        .resumen-card { 
+            background: #050505; 
+            border: 1px solid #1f4068; 
+            border-radius: 5px; 
+            padding: 15px; 
+            margin-bottom: 15px; 
+        }
+        
+        .status-tag { 
+            font-size: 10px; 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            margin-left: 5px; 
+            font-weight: bold; 
+        }
+        
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
         .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        .section-header { padding: 10px; border-radius: 3px; font-weight: bold; margin-bottom: 5px; color: white; }
+        
+        .section-header { 
+            padding: 10px; 
+            border-radius: 3px; 
+            font-weight: bold; 
+            margin-bottom: 5px; 
+            color: white; 
+        }
+
+        /* ANIMACIÓN DE PARPADEO */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
-
-
 
 # 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 
@@ -1018,6 +1052,3 @@ with col_mapa:
 
     # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
     folium_static(m, width=None, height=750)
-
-
-

@@ -291,55 +291,53 @@ st.set_page_config(page_title=titulo_pestaña, layout="wide")
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-
-        /* 1. FORZAR ANCHO TOTAL (ELIMINAR MÁRGENES LATERALES) */
-        /* Esto elimina el límite de ancho de Streamlit y los espacios vacíos a la derecha */
-        .main .block-container {
+        /* --- 1. FORZAR ANCHO TOTAL ABSOLUTO (PANTALLA COMPLETA) --- */
+        /* Eliminamos el ancho máximo de todos los contenedores posibles */
+        .main .block-container, 
+        [data-testid="stAppViewBlockContainer"],
+        .st-emotion-cache-13ln4jf, 
+        .stMainView {
             max-width: 100% !important;
             padding-left: 0rem !important;
             padding-right: 0rem !important;
             margin-left: 0rem !important;
             margin-right: 0rem !important;
+            width: 100% !important;
         }
-        
-        /* Selector para versiones de Streamlit 1.30+ */
-        [data-testid="stAppViewBlockContainer"] {
-            max-width: 100% !important;
-            padding-left: 0px !important;
-            padding-right: 0px !important;
+
+        /* Quitamos el espacio superior que Streamlit reserva para el header */
+        [data-testid="stHeader"] {
+            display: none !important;
         }
-    
-        /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT --- */
-        header {visibility: hidden;} /* Oculta la barra superior (Deploy, Share) */
-        #MainMenu {visibility: hidden;} /* Oculta el menú de 3 puntos */
-        footer {visibility: hidden;} /* Oculta "Made with Streamlit" */
-        
-        /* --- AJUSTE DE CONTENEDOR PRINCIPAL --- */
+
+        /* --- 2. OCULTAR BOTONES DE GESTIÓN Y MENÚS --- */
+        header {visibility: hidden !important; display: none !important;} 
+        footer {visibility: hidden !important; display: none !important;} 
+        .stAppToolbar {display: none !important;}
+        [data-testid="stStatusWidget"], .stActionButton, button[title="Manage app"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* --- 3. ESTILO DE FONDO --- */
         .stApp { background-color: #000000; color: white; }
-        
-        .block-container {
-            padding-top: 0rem !important;    /* Elimina el espacio muerto arriba */
-            padding-bottom: 0rem !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
-            margin-top: -30px !important;    /* Sube todo el contenido para cubrir el hueco del header */
-        }
 
-        /* --- AJUSTE ESPECÍFICO PARA BAJAR EL MAPA --- */
-        /* Esto empuja el iframe del mapa hacia abajo para que no choque con el título */
-        .element-container:has(iframe) {
+        /* --- 4. AJUSTE PARA EL MAPA Y TÍTULO --- */
+        /* Bajamos el mapa para que no tape el título neón */
+        .element-container:has(iframe), iframe {
             margin-top: 50px !important;
+            width: 100% !important;
         }
 
-        /* --- TÍTULO SUPERIOR ANIMADO --- */
+        /* TÍTULO SUPERIOR ANIMADO */
         .titulo-superior {
             position: fixed;
-            top: 15px; /* Ajustado para que flote centrado en el espacio superior */
+            top: 15px; 
             left: 50%;
             transform: translateX(-50%);
             z-index: 9999999;
             color: #00d4ff; 
-            font-size: 1.5rem;
+            font-size: 1.6rem;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 2px;
@@ -349,40 +347,24 @@ st.markdown("""
         }
 
         @keyframes glow {
-            from {
-                text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
-                transform: translateX(-50%) scale(1);
-            }
-            to {
-                text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
-                transform: translateX(-50%) scale(1.02);
-            }
+            from { text-shadow: 0 0 5px #00d4ff; transform: translateX(-50%) scale(1); }
+            to { text-shadow: 0 0 20px #00d4ff; transform: translateX(-50%) scale(1.02); }
         }
-    
-        /* --- SIDEBAR Y LOGO --- */
+
+        /* --- 5. SIDEBAR --- */
         [data-testid="stSidebar"] { 
             background-color: #0b1a29; 
             border-right: 2px solid #333; 
         }
         
-        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
-        
         .sidebar-logo { 
             display: flex; 
             justify-content: center; 
-            padding: 0px !important; 
             margin-top: -50px !important; 
             margin-bottom: 10px;
         }
-        .sidebar-logo img { max-width: 85%; height: auto; }
+        .sidebar-logo img { max-width: 85%; }
 
-        /* --- COMPONENTES DEL DASHBOARD --- */
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 auto !important;
-        }
-        
         .resumen-card { 
             background: #050505; 
             border: 1px solid #1f4068; 
@@ -390,29 +372,6 @@ st.markdown("""
             padding: 15px; 
             margin-bottom: 15px; 
         }
-        
-        .status-tag { 
-            font-size: 10px; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            margin-left: 5px; 
-            font-weight: bold; 
-        }
-        
-        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
-        .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        
-        .section-header { 
-            padding: 10px; 
-            border-radius: 3px; 
-            font-weight: bold; 
-            margin-bottom: 5px; 
-            color: white; 
-        }
-
-        /* ANIMACIÓN DE PARPADEO */
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-        .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
 

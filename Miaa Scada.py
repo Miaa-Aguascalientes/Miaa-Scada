@@ -291,107 +291,75 @@ st.set_page_config(page_title=titulo_pestaña, layout="wide")
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT --- */
-        header {visibility: hidden;} /* Oculta la barra superior (Deploy, Share) */
-        #MainMenu {visibility: hidden;} /* Oculta el menú de 3 puntos */
-        footer {visibility: hidden;} /* Oculta "Made with Streamlit" */
+        /* --- OCULTAR ICONOS Y BOTONES PERO MANTENER LA BARRA --- */
+        [data-testid="stHeader"] {
+            background-color: rgba(0,0,0,0); /* Transparente para que se vea el fondo negro de la app */
+        }
         
-        /* --- AJUSTE DE CONTENEDOR PRINCIPAL --- */
-        .stApp { background-color: #000000; color: white; }
-        
-        .block-container {
-            padding-top: 0rem !important;    /* Elimina el espacio muerto arriba */
-            padding-bottom: 0rem !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
-            margin-top: -30px !important;    /* Sube todo el contenido para cubrir el hueco del header */
+        /* Ocultar específicamente los botones de la derecha (Deploy, etc) y el menú */
+        header [data-testid="stHeaderActionElements"], 
+        #MainMenu, 
+        footer {
+            visibility: hidden;
         }
 
-        /* --- TÍTULO SUPERIOR ANIMADO --- */
+        /* --- TÍTULO SUPERIOR ANIMADO (REFORZADO) --- */
         .titulo-superior {
             position: fixed;
-            top: 10px; /* Ajustado para que no se pegue al borde físico */
+            top: 12px; /* Alineado con el centro de la barra original */
             left: 50%;
             transform: translateX(-50%);
             z-index: 9999999;
             color: #00d4ff; 
-            font-size: 1.5rem;
+            font-size: 1.6rem;
             font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: 3px;
             white-space: nowrap;
-            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
             animation: glow 2s ease-in-out infinite alternate;
         }
 
         @keyframes glow {
-            from {
-                text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
-                transform: translateX(-50%) scale(1);
-            }
-            to {
-                text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
-                transform: translateX(-50%) scale(1.02);
-            }
+            from { text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff; transform: translateX(-50%) scale(1); }
+            to { text-shadow: 0 0 20px #00d4ff, 0 0 30px #0077ff; transform: translateX(-50%) scale(1.03); }
         }
     
-        /* --- SIDEBAR Y LOGO --- */
+        /* --- FONDO Y SIDEBAR --- */
+        .stApp { background-color: #000000; color: white; }
+        
         [data-testid="stSidebar"] { 
             background-color: #0b1a29; 
-            border-right: 2px solid #333; 
+            border-right: 2px solid #1f4068; 
         }
         
-        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
-        
-        .sidebar-logo { 
-            display: flex; 
-            justify-content: center; 
-            padding: 0px !important; 
-            margin-top: -50px !important; 
-            margin-bottom: 10px;
+        /* Ajuste de márgenes para que el mapa no se pegue al título */
+        .block-container {
+            padding-top: 3.5rem !important; /* Espacio exacto para que el título no tape el mapa */
+            padding-bottom: 0.5rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
         }
-        .sidebar-logo img { max-width: 85%; height: auto; }
 
-        /* --- COMPONENTES DEL DASHBOARD --- */
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 auto !important;
-        }
-        
+        /* Estilo de las tarjetas del sidebar (Terminal Style) */
         .resumen-card { 
             background: #050505; 
-            border: 1px solid #1f4068; 
-            border-radius: 5px; 
-            padding: 15px; 
-            margin-bottom: 15px; 
-        }
-        
-        .status-tag { 
-            font-size: 10px; 
-            padding: 2px 6px; 
+            border: 1px solid #00d4ff; 
             border-radius: 4px; 
-            margin-left: 5px; 
-            font-weight: bold; 
-        }
-        
-        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
-        .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        
-        .section-header { 
-            padding: 10px; 
-            border-radius: 3px; 
-            font-weight: bold; 
-            margin-bottom: 5px; 
-            color: white; 
+            padding: 12px; 
+            margin-bottom: 15px;
+            box-shadow: inset 0 0 10px rgba(0, 212, 255, 0.1);
         }
 
-        /* ANIMACIÓN DE PARPADEO */
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
-        .blink_me { animation: blink 1.2s infinite; }
+        /* --- OTROS AJUSTES --- */
+        .status-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        .status-ok { background-color: #1b5e20; color: #a5d6a7; border: 1px solid #a5d6a7; }
+        .status-err { background-color: #b71c1c; color: #ef9a9a; border: 1px solid #ef9a9a; }
+        
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.5s infinite; }
     </style>
 """, unsafe_allow_html=True)
-
 
 # 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 

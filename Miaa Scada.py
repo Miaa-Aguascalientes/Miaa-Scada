@@ -291,15 +291,20 @@ st.set_page_config(page_title=titulo_pestaña, layout="wide")
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT --- */
-        header {visibility: hidden;} /* Oculta la barra superior (Deploy, Share) */
-        #MainMenu {visibility: hidden;} /* Oculta el menú de 3 puntos */
-        footer {visibility: hidden;} /* Oculta "Made with Streamlit" */
+        /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT (NIVEL TOTAL) --- */
+        header {visibility: hidden;} 
+        #MainMenu {visibility: hidden;} 
+        footer {visibility: hidden;} 
         
-        /* OCULTAR BOTÓN "MANAGE APP" (GESTIONAR LA APLICACIÓN) */
-        /* Este selector apunta al contenedor flotante de Streamlit en la esquina inferior derecha */
-        .stActionButton, [data-testid="stStatusWidget"] {
-            visibility: hidden;
+        /* OCULTAR "GESTIONAR LA APLICACIÓN" Y BARRA DE ESTADO */
+        /* Seleccionamos el contenedor de botones de acción y la barra inferior de herramientas */
+        .stActionButton, [data-testid="stStatusWidget"], .stAppToolbar, [data-testid="stStatusWidget"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        /* Regla específica para versiones recientes que usan una barra flotante */
+        div[data-testid="stStatusWidget"] {
             display: none !important;
         }
 
@@ -307,11 +312,11 @@ st.markdown("""
         .stApp { background-color: #000000; color: white; }
         
         .block-container {
-            padding-top: 0rem !important;    /* Elimina el espacio muerto arriba */
+            padding-top: 0rem !important;
             padding-bottom: 0rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            margin-top: -30px !important;    /* Sube todo el contenido para cubrir el hueco del header */
+            margin-top: -30px !important;
         }
 
         /* --- AJUSTE ESPECÍFICO PARA BAJAR EL MAPA --- */

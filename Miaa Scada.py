@@ -291,6 +291,22 @@ st.set_page_config(page_title=titulo_pestaña, layout="wide")
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
+
+        /* --- ELIMINAR LÍMITES DE ANCHO PARA QUE EL MAPA OCUPE TODO --- */
+        .main .block-container {
+            max-width: 100% !important;
+            padding-left: 0rem !important;
+            padding-right: 0rem !important;
+            margin-left: 0rem !important;
+            margin-right: 0rem !important;
+        }
+
+        /* Asegura que el contenedor de Streamlit no tenga márgenes internos */
+        [data-testid="stAppViewBlockContainer"] {
+            max-width: 100% !important;
+            padding: 0px !important;
+        }
+    
         /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT --- */
         header {visibility: hidden;} /* Oculta la barra superior (Deploy, Share) */
         #MainMenu {visibility: hidden;} /* Oculta el menú de 3 puntos */

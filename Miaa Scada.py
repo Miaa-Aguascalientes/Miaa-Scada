@@ -292,7 +292,8 @@ st.set_page_config(page_title=titulo_pestaña, layout="wide")
 st.markdown("""
     <style>
 
-        /* --- ELIMINAR LÍMITES DE ANCHO PARA QUE EL MAPA OCUPE TODO --- */
+        /* 1. FORZAR ANCHO TOTAL (ELIMINAR MÁRGENES LATERALES) */
+        /* Esto elimina el límite de ancho de Streamlit y los espacios vacíos a la derecha */
         .main .block-container {
             max-width: 100% !important;
             padding-left: 0rem !important;
@@ -300,11 +301,12 @@ st.markdown("""
             margin-left: 0rem !important;
             margin-right: 0rem !important;
         }
-
-        /* Asegura que el contenedor de Streamlit no tenga márgenes internos */
+        
+        /* Selector para versiones de Streamlit 1.30+ */
         [data-testid="stAppViewBlockContainer"] {
             max-width: 100% !important;
-            padding: 0px !important;
+            padding-left: 0px !important;
+            padding-right: 0px !important;
         }
     
         /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT --- */

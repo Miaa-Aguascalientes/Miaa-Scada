@@ -785,7 +785,7 @@ titulo_mapa_html = '''
                 SISTEMA DE MONITOREO - AGUASCALIENTES
             </div>
              '''
-
+m.get_root().html.add_child(folium.Element(titulo_mapa_html))
 with col_mapa:
     # Usamos las variables guardadas en el estado de la sesión
     m = folium.Map(

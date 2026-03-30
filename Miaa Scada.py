@@ -759,31 +759,31 @@ with st.sidebar:
                 st.write(f"⚪ {p}")
 # 9  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL -----------------------------------------------------------------------------------------------------------
 
-# DASHBOARD
+# DASHBOARD - Título de Streamlit (opcional si ya usas el del mapa)
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
 
-# Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
+# Proporción ultra-ancha para el mapa
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
 with col_mapa:
-    # 1. INICIALIZACIÓN DEL MAPA (Primero creamos el objeto)
+    # 1. PRIMERO: Crear el objeto mapa
     m = folium.Map(
-        location=st.session_state.centro_mapa, 
-        zoom_start=st.session_state.zoom_inicial, 
+        location=st.session_state.get('centro_mapa', [21.8820, -102.2800]), 
+        zoom_start=st.session_state.get('zoom_inicial', 12), 
         tiles="CartoDB dark_matter",
-        prefer_canvas=True # Optimización para que no se trabe
+        prefer_canvas=True
     )
-    Fullscreen(position="topright", title="Pantalla Completa", title_cancel="Salir").add_to(m)
+    Fullscreen(position="topright").add_to(m)
 
-    # 2. TÍTULO CON FONDO NEGRO Y BORDE NEÓN (Dentro del mapa)
+    # 2. SEGUNDO: Definir el HTML del título con fondo negro sólido
     titulo_mapa_html = '''
         <div style="
             position: fixed; 
             top: 20px; left: 50%; width: 550px;
             transform: translateX(-50%);
-            background-color: #000000; /* Fondo negro sólido */
-            color: #00d4ff;
-            border: 2px solid #00d4ff;
+            background-color: #000000; /* FONDO NEGRO SÓLIDO */
+            color: #00d4ff;           /* TEXTO CYAN */
+            border: 2px solid #00d4ff; /* BORDE NEÓN */
             border-radius: 8px;
             padding: 12px;
             z-index: 9999;
@@ -792,13 +792,15 @@ with col_mapa:
             text-align: center;
             text-transform: uppercase;
             letter-spacing: 3px;
-            box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.6);
             pointer-events: none;
             font-family: 'Arial', sans-serif;
             ">
             SISTEMA DE MONITOREO - AGUASCALIENTES
         </div>
     '''
+    
+    # 3. TERCERO: Inyectar el título al mapa recién creado
     m.get_root().html.add_child(folium.Element(titulo_mapa_html))
 
 # Añadir el resaltado del sector si existe

@@ -291,11 +291,26 @@ st.set_page_config(page_title=titulo_pestaña, layout="wide")
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        /* --- 1. FORZAR ANCHO TOTAL ABSOLUTO (PANTALLA COMPLETA) --- */
-        /* Eliminamos el ancho máximo de todos los contenedores posibles */
+        /* --- 1. ELIMINAR ELEMENTOS DE INTERFAZ DE STREAMLIT --- */
+        header {visibility: hidden !important; display: none !important;} 
+        #MainMenu {visibility: hidden !important; display: none !important;} 
+        footer {visibility: hidden !important; display: none !important;} 
+        .stAppToolbar {display: none !important;}
+
+        /* --- 2. ELIMINAR BOTÓN 'MANAGE APP' Y BARRA DE ESTADO --- */
+        [data-testid="stStatusWidget"], 
+        .stActionButton, 
+        button[title="Manage app"], 
+        #stDecoration {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* --- 3. FORZAR ANCHO TOTAL (PANTALLA COMPLETA A LA DERECHA) --- */
+        /* Rompe los límites de ancho de Streamlit para que el mapa toque los bordes */
         .main .block-container, 
         [data-testid="stAppViewBlockContainer"],
-        .st-emotion-cache-13ln4jf, 
+        .st-emotion-cache-13ln4jf,
         .stMainView {
             max-width: 100% !important;
             padding-left: 0rem !important;
@@ -305,31 +320,16 @@ st.markdown("""
             width: 100% !important;
         }
 
-        /* Quitamos el espacio superior que Streamlit reserva para el header */
-        [data-testid="stHeader"] {
-            display: none !important;
-        }
-
-        /* --- 2. OCULTAR BOTONES DE GESTIÓN Y MENÚS --- */
-        header {visibility: hidden !important; display: none !important;} 
-        footer {visibility: hidden !important; display: none !important;} 
-        .stAppToolbar {display: none !important;}
-        [data-testid="stStatusWidget"], .stActionButton, button[title="Manage app"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* --- 3. ESTILO DE FONDO --- */
+        /* --- 4. CONFIGURACIÓN DEL FONDO Y APP --- */
         .stApp { background-color: #000000; color: white; }
 
-        /* --- 4. AJUSTE PARA EL MAPA Y TÍTULO --- */
-        /* Bajamos el mapa para que no tape el título neón */
+        /* --- 5. AJUSTE PARA BAJAR EL MAPA Y ESPACIO PARA EL TÍTULO --- */
         .element-container:has(iframe), iframe {
-            margin-top: 50px !important;
+            margin-top: 55px !important; /* Espacio para que el título no tape el mapa */
             width: 100% !important;
         }
 
-        /* TÍTULO SUPERIOR ANIMADO */
+        /* --- 6. TÍTULO SUPERIOR ANIMADO --- */
         .titulo-superior {
             position: fixed;
             top: 15px; 
@@ -347,24 +347,34 @@ st.markdown("""
         }
 
         @keyframes glow {
-            from { text-shadow: 0 0 5px #00d4ff; transform: translateX(-50%) scale(1); }
-            to { text-shadow: 0 0 20px #00d4ff; transform: translateX(-50%) scale(1.02); }
+            from {
+                text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
+                transform: translateX(-50%) scale(1);
+            }
+            to {
+                text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
+                transform: translateX(-50%) scale(1.02);
+            }
         }
-
-        /* --- 5. SIDEBAR --- */
+    
+        /* --- 7. SIDEBAR Y LOGO --- */
         [data-testid="stSidebar"] { 
             background-color: #0b1a29; 
             border-right: 2px solid #333; 
         }
         
+        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
+        
         .sidebar-logo { 
             display: flex; 
             justify-content: center; 
+            padding: 0px !important; 
             margin-top: -50px !important; 
             margin-bottom: 10px;
         }
-        .sidebar-logo img { max-width: 85%; }
+        .sidebar-logo img { max-width: 85%; height: auto; }
 
+        /* --- 8. COMPONENTES DEL DASHBOARD --- */
         .resumen-card { 
             background: #050505; 
             border: 1px solid #1f4068; 
@@ -372,6 +382,20 @@ st.markdown("""
             padding: 15px; 
             margin-bottom: 15px; 
         }
+        
+        .status-tag { 
+            font-size: 10px; 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            font-weight: bold; 
+        }
+        
+        .status-ok { background-color: #1b5e20; color: #a5d6a7; }
+        .status-err { background-color: #b71c1c; color: #ef9a9a; }
+
+        /* --- 9. ANIMACIONES --- */
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
 

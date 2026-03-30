@@ -307,10 +307,16 @@ st.markdown("""
             margin-top: -30px !important;    /* Sube todo el contenido para cubrir el hueco del header */
         }
 
+        /* --- AJUSTE ESPECÍFICO PARA BAJAR EL MAPA --- */
+        /* Esto empuja el iframe del mapa hacia abajo para que no choque con el título */
+        .element-container:has(iframe) {
+            margin-top: 50px !important;
+        }
+
         /* --- TÍTULO SUPERIOR ANIMADO --- */
         .titulo-superior {
             position: fixed;
-            top: 10px; /* Ajustado para que no se pegue al borde físico */
+            top: 15px; /* Ajustado para que flote centrado en el espacio superior */
             left: 50%;
             transform: translateX(-50%);
             z-index: 9999999;

@@ -758,42 +758,48 @@ with st.sidebar:
             for p in sorted(pozos_sin_telemetria): 
                 st.write(f"⚪ {p}")
 # 9  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL -----------------------------------------------------------------------------------------------------------
+
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
+
 # Proporción ultra-ancha para el mapa (90% mapa, 10% capas)
 col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
-titulo_mapa_html = '''
-             <div style="
-                position: fixed; 
-                top: 20px; left: 50%; width: 600px; height: 50px;
-                transform: translateX(-50%);
-                background-color: rgba(0, 0, 0, 0.85); /* Fondo negro sólido con ligera transparencia */
-                color: #00d4ff;
-                border: 2px solid #00d4ff;
-                border-radius: 10px;
-                padding: 10px;
-                z-index:9999;
-                font-size: 20px;
-                font-weight: bold;
-                text-align: center;
-                text-transform: uppercase;
-                letter-spacing: 2px;
-                box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
-                pointer-events: none; /* Para que no interfiera si haces clic detrás */
-                ">
-                SISTEMA DE MONITOREO - AGUASCALIENTES
-            </div>
-             '''
-m.get_root().html.add_child(folium.Element(titulo_mapa_html))
 with col_mapa:
-    # Usamos las variables guardadas en el estado de la sesión
+    # 1. INICIALIZACIÓN DEL MAPA (Primero creamos el objeto)
     m = folium.Map(
         location=st.session_state.centro_mapa, 
         zoom_start=st.session_state.zoom_inicial, 
-        tiles="CartoDB dark_matter"
+        tiles="CartoDB dark_matter",
+        prefer_canvas=True # Optimización para que no se trabe
     )
-    Fullscreen().add_to(m)
+    Fullscreen(position="topright", title="Pantalla Completa", title_cancel="Salir").add_to(m)
+
+    # 2. TÍTULO CON FONDO NEGRO Y BORDE NEÓN (Dentro del mapa)
+    titulo_mapa_html = '''
+        <div style="
+            position: fixed; 
+            top: 20px; left: 50%; width: 550px;
+            transform: translateX(-50%);
+            background-color: #000000; /* Fondo negro sólido */
+            color: #00d4ff;
+            border: 2px solid #00d4ff;
+            border-radius: 8px;
+            padding: 12px;
+            z-index: 9999;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
+            pointer-events: none;
+            font-family: 'Arial', sans-serif;
+            ">
+            SISTEMA DE MONITOREO - AGUASCALIENTES
+        </div>
+    '''
+    m.get_root().html.add_child(folium.Element(titulo_mapa_html))
 
 # Añadir el resaltado del sector si existe
     if datos_sector_resaltado:

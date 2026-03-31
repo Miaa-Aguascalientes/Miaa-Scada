@@ -245,7 +245,7 @@ nombre_tq = params.get("nombre", "Tanque")
 
 if tag_a_graficar:
     import datetime
-    # IMPORTANTE: No debe haber st.set_page_config aquí
+    import plotly.express as px
     
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
@@ -255,17 +255,18 @@ if tag_a_graficar:
         opcion_fecha = st.selectbox(
             "Selecciona un rango:",
             ["Hoy", "Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-            index=1, # Por defecto selecciona 'Esta Semana'
-            key="pop_selector_final_v2"
+            index=1, # Por defecto 'Esta Semana'
+            key="pop_selector_final_v3"
         )
 
     hoy = datetime.date.today()
     
+    # Lógica de fechas corregida
     if opcion_fecha == "Hoy":
         fecha_inicio = hoy
         fecha_fin = hoy
     elif opcion_fecha == "Esta Semana":
-        # lunes = 0, domingo = 6. Restamos los días para llegar al lunes 00:00:00
+        # Lunes de la semana actual (00:00:00)
         fecha_inicio = hoy - datetime.timedelta(days=hoy.weekday())
         fecha_fin = hoy
     elif opcion_fecha == "Últimos 14 días":
@@ -276,17 +277,12 @@ if tag_a_graficar:
         fecha_fin = hoy
     else: 
         with col_f2:
-            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v2")
-            if isinstance(rango, tuple) and len(rango) == 2:
-                fecha_inicio, fecha_fin = rango
-            else:
-                fecha_inicio = fecha_fin = hoy
+            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v3")
+            fecha_inicio, fecha_fin = rango if isinstance(rango, tuple) and len(rango)==2 else (hoy, hoy)
 
     # --- CONSULTA A LA BASE DE DATOS ---
     try:
         engine = get_mysql_scada_engine()
-        
-        # Forzamos las horas para asegurar el rango completo
         f_desde = f"{fecha_inicio} 00:00:00"
         f_hasta = f"{fecha_fin} 23:59:59"
         
@@ -298,40 +294,50 @@ if tag_a_graficar:
             AND h.FECHA BETWEEN '{f_desde}' AND '{f_hasta}'
             ORDER BY h.FECHA ASC
         """
-        
         df_hist = pd.read_sql(query, engine)
 
         if not df_hist.empty:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
             
-            # Usamos Plotly para mayor precisión en el eje del tiempo
-            import plotly.express as px
+            # CREACIÓN DEL GRÁFICO CON LÍNEA GUÍA BLANCA
             fig = px.line(
                 df_hist, 
                 x='FECHA', 
                 y='VALUE', 
-                title=f"Rango: {f_desde} al {f_hasta}",
                 template="plotly_dark"
             )
+            
+            # Estilo de la línea principal (Cian/Azul MIAA)
             fig.update_traces(line_color='#00d4ff', line_width=2)
+            
+            # CONFIGURACIÓN DE LA LÍNEA BLANCA QUE SE DESPLAZA (Spikeline)
+            fig.update_xaxes(
+                showspikes=True, 
+                spikecolor="white", 
+                spikethickness=1, 
+                spikemode="across", 
+                spikesnap="cursor"
+            )
+            
             fig.update_layout(
-                xaxis_title="Fecha y Hora", 
+                hovermode="x unified", # Muestra los datos al pasar el mouse
+                xaxis_title="Fecha y Hora",
                 yaxis_title="Nivel (m)",
-                hovermode="x unified"
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(showgrid=False),
+                yaxis=dict(showgrid=True, gridcolor='#333')
             )
             
             st.plotly_chart(fig, use_container_width=True)
             
             with st.expander("Ver tabla de datos"):
-                st.dataframe(
-                    df_hist[['FECHA', 'VALUE']].sort_values(by='FECHA', ascending=False), 
-                    use_container_width=True
-                )
+                st.dataframe(df_hist.sort_values(by='FECHA', ascending=False), use_container_width=True)
         else:
-            st.warning(f"No se encontraron datos desde el {f_desde} hasta el {f_hasta}")
+            st.warning(f"No se encontraron datos desde el {f_desde}")
             
     except Exception as e:
-        st.error(f"Error en la consulta: {e}")
+        st.error(f"Error: {e}")
     
     st.stop()
 

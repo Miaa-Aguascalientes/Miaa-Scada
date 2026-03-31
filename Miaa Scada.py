@@ -332,7 +332,7 @@ if sector_seleccionado:
 else:
     titulo_pestaña = "MIAA - Estado de Pozos"
 
-st.set_page_config(page_title=titulo_pestaña, layout="wide")
+
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""

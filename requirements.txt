@@ -6,4 +6,4 @@ psycopg2-binary
 streamlit-folium
 folium
 plotly
-
+streamlit-autorefresh

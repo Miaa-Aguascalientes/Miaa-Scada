@@ -405,9 +405,18 @@ mapa_rebombeos_dict = cargar_rebombeos_desde_db()
 # 2. Recolección de tags para la consulta masiva
 tags_a_consultar = []
 
-# Tags de Pozos
 for p in mapa_pozos_dict.values():
-    tags_a_consultar.extend([p['bomba'], p['caudal'], p['presion'], p['nivel_tanque']])
+    # Añadimos los campos que te faltaban: nivel_dinamico, sumergencia y columna
+    tags_a_consultar.extend([
+        p['bomba'], 
+        p['caudal'], 
+        p['presion'], 
+        p['nivel_tanque'],
+        p['nivel_dinamico'], # <-- AGREGADO
+        p['sumergencia'],     # <-- AGREGADO
+        p['columna']          # <-- AGREGADO
+    ])
+    # Voltajes y amperajes
     tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
 
 # Tags de Tanques

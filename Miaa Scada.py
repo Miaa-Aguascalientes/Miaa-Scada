@@ -398,98 +398,21 @@ st.markdown("""
         .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
-# 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
+# 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO (MODIFICADO PARA AUTO-REFRESCO) -----------------------------------------------------------------
 
-# 1. Carga de datos base
+# 1. Carga de datos base (Se quedan fuera del fragmento porque no cambian seguido)
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 mapa_tanques_dict = cargar_tanques_desde_db()
 mapa_rebombeos_dict = cargar_rebombeos_desde_db()
 
-# 2. Recolección de tags para la consulta masiva
-tags_a_consultar = []
-
-for p in mapa_pozos_dict.values():
-    # Añadimos los campos que te faltaban: nivel_dinamico, sumergencia y columna
-    tags_a_consultar.extend([
-        p['bomba'], 
-        p['caudal'], 
-        p['presion'], 
-        p['nivel_tanque'],
-        p['nivel_dinamico'], # <-- AGREGADO
-        p['sumergencia'],     # <-- AGREGADO
-        p['columna']          # <-- AGREGADO
-    ])
-    # Voltajes y amperajes
-    tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
-
-# Tags de Tanques
-for t in mapa_tanques_dict.values():
-    if t['tag_nivel']: tags_a_consultar.append(t['tag_nivel'])
-
-# Tags de Rebombeos
-for r in mapa_rebombeos_dict.values():
-    tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
-    tags_a_consultar.extend(r['voltajes_l'] + r['amperajes_l'])
-
-# Limpieza de la lista
-tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
-
-# 3. Consulta al SCADA pasando la LISTA corregida
-data_scada = cargar_datos_scada(tags_finales)
-
-# 4. Inicialización de contadores
-pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
-total_q, total_p = 0.0, 0.0
-
-import datetime as dt
-ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
-
-# --- LÓGICA DE POZOS ---
-for id_p, info in mapa_pozos_dict.items():
-    bomba_val = str(info['bomba']).strip()
-    if bomba_val == "Sin telemetria":
-        info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
-        pozos_sin_telemetria.append(id_p)
-        continue
-
-    tag_l1 = info['voltajes_l'][0]
-    _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
-    
-    es_falla_com = False
-    if fecha_str != "N/A":
-        try:
-            fecha_dt = dt.datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
-            if (ahora - fecha_dt).total_seconds() / 3600 > 4: es_falla_com = True
-        except: es_falla_com = True
-    else: es_falla_com = True
-
-    if es_falla_com:
-        info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
-        pozos_falla_com.append(id_p)
-    else:
-        val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
-        if val_bba == 1:
-            info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
-            pozos_on.append(id_p)
-            total_q += data_scada.get(info['caudal'], (0, ""))[0]
-            total_p += data_scada.get(info['presion'], (0, ""))[0]
-        else:
-            info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
-            pozos_off.append(id_p)
-
-# --- LÓGICA DE REBOMBEOS (Presión < 0.10) ---
-for id_rb, info in mapa_rebombeos_dict.items():
-    pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
-    if pres_val < 0.10:
-        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
-    else:
-        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
-
-@st.fragment(run_every=30) # Se ejecuta cada 30 segundos automáticamente
-def mapa_tiempo_real():
-    # A. RECOLECCIÓN DE TAGS (Copia esto de tu Sección 6)
+# Definimos el fragmento para que solo esta parte se actualice cada 30 segundos
+@st.fragment(run_every=30)
+def renderizar_sistema_monitoreo():
+    # --- A. RECOLECCIÓN DINÁMICA DE TAGS ---
     tags_a_consultar = []
+    
+    # Pozos
     for p in mapa_pozos_dict.values():
         tags_a_consultar.extend([
             p['bomba'], p['caudal'], p['presion'], 
@@ -497,11 +420,104 @@ def mapa_tiempo_real():
             p['sumergencia'], p['columna']
         ])
         tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
-    
-    tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'None']]))
-    
-    # B. CONSULTA FRESCA
+
+    # Tanques
+    for t in mapa_tanques_dict.values():
+        if t['tag_nivel']: tags_a_consultar.append(t['tag_nivel'])
+
+    # Rebombeos
+    for r in mapa_rebombeos_dict.values():
+        tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
+        tags_a_consultar.extend(r['voltajes_l'] + r['amperajes_l'])
+
+    # Limpieza de lista
+    tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
+
+    # --- B. CONSULTA FRESCA AL SCADA ---
     data_scada = cargar_datos_scada(tags_finales)
+
+    # --- C. LÓGICA DE ESTADOS Y CONTADORES ---
+    pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
+    total_q, total_p = 0.0, 0.0
+    ahora = datetime.utcnow() - timedelta(hours=6)
+
+    # Procesar estados de pozos para el mapa
+    for id_p, info in mapa_pozos_dict.items():
+        bomba_val = str(info['bomba']).strip()
+        if bomba_val == "Sin telemetria":
+            info.update({'status_label': 'SIN TELEMETRÍA', 'color_final': '#808080', 'blink': False})
+            pozos_sin_telemetria.append(id_p)
+            continue
+
+        tag_l1 = info['voltajes_l'][0]
+        _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
+        
+        es_falla_com = False
+        if fecha_str != "N/A":
+            try:
+                fecha_dt = datetime.strptime(f"{ahora.year}/{fecha_str}", "%Y/%d/%m %H:%M")
+                if (ahora - fecha_dt).total_seconds() / 3600 > 4: es_falla_com = True
+            except: es_falla_com = True
+        else: es_falla_com = True
+
+        if es_falla_com:
+            info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
+            pozos_falla_com.append(id_p)
+        else:
+            val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
+            if val_bba == 1:
+                info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+                pozos_on.append(id_p)
+                total_q += data_scada.get(info['caudal'], (0, 0))[0]
+                total_p += data_scada.get(info['presion'], (0, 0))[0]
+            else:
+                info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
+                pozos_off.append(id_p)
+
+    # --- D. CREACIÓN DEL MAPA ---
+    m = folium.Map(location=[21.88234, -102.28259], zoom_start=12, tiles="CartoDB dark_matter")
+    Fullscreen().add_to(m)
+
+    # 1. Dibujar Sectores
+    for _, s in sectores.iterrows():
+        color = "#00FF00" if s['nombre'] == sector_seleccionado else "#333333"
+        folium.GeoJson(s['geometry'], style_function=lambda x, c=color: {'fillColor': c, 'color': c, 'weight': 2, 'fillOpacity': 0.1}).add_to(m)
+
+    # 2. Dibujar Pozos
+    for id_p, info in mapa_pozos_dict.items():
+        # Extraer valores para el popup
+        q_val, _ = data_scada.get(info['caudal'], (0, "N/A"))
+        p_val, _ = data_scada.get(info['presion'], (0, "N/A"))
+        nt_val, _ = data_scada.get(info['nivel_tanque'], (0, "N/A"))
+        nd_val, _ = data_scada.get(info['nivel_dinamico'], (0, "N/A"))
+        sum_val, _ = data_scada.get(info['sumergencia'], (0, "N/A"))
+        col_val, _ = data_scada.get(info['columna'], (0, "N/A"))
+        
+        # HTML del Popup (Simplificado para el ejemplo, usa el tuyo completo)
+        html_content = f"""
+        <div style="font-family: 'Courier New', monospace; color: white; background: black; padding: 10px; border-radius: 5px;">
+            <b style="color: #00FF00;">{id_p}</b><br>
+            ESTADO: {info['status_label']}<br><hr>
+            CAUDAL: {q_val:.2f} lps<br>
+            PRESIÓN: {p_val:.2f} kg/cm2<br>
+            NIVEL DIN: {nd_val:.2f} m<br>
+            SUMERGENCIA: {sum_val:.2f} m
+        </div>
+        """
+        
+        if info['blink']:
+            # Función get_blink_icon debe estar definida en tu código
+            folium.Marker(location=info['coord'], icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), 
+                          popup=folium.Popup(html_content, max_width=300)).add_to(m)
+        else:
+            folium.CircleMarker(location=info['coord'], radius=7, color=info['color_final'], fill=True, 
+                                fill_opacity=0.7, popup=folium.Popup(html_content, max_width=300)).add_to(m)
+
+    # --- E. MOSTRAR EL MAPA EN STREAMLIT ---
+    folium_static(m, width=None, height=750)
+
+# 3. Ejecutar la función del fragmento
+renderizar_sistema_monitoreo()
 
 # 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 

@@ -248,8 +248,6 @@ if tag_a_graficar:
     import plotly.express as px
     import pandas as pd
     
-    # NO poner set_page_config aquí para evitar la pantalla roja.
-    
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
     # --- FILTROS DE FECHA ---
@@ -258,18 +256,16 @@ if tag_a_graficar:
         opcion_fecha = st.selectbox(
             "Selecciona un rango:",
             ["Hoy", "Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-            index=1, # Por defecto selecciona 'Esta Semana'
-            key="pop_selector_final_v5"
+            index=1,
+            key="pop_selector_final_v6"
         )
 
     hoy = datetime.date.today()
     
-    # Lógica de fechas (Corregida)
     if opcion_fecha == "Hoy":
         fecha_inicio = hoy
         fecha_fin = hoy
     elif opcion_fecha == "Esta Semana":
-        # Lunes de la semana actual (00:00:00)
         fecha_inicio = hoy - datetime.timedelta(days=hoy.weekday())
         fecha_fin = hoy
     elif opcion_fecha == "Últimos 14 días":
@@ -280,7 +276,7 @@ if tag_a_graficar:
         fecha_fin = hoy
     else: 
         with col_f2:
-            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v5")
+            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v6")
             if isinstance(rango, tuple) and len(rango) == 2:
                 fecha_inicio, fecha_fin = rango
             else:
@@ -289,7 +285,6 @@ if tag_a_graficar:
     # --- CONSULTA A LA BASE DE DATOS ---
     try:
         engine = get_mysql_scada_engine()
-        # Forzamos las horas para asegurar el rango completo
         f_desde = f"{fecha_inicio} 00:00:00"
         f_hasta = f"{fecha_fin} 23:59:59"
         
@@ -307,46 +302,51 @@ if tag_a_graficar:
         if not df_hist.empty:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
             
-            # CREACIÓN DEL GRÁFICO (Con marcadores activados)
+            # REDONDEO A DOS DECIMALES
+            df_hist['VALUE'] = df_hist['VALUE'].round(2)
+            
+            # CREACIÓN DEL GRÁFICO
             fig = px.line(
                 df_hist, 
                 x='FECHA', 
                 y='VALUE', 
                 template="plotly_dark",
-                markers=True # <--- NUEVO: Muestra los puntos en la línea
+                markers=True
             )
             
-            # Estilo de la línea principal (Azul MIAA)
+            # Estilo de la línea principal y puntos
             fig.update_traces(
                 line_color='#00d4ff', 
                 line_width=2,
-                # Ajuste opcional del tamaño del punto
-                marker=dict(size=4, color='#00d4ff', line=dict(width=1, color='white')) 
+                marker=dict(size=4, color='#00d4ff', line=dict(width=1, color='white')),
+                # Forzar dos decimales en el tooltip individual si se usa
+                hovertemplate="<b>Fecha:</b> %{x}<br><b>Nivel:</b> %{y:.2f} m<extra></extra>"
             )
             
-            # CONFIGURACIÓN DE LA LÍNEA GUÍA ULTRA DELGADA Y SUTIL
+            # CONFIGURACIÓN DE LA LÍNEA GUÍA PUNTEADA (Dash)
             fig.update_xaxes(
                 showspikes=True, 
-                # Color blanco casi invisible (15% de opacidad)
-                spikecolor="rgba(255, 255, 255, 0.15)", 
-                # GROSOR MÍNIMO (0.3 es muy sutil)
-                spikethickness=0.3, 
+                spikecolor="rgba(255, 255, 255, 0.6)", 
+                spikethickness=1, 
                 spikemode="across", 
                 spikesnap="cursor",
-                # Quitar rejilla vertical
+                # AQUÍ SE DEFINE QUE SEA PUNTEADA
+                spikedash="dot", 
                 showgrid=False
             )
             
-            # Ajustes finales de layout
             fig.update_layout(
-                hovermode="x unified", # Muestra los datos consolidados
+                hovermode="x unified",
+                # Forzar formato de 2 decimales en el eje Y y etiquetas flotantes
+                yaxis=dict(
+                    tickformat=".2f", 
+                    showgrid=True, 
+                    gridcolor='#333',
+                    title="Nivel (m)"
+                ),
                 xaxis_title="Fecha y Hora",
-                yaxis_title="Nivel (m)",
-                # Fondo transparente para integrar con la web
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                # Rejilla horizontal tenue
-                yaxis=dict(showgrid=True, gridcolor='#333')
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -357,12 +357,12 @@ if tag_a_graficar:
                     use_container_width=True
                 )
         else:
-            st.warning(f"No se encontraron datos registrados desde el {f_desde} hasta el {f_hasta}")
+            st.warning(f"No hay datos registrados para este periodo.")
             
     except Exception as e:
         st.error(f"Error en la consulta: {e}")
     
-    st.stop() # Mata la ejecución aquí para que no salga nada abajo
+    st.stop()
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""

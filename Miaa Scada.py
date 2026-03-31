@@ -324,7 +324,7 @@ if tag_a_graficar:
     except Exception as e:
         st.error(f"Error al consultar la base de datos: {e}")
     
-    st.stop() # Importante: Detiene el script para mostrar solo esta ventana
+    st.stop()
 
 
 

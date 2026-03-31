@@ -257,12 +257,13 @@ if tag_a_graficar:
         opcion_fecha = st.selectbox(
             "Selecciona un rango:",
             ["Hoy", "Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-            index=1,
-            key="pop_selector_final_v7"
+            index=2, # <--- CAMBIO: Ahora selecciona 'Últimos 14 días' por defecto
+            key="pop_selector_final_v8"
         )
 
     hoy = datetime.date.today()
     
+    # Lógica de selección de fechas
     if opcion_fecha == "Hoy":
         fecha_inicio = hoy
         fecha_fin = hoy
@@ -277,7 +278,7 @@ if tag_a_graficar:
         fecha_fin = hoy
     else: 
         with col_f2:
-            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v7")
+            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v8")
             fecha_inicio, fecha_fin = rango if isinstance(rango, tuple) and len(rango)==2 else (hoy, hoy)
 
     # --- CONSULTA A LA BASE DE DATOS ---
@@ -301,10 +302,9 @@ if tag_a_graficar:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
             df_hist['VALUE'] = df_hist['VALUE'].round(2)
             
-            # --- CREACIÓN DEL GRÁFICO DE ÁREA ---
+            # --- CREACIÓN DEL GRÁFICO DE ÁREA DESVANECIDA ---
             fig = go.Figure()
 
-            # Añadir la línea con área de relleno (desvanecido)
             fig.add_trace(go.Scatter(
                 x=df_hist['FECHA'],
                 y=df_hist['VALUE'],
@@ -312,19 +312,18 @@ if tag_a_graficar:
                 line=dict(color='#00d4ff', width=2),
                 marker=dict(size=4, color='#00d4ff'),
                 fill='tozeroy',
-                # Color de relleno con transparencia para efecto desvanecido
-                fillcolor='rgba(0, 212, 255, 0.2)', 
+                fillcolor='rgba(0, 212, 255, 0.2)', # Efecto desvanecido
                 hovertemplate="<b>%{y:.2f} m</b><extra></extra>"
             ))
             
-            # --- CONFIGURACIÓN DE LA LÍNEA GUÍA (ESTILO IMAGEN) ---
+            # --- CONFIGURACIÓN DE LA LÍNEA GUÍA (PUNTEADA GRIS) ---
             fig.update_xaxes(
                 showspikes=True, 
-                spikecolor="gray",          # Color gris como la imagen
+                spikecolor="gray", 
                 spikethickness=1, 
                 spikemode="across", 
                 spikesnap="cursor",
-                spikedash="dash",           # Estilo punteado/guiones
+                spikedash="dash", 
                 showgrid=False
             )
             
@@ -340,11 +339,9 @@ if tag_a_graficar:
                     showgrid=True,
                     gridcolor='#333'
                 ),
-                # Ajuste del cuadro de texto del hover (estilo imagen)
                 hoverlabel=dict(
                     bgcolor="#1f2c38",
-                    font_size=12,
-                    font_family="Arial"
+                    font_size=12
                 )
             )
             
@@ -356,13 +353,12 @@ if tag_a_graficar:
                     use_container_width=True
                 )
         else:
-            st.warning("No hay datos registrados para este periodo.")
+            st.warning(f"No hay datos registrados desde el {f_desde} hasta el {f_hasta}")
             
     except Exception as e:
         st.error(f"Error en la consulta: {e}")
     
     st.stop()
-
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>

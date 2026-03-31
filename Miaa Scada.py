@@ -244,19 +244,20 @@ params = st.query_params
 tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
-# --- LÓGICA DE VISUALIZACIÓN ---
 if tag_a_graficar:
-    # NO poner set_page_config aquí, ya se llamó en la Sección 1
     import datetime
-    st.title(f"📊 Análisis de Nivel: {nombre_tq}")
+    # NO USAR set_page_config AQUÍ. Ya está en la Sección 1.
     
-    # Filtros de fecha (Rango rápido y Calendario)
+    st.title(f"📊 Análisis Histórico: {nombre_tq}")
+    st.markdown(f"**Tag:** `{tag_a_graficar}`")
+
+    # --- FILTROS DE FECHA ---
     col_f1, col_f2 = st.columns([1, 2])
     with col_f1:
         opcion_fecha = st.selectbox(
             "Rango rápido:",
             ["Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-            key="filtro_popup_unico"
+            key="pop_selector"
         )
 
     hoy = datetime.date.today()
@@ -271,31 +272,50 @@ if tag_a_graficar:
         fecha_fin = hoy
     else: 
         with col_f2:
-            rango = st.date_input("Selecciona periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="cal_popup_unico")
-            fecha_inicio, fecha_fin = rango if isinstance(rango, tuple) and len(rango)==2 else (hoy, hoy)
+            rango = st.date_input("Seleccionar periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal")
+            if isinstance(rango, tuple) and len(rango) == 2:
+                fecha_inicio, fecha_fin = rango
+            else:
+                fecha_inicio = fecha_fin = hoy
 
-    # Consulta a la DB
+    # --- CONSULTA A LA TABLA vfitagnumhistory ---
     try:
         engine = get_mysql_scada_engine()
-        query = f"SELECT FECHA, VALUE FROM log_tanques WHERE TAG = '{tag_a_graficar}' AND FECHA BETWEEN '{fecha_inicio} 00:00:00' AND '{fecha_fin} 23:59:59' ORDER BY FECHA ASC"
+        # Ajustado a los nombres de columna típicos: FECHA y VALUE
+        query = f"""
+            SELECT FECHA, VALUE 
+            FROM vfitagnumhistory 
+            WHERE TAG = '{tag_a_graficar}' 
+            AND FECHA BETWEEN '{fecha_inicio} 00:00:00' AND '{fecha_fin} 23:59:59'
+            ORDER BY FECHA ASC
+        """
         df_hist = pd.read_sql(query, engine)
 
         if not df_hist.empty:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
+            # Crear columna para el eje X que se vea bien
             df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
-            st.line_chart(df_hist.rename(columns={'VALUE': 'Nivel (m)'}), x='Fecha y Hora', y='Nivel (m)', use_container_width=True)
             
-            with st.expander("Ver tabla"):
-                st.dataframe(df_hist[['FECHA', 'VALUE']].sort_values(by='FECHA', ascending=False), use_container_width=True)
+            # Graficar
+            st.line_chart(
+                df_hist.rename(columns={'VALUE': 'Nivel/Presión'}), 
+                x='Fecha y Hora', 
+                y='Nivel/Presión', 
+                use_container_width=True
+            )
+            
+            with st.expander("Ver registros detallados"):
+                st.dataframe(
+                    df_hist[['FECHA', 'VALUE']].sort_values(by='FECHA', ascending=False), 
+                    use_container_width=True
+                )
         else:
-            st.warning("No hay datos en este rango.")
+            st.warning(f"No se encontraron datos en vfitagnumhistory para el rango: {fecha_inicio} a {fecha_fin}")
+            
     except Exception as e:
-        st.error(f"Error DB: {e}")
+        st.error(f"Error al consultar vfitagnumhistory: {e}")
     
-    st.stop() # IMPORTANTE: Detiene el resto del script para que no cargue el mapa atrás
-
-# --- ESTO VA FUERA DEL IF (CONFIGURACIÓN DE TÍTULOS) ---
-# Ya no llamamos a set_page_config aquí porque ya se hizo en la Sección 1
+    st.stop() # Evita que se cargue el resto de la app (mapa) debajo del gráfico
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""

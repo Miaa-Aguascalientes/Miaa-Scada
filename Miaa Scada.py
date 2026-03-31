@@ -8,6 +8,7 @@ import psycopg2
 import json
 import urllib.parse
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
 
 # 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 params = st.query_params
@@ -24,6 +25,11 @@ st.set_page_config(
     layout="wide", 
     initial_sidebar_state="expanded"
 )
+
+# --- CONFIGURACIÓN DE ACTUALIZACIÓN AUTOMÁTICA ---
+# Esto refrescará la app cada 30 segundos (30000 milisegundos)
+# El 'key' evita que el componente se duplique al recargar
+count = st_autorefresh(interval=30000, limit=1000, key="scada_refresh")
 
 # 2  SECCION------------------------------------------------------------------------------2. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
 @st.cache_resource

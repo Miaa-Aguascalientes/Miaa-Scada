@@ -246,6 +246,7 @@ nombre_tq = params.get("nombre", "Tanque")
 if tag_a_graficar:
     import datetime
     import plotly.express as px
+    import pandas as pd
     
     # NO poner set_page_config aquí para evitar la pantalla roja.
     
@@ -258,7 +259,7 @@ if tag_a_graficar:
             "Selecciona un rango:",
             ["Hoy", "Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
             index=1, # Por defecto selecciona 'Esta Semana'
-            key="pop_selector_final_v4"
+            key="pop_selector_final_v5"
         )
 
     hoy = datetime.date.today()
@@ -279,8 +280,11 @@ if tag_a_graficar:
         fecha_fin = hoy
     else: 
         with col_f2:
-            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v4")
-            fecha_inicio, fecha_fin = rango if isinstance(rango, tuple) and len(rango)==2 else (hoy, hoy)
+            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v5")
+            if isinstance(rango, tuple) and len(rango) == 2:
+                fecha_inicio, fecha_fin = rango
+            else:
+                fecha_inicio = fecha_fin = hoy
 
     # --- CONSULTA A LA BASE DE DATOS ---
     try:
@@ -303,24 +307,30 @@ if tag_a_graficar:
         if not df_hist.empty:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
             
-            # CREACIÓN DEL GRÁFICO
+            # CREACIÓN DEL GRÁFICO (Con marcadores activados)
             fig = px.line(
                 df_hist, 
                 x='FECHA', 
                 y='VALUE', 
-                template="plotly_dark"
+                template="plotly_dark",
+                markers=True # <--- NUEVO: Muestra los puntos en la línea
             )
             
             # Estilo de la línea principal (Azul MIAA)
-            fig.update_traces(line_color='#00d4ff', line_width=2)
+            fig.update_traces(
+                line_color='#00d4ff', 
+                line_width=2,
+                # Ajuste opcional del tamaño del punto
+                marker=dict(size=4, color='#00d4ff', line=dict(width=1, color='white')) 
+            )
             
-            # CONFIGURACIÓN DE LA LÍNEA GUÍA ULTRA DELGADA
+            # CONFIGURACIÓN DE LA LÍNEA GUÍA ULTRA DELGADA Y SUTIL
             fig.update_xaxes(
                 showspikes=True, 
-                # Color blanco con 40% de transparencia (sutil)
-                spikecolor="rgba(255, 255, 255, 0.4)", 
-                # GROSOR REDUCIDO (0.6 es casi invisible, 0.8 es sutil)
-                spikethickness=0.0, 
+                # Color blanco casi invisible (15% de opacidad)
+                spikecolor="rgba(255, 255, 255, 0.15)", 
+                # GROSOR MÍNIMO (0.3 es muy sutil)
+                spikethickness=0.3, 
                 spikemode="across", 
                 spikesnap="cursor",
                 # Quitar rejilla vertical

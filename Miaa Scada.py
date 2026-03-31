@@ -407,8 +407,12 @@ mapa_pozos_dict = cargar_mapa_pozos_desde_db()
 mapa_tanques_dict = cargar_tanques_desde_db()
 mapa_rebombeos_dict = cargar_rebombeos_desde_db()
 
+# 2. Obtenemos el sector de los query_params otra vez para asegurar que la función lo vea
+params = st.query_params
+sector_actual = params.get("sector", None)
+
 @st.fragment(run_every=30)
-def renderizar_sistema_monitoreo():
+def renderizar_sistema_monitoreo(sector_filtro):
     # --- A. RECOLECCIÓN DE TAGS ---
     tags_a_consultar = []
     for p in mapa_pozos_dict.values():
@@ -431,8 +435,7 @@ def renderizar_sistema_monitoreo():
     # --- B. CONSULTA AL SCADA ---
     data_scada = cargar_datos_scada(tags_finales)
 
-    # --- C. LÓGICA DE TIEMPO Y ESTADOS ---
-    # Ya no dará error porque timedelta ya está importado arriba
+    # --- C. LÓGICA DE TIEMPO ---
     ahora = datetime.utcnow() - timedelta(hours=6)
     
     # --- D. CREACIÓN DEL MAPA ---
@@ -441,14 +444,15 @@ def renderizar_sistema_monitoreo():
 
     # 1. Dibujar Sectores
     for _, s in sectores.iterrows():
-        color = "#00FF00" if s['nombre'] == sector_seleccionado else "#333333"
+        # Usamos sector_filtro que pasamos como argumento
+        color = "#00FF00" if s['nombre'] == sector_filtro else "#333333"
         folium.GeoJson(s['geometry'], style_function=lambda x, c=color: {
             'fillColor': c, 'color': c, 'weight': 2, 'fillOpacity': 0.1
         }).add_to(m)
 
     # 2. Dibujar Pozos
     for id_p, info in mapa_pozos_dict.items():
-        # Lógica de Falla de Comunicación (usando data_scada)
+        # Lógica de estados (igual que antes)
         tag_l1 = info['voltajes_l'][0]
         _, fecha_str = data_scada.get(tag_l1, (0, "N/A"))
         
@@ -460,30 +464,28 @@ def renderizar_sistema_monitoreo():
             except: es_falla_com = True
         else: es_falla_com = True
 
-        # Color y estado
         if es_falla_com:
-            info.update({'status_label': 'FALLA COM.', 'color_final': '#FFA500', 'blink': True})
+            color_p = '#FFA500'
+            blink_p = True
         else:
             val_bba, _ = data_scada.get(info['bomba'], (0, "N/A"))
-            if val_bba == 1:
-                info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
-            else:
-                info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
+            color_p = '#00FF00' if val_bba == 1 else '#FF0000'
+            blink_p = False if val_bba == 1 else True
 
-        # Marcadores
-        if info['blink']:
+        # Marcadores con Popups (Asegúrate de que get_blink_icon esté definido)
+        if blink_p:
             folium.Marker(location=info['coord'], 
-                          icon=folium.DivIcon(html=get_blink_icon(info['color_final'])), 
+                          icon=folium.DivIcon(html=get_blink_icon(color_p)), 
                           popup=folium.Popup(f"<b>{id_p}</b>", max_width=300)).add_to(m)
         else:
-            folium.CircleMarker(location=info['coord'], radius=7, color=info['color_final'], 
+            folium.CircleMarker(location=info['coord'], radius=7, color=color_p, 
                                 fill=True, popup=folium.Popup(f"<b>{id_p}</b>", max_width=300)).add_to(m)
 
     # --- E. RENDERIZADO ---
     folium_static(m, width=None, height=750)
 
-# Llamada final
-renderizar_sistema_monitoreo()
+# 3. LLAMADA FINAL (Pasando la variable del sector)
+renderizar_sistema_monitoreo(sector_actual)
 # 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 
 if sector_seleccionado:

@@ -7,7 +7,6 @@ from sqlalchemy import create_engine
 import psycopg2
 import json
 import urllib.parse
-import datetime
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
@@ -78,6 +77,24 @@ def cargar_datos_scada(lista_tags):
         # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
         return {}
 
+def obtener_historia_7_dias(tag_name):
+    engine = get_mysql_scada_engine()
+    if not engine or not tag_name: return pd.DataFrame()
+    try:
+        query = f"""
+            SELECT h.FECHA, h.VALUE 
+            FROM vfitagnumhistory h
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID
+            WHERE r.NAME = '{tag_name}'
+            AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ORDER BY h.FECHA ASC
+        """
+        df = pd.read_sql(query, engine)
+        # Forzamos a que sea datetime para que Streamlit detecte la hora
+        df['FECHA'] = pd.to_datetime(df['FECHA']) 
+        return df
+    except:
+        return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
@@ -227,87 +244,48 @@ tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
 if tag_a_graficar:
-    import datetime
-    # ELIMINADO: st.set_page_config (causaba error por estar duplicado)
-    
+    st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
-    # --- 1. FILTROS DE FECHA (CALENDARIO) ---
-    col_f1, col_f2 = st.columns([1, 2])
-    
-    with col_f1:
-        opcion_fecha = st.selectbox(
-            "Rango rápido:",
-            ["Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-            key="pop_selector"
+    df_hist = obtener_historia_7_dias(tag_a_graficar)
+
+    if not df_hist.empty:
+        # 1. Aseguramos que sea datetime
+        df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
+        
+        # 2. CREAMOS UNA COLUMNA DE TEXTO PARA EL EJE X / TOOLTIP
+        # Esto obliga a Streamlit a mostrar la hora exacta en la etiqueta
+        df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
+        df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
+
+        # 3. GRAFICAMOS USANDO LA COLUMNA DE TEXTO
+        st.line_chart(
+            df_hist, 
+            x='Fecha y Hora', 
+            y='Nivel (m)', 
+            use_container_width=True
         )
-
-    hoy = datetime.date.today()
-    
-    if opcion_fecha == "Esta Semana":
-        fecha_inicio = hoy - datetime.timedelta(days=hoy.weekday())
-        fecha_fin = hoy
-    elif opcion_fecha == "Últimos 14 días":
-        fecha_inicio = hoy - datetime.timedelta(days=14)
-        fecha_fin = hoy
-    elif opcion_fecha == "Este Mes":
-        fecha_inicio = hoy.replace(day=1)
-        fecha_fin = hoy
-    else: # Opción: Personalizado
-        with col_f2:
-            rango = st.date_input(
-                "Selecciona el periodo:",
-                value=(hoy - datetime.timedelta(days=7), hoy),
-                max_value=hoy,
-                key="pop_calendario"
-            )
-            if isinstance(rango, tuple) and len(rango) == 2:
-                fecha_inicio, fecha_fin = rango
-            else:
-                fecha_inicio = fecha_fin = hoy
-
-    # --- 2. CONSULTA DINÁMICA (REEMPLAZA A obtener_historia_7_dias) ---
-    try:
-        engine = get_mysql_scada_engine()
-        # Usamos los mismos JOINs que tu función original pero con las fechas del calendario
-        query = f"""
-            SELECT h.FECHA, h.VALUE 
-            FROM vfitagnumhistory h
-            JOIN VfiTagRef r ON h.GATEID = r.GATEID
-            WHERE r.NAME = '{tag_a_graficar}'
-            AND h.FECHA BETWEEN '{fecha_inicio} 00:00:00' AND '{fecha_fin} 23:59:59'
-            ORDER BY h.FECHA ASC
-        """
-        df_hist = pd.read_sql(query, engine)
-
-        if not df_hist.empty:
-            # Procesamiento de datos
-            df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
-            df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
-            df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
-
-            # Gráfico
-            st.line_chart(
-                df_hist, 
-                x='Fecha y Hora', 
-                y='Nivel (m)', 
+        
+        with st.expander("Ver tabla de datos detallada"):
+            # Formato completo para la tabla
+            df_tabla = df_hist.copy()
+            df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
+            st.dataframe(
+                df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='Fecha y Hora Full', ascending=False), 
                 use_container_width=True
             )
-            
-            with st.expander("Ver tabla de datos detallada"):
-                df_tabla = df_hist.copy()
-                df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
-                st.dataframe(
-                    df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='FECHA', ascending=False), 
-                    use_container_width=True
-                )
-        else:
-            st.warning(f"No hay datos para {tag_a_graficar} en el periodo seleccionado.")
-            
-    except Exception as e:
-        st.error(f"Error al consultar la base de datos: {e}")
+    else:
+        st.error(f"No hay datos para {tag_a_graficar}")
     
-    st.stop() # Importante: Detiene el script para mostrar solo esta ventana
+    st.stop()
+
+# --- CONFIGURACIÓN NORMAL (Si no hay sector ni tanque elegido) ---
+if sector_seleccionado:
+    titulo_pestaña = f"MIAA - Sector: {sector_seleccionado}"
+else:
+    titulo_pestaña = "MIAA - Estado de Pozos"
+
+st.set_page_config(page_title=titulo_pestaña, layout="wide")
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
@@ -418,7 +396,7 @@ st.markdown("""
         .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
-# 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO Y RENDERIZADO -----------------------------------------------------------------
+# 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
@@ -430,37 +408,42 @@ mapa_rebombeos_dict = cargar_rebombeos_desde_db()
 tags_a_consultar = []
 
 for p in mapa_pozos_dict.values():
+    # Añadimos los campos que te faltaban: nivel_dinamico, sumergencia y columna
     tags_a_consultar.extend([
         p['bomba'], 
         p['caudal'], 
         p['presion'], 
         p['nivel_tanque'],
-        p['nivel_dinamico'],
-        p['sumergencia'],
-        p['columna']
+        p['nivel_dinamico'], # <-- AGREGADO
+        p['sumergencia'],     # <-- AGREGADO
+        p['columna']          # <-- AGREGADO
     ])
+    # Voltajes y amperajes
     tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
 
+# Tags de Tanques
 for t in mapa_tanques_dict.values():
     if t['tag_nivel']: tags_a_consultar.append(t['tag_nivel'])
 
+# Tags de Rebombeos
 for r in mapa_rebombeos_dict.values():
     tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
     tags_a_consultar.extend(r['voltajes_l'] + r['amperajes_l'])
 
+# Limpieza de la lista
 tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
 
-# 3. Consulta al SCADA
+# 3. Consulta al SCADA pasando la LISTA corregida
 data_scada = cargar_datos_scada(tags_finales)
 
-# 4. Inicialización de contadores y lógica de tiempo
+# 4. Inicialización de contadores
 pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
 total_q, total_p = 0.0, 0.0
 
 import datetime as dt
-ahora = dt.datetime.now() # Ajustado a hora local según tu configuración
+ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
 
-# --- LÓGICA DE PROCESAMIENTO DE POZOS ---
+# --- LÓGICA DE POZOS ---
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
     if bomba_val == "Sin telemetria":
@@ -493,66 +476,13 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- LÓGICA DE REBOMBEOS ---
+# --- LÓGICA DE REBOMBEOS (Presión < 0.10) ---
 for id_rb, info in mapa_rebombeos_dict.items():
     pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
     if pres_val < 0.10:
         info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
     else:
         info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
-
-# --- RENDERIZADO DE INTERFAZ (TABS Y FILTROS) ---
-if sector_seleccionado:
-    tab1, tab2 = st.tabs(["📍 Mapa de Sector", "📊 Niveles de Tanques"])
-    
-    with tab1:
-        # Llama a la función que renderiza el mapa (Sección 7)
-        renderizar_sistema_monitoreo(sector_seleccionado)
-    
-    with tab2:
-        st.markdown("### 📅 Histórico de Operación")
-        
-        # Fila de filtros
-        col_f1, col_f2 = st.columns([1, 2])
-        
-        with col_f1:
-            opcion_fecha = st.selectbox(
-                "Rango de tiempo",
-                ["Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-                label_visibility="collapsed",
-                key="filtro_fechas_tab"
-            )
-
-        hoy = dt.date.today()
-        
-        if opcion_fecha == "Esta Semana":
-            fecha_inicio = hoy - dt.timedelta(days=hoy.weekday())
-            fecha_fin = hoy
-        elif opcion_fecha == "Últimos 14 días":
-            fecha_inicio = hoy - dt.timedelta(days=14)
-            fecha_fin = hoy
-        elif opcion_fecha == "Este Mes":
-            fecha_inicio = hoy.replace(day=1)
-            fecha_fin = hoy
-        else: # Personalizado
-            with col_f2:
-                rango = st.date_input(
-                    "Selecciona rango",
-                    value=(hoy - dt.timedelta(days=7), hoy),
-                    max_value=hoy,
-                    label_visibility="collapsed"
-                )
-                if isinstance(rango, tuple) and len(rango) == 2:
-                    fecha_inicio, fecha_fin = rango
-                else:
-                    fecha_inicio = fecha_fin = hoy
-
-        st.info(f"Periodo: **{fecha_inicio}** al **{fecha_fin}**")
-        
-        # Llama a la función de la Sección 8 para dibujar los gráficos
-        mostrar_graficos_tanques(sector_seleccionado, fecha_inicio, fecha_fin)
-else:
-    st.warning("Seleccione un sector para visualizar los datos.")
 
 # 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 
@@ -886,8 +816,6 @@ with col_mapa:
         @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
         </style>
         """
-
-    
 
 # -------------------------------------------------------------------------------------- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) --------------------------------------------------------------------------
     if ver_sectores and sectores:

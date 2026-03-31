@@ -245,48 +245,87 @@ tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
 if tag_a_graficar:
-    st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
+    import datetime
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
-    df_hist = obtener_historia_7_dias(tag_a_graficar)
-
-    if not df_hist.empty:
-        # 1. Aseguramos que sea datetime
-        df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
-        
-        # 2. CREAMOS UNA COLUMNA DE TEXTO PARA EL EJE X / TOOLTIP
-        # Esto obliga a Streamlit a mostrar la hora exacta en la etiqueta
-        df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
-        df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
-
-        # 3. GRAFICAMOS USANDO LA COLUMNA DE TEXTO
-        st.line_chart(
-            df_hist, 
-            x='Fecha y Hora', 
-            y='Nivel (m)', 
-            use_container_width=True
+    # --- FILTROS DE FECHA ---
+    col_f1, col_f2 = st.columns([1, 2])
+    
+    with col_f1:
+        opcion_fecha = st.selectbox(
+            "Rango rápido:",
+            ["Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
+            key="filtro_popup_tanque"
         )
-        
-        with st.expander("Ver tabla de datos detallada"):
-            # Formato completo para la tabla
-            df_tabla = df_hist.copy()
-            df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
-            st.dataframe(
-                df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='Fecha y Hora Full', ascending=False), 
+
+    hoy = datetime.date.today()
+    
+    if opcion_fecha == "Esta Semana":
+        fecha_inicio = hoy - datetime.timedelta(days=hoy.weekday())
+        fecha_fin = hoy
+    elif opcion_fecha == "Últimos 14 días":
+        fecha_inicio = hoy - datetime.timedelta(days=14)
+        fecha_fin = hoy
+    elif opcion_fecha == "Este Mes":
+        fecha_inicio = hoy.replace(day=1)
+        fecha_fin = hoy
+    else: # Personalizado
+        with col_f2:
+            rango = st.date_input(
+                "Selecciona el periodo:",
+                value=(hoy - datetime.timedelta(days=7), hoy),
+                max_value=hoy
+            )
+            if isinstance(rango, tuple) and len(rango) == 2:
+                fecha_inicio, fecha_fin = rango
+            else:
+                fecha_inicio = fecha_fin = hoy
+
+    # --- OBTENCIÓN DE DATOS (REEMPLAZA A obtener_historia_7_dias) ---
+    # Convertimos a string para la consulta SQL
+    f_desde = f"{fecha_inicio} 00:00:00"
+    f_hasta = f"{fecha_fin} 23:59:59"
+    
+    # Aquí llamamos a una consulta directa o modificamos tu función
+    engine = get_mysql_scada_engine()
+    query = f"""
+        SELECT FECHA, VALUE 
+        FROM log_tanques 
+        WHERE TAG = '{tag_a_graficar}' 
+        AND FECHA BETWEEN '{f_desde}' AND '{f_hasta}'
+        ORDER BY FECHA ASC
+    """
+    
+    try:
+        df_hist = pd.read_sql(query, engine)
+
+        if not df_hist.empty:
+            df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
+            df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
+            df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
+
+            # Graficamos
+            st.line_chart(
+                df_hist, 
+                x='Fecha y Hora', 
+                y='Nivel (m)', 
                 use_container_width=True
             )
-    else:
-        st.error(f"No hay datos para {tag_a_graficar}")
+            
+            with st.expander("Ver tabla de datos detallada"):
+                df_tabla = df_hist.copy()
+                df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
+                st.dataframe(
+                    df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='FECHA', ascending=False), 
+                    use_container_width=True
+                )
+        else:
+            st.warning(f"No hay datos registrados para {nombre_tq} entre {fecha_inicio} y {fecha_fin}")
+            
+    except Exception as e:
+        st.error(f"Error al consultar la base de datos: {e}")
     
     st.stop()
-
-# --- CONFIGURACIÓN NORMAL (Si no hay sector ni tanque elegido) ---
-if sector_seleccionado:
-    titulo_pestaña = f"MIAA - Sector: {sector_seleccionado}"
-else:
-    titulo_pestaña = "MIAA - Estado de Pozos"
-
-st.set_page_config(page_title=titulo_pestaña, layout="wide")
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
@@ -866,71 +905,7 @@ with col_mapa:
         </style>
         """
 
-    def mostrar_graficos_tanques(sector, f_inicio, f_fin):
-    """
-    Obtiene datos históricos del SCADA y genera los gráficos de Nivel y Presión.
-    """
-    import plotly.express as px
     
-    try:
-        # Usamos tu función de conexión existente
-        engine = get_mysql_scada_engine()
-        
-        # 1. Preparar fechas para SQL (Cubriendo el día completo)
-        fecha_desde = f"{f_inicio} 00:00:00"
-        fecha_hasta = f"{f_fin} 23:59:59"
-        
-        # 2. Consulta SQL 
-        # NOTA: Ajusta 'log_tanques' y los nombres de columna si son distintos en tu DB
-        query = f"""
-            SELECT fecha, nivel, presion 
-            FROM log_tanques 
-            WHERE sector = '{sector}' 
-            AND fecha BETWEEN '{fecha_desde}' AND '{fecha_hasta}'
-            ORDER BY fecha ASC
-        """
-        
-        df_hist = pd.read_sql(query, engine)
-        
-        if df_hist.empty:
-            st.warning(f"No hay datos históricos para el sector {sector} en estas fechas.")
-            return
-
-        # --- GRÁFICO DE NIVEL ---
-        fig_nivel = px.line(
-            df_hist, 
-            x='fecha', 
-            y='nivel',
-            title=f'📈 Histórico de Nivel - {sector}',
-            template='plotly_dark'
-        )
-        # Estilo visual para que combine con tu fondo negro
-        fig_nivel.update_traces(line_color='#00FF00', line_width=2)
-        fig_nivel.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            hovermode="x unified"
-        )
-        st.plotly_chart(fig_nivel, use_container_width=True)
-
-        # --- GRÁFICO DE PRESIÓN ---
-        fig_presion = px.line(
-            df_hist, 
-            x='fecha', 
-            y='presion',
-            title=f'📉 Histórico de Presión - {sector}',
-            template='plotly_dark'
-        )
-        fig_presion.update_traces(line_color='#00d4ff', line_width=2)
-        fig_presion.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            hovermode="x unified"
-        )
-        st.plotly_chart(fig_presion, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"Error al generar gráficos: {e}")
 
 # -------------------------------------------------------------------------------------- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) --------------------------------------------------------------------------
     if ver_sectores and sectores:

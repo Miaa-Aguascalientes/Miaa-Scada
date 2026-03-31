@@ -247,6 +247,8 @@ if tag_a_graficar:
     import datetime
     import plotly.express as px
     
+    # NO poner set_page_config aquí para evitar la pantalla roja.
+    
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
     # --- FILTROS DE FECHA ---
@@ -255,13 +257,13 @@ if tag_a_graficar:
         opcion_fecha = st.selectbox(
             "Selecciona un rango:",
             ["Hoy", "Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-            index=1, # Por defecto 'Esta Semana'
-            key="pop_selector_final_v3"
+            index=1, # Por defecto selecciona 'Esta Semana'
+            key="pop_selector_final_v4"
         )
 
     hoy = datetime.date.today()
     
-    # Lógica de fechas corregida
+    # Lógica de fechas (Corregida)
     if opcion_fecha == "Hoy":
         fecha_inicio = hoy
         fecha_fin = hoy
@@ -277,12 +279,13 @@ if tag_a_graficar:
         fecha_fin = hoy
     else: 
         with col_f2:
-            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v3")
+            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v4")
             fecha_inicio, fecha_fin = rango if isinstance(rango, tuple) and len(rango)==2 else (hoy, hoy)
 
     # --- CONSULTA A LA BASE DE DATOS ---
     try:
         engine = get_mysql_scada_engine()
+        # Forzamos las horas para asegurar el rango completo
         f_desde = f"{fecha_inicio} 00:00:00"
         f_hasta = f"{fecha_fin} 23:59:59"
         
@@ -294,12 +297,13 @@ if tag_a_graficar:
             AND h.FECHA BETWEEN '{f_desde}' AND '{f_hasta}'
             ORDER BY h.FECHA ASC
         """
+        
         df_hist = pd.read_sql(query, engine)
 
         if not df_hist.empty:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
             
-            # CREACIÓN DEL GRÁFICO CON LÍNEA GUÍA BLANCA
+            # CREACIÓN DEL GRÁFICO
             fig = px.line(
                 df_hist, 
                 x='FECHA', 
@@ -307,39 +311,48 @@ if tag_a_graficar:
                 template="plotly_dark"
             )
             
-            # Estilo de la línea principal (Cian/Azul MIAA)
+            # Estilo de la línea principal (Azul MIAA)
             fig.update_traces(line_color='#00d4ff', line_width=2)
             
-            # CONFIGURACIÓN DE LA LÍNEA BLANCA QUE SE DESPLAZA (Spikeline)
+            # CONFIGURACIÓN DE LA LÍNEA GUÍA ULTRA DELGADA
             fig.update_xaxes(
                 showspikes=True, 
-                spikecolor="white", 
-                spikethickness=1, 
+                # Color blanco con 40% de transparencia (sutil)
+                spikecolor="rgba(255, 255, 255, 0.4)", 
+                # GROSOR REDUCIDO (0.6 es casi invisible, 0.8 es sutil)
+                spikethickness=0.8, 
                 spikemode="across", 
-                spikesnap="cursor"
+                spikesnap="cursor",
+                # Quitar rejilla vertical
+                showgrid=False
             )
             
+            # Ajustes finales de layout
             fig.update_layout(
-                hovermode="x unified", # Muestra los datos al pasar el mouse
+                hovermode="x unified", # Muestra los datos consolidados
                 xaxis_title="Fecha y Hora",
                 yaxis_title="Nivel (m)",
+                # Fondo transparente para integrar con la web
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                xaxis=dict(showgrid=False),
+                # Rejilla horizontal tenue
                 yaxis=dict(showgrid=True, gridcolor='#333')
             )
             
             st.plotly_chart(fig, use_container_width=True)
             
-            with st.expander("Ver tabla de datos"):
-                st.dataframe(df_hist.sort_values(by='FECHA', ascending=False), use_container_width=True)
+            with st.expander("Ver tabla de datos detallada"):
+                st.dataframe(
+                    df_hist[['FECHA', 'VALUE']].sort_values(by='FECHA', ascending=False), 
+                    use_container_width=True
+                )
         else:
-            st.warning(f"No se encontraron datos desde el {f_desde}")
+            st.warning(f"No se encontraron datos registrados desde el {f_desde} hasta el {f_hasta}")
             
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error en la consulta: {e}")
     
-    st.stop()
+    st.stop() # Mata la ejecución aquí para que no salga nada abajo
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""

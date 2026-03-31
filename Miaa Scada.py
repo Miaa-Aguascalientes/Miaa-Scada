@@ -320,7 +320,7 @@ if tag_a_graficar:
                 # Color blanco con 40% de transparencia (sutil)
                 spikecolor="rgba(255, 255, 255, 0.4)", 
                 # GROSOR REDUCIDO (0.6 es casi invisible, 0.8 es sutil)
-                spikethickness=0.2, 
+                spikethickness=0.0, 
                 spikemode="across", 
                 spikesnap="cursor",
                 # Quitar rejilla vertical

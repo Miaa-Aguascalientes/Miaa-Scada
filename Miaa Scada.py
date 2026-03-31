@@ -247,6 +247,7 @@ if tag_a_graficar:
     import datetime
     import plotly.express as px
     import pandas as pd
+    import plotly.graph_objects as go
     
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
@@ -257,7 +258,7 @@ if tag_a_graficar:
             "Selecciona un rango:",
             ["Hoy", "Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
             index=1,
-            key="pop_selector_final_v6"
+            key="pop_selector_final_v7"
         )
 
     hoy = datetime.date.today()
@@ -276,11 +277,8 @@ if tag_a_graficar:
         fecha_fin = hoy
     else: 
         with col_f2:
-            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v6")
-            if isinstance(rango, tuple) and len(rango) == 2:
-                fecha_inicio, fecha_fin = rango
-            else:
-                fecha_inicio = fecha_fin = hoy
+            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_v7")
+            fecha_inicio, fecha_fin = rango if isinstance(rango, tuple) and len(rango)==2 else (hoy, hoy)
 
     # --- CONSULTA A LA BASE DE DATOS ---
     try:
@@ -301,52 +299,53 @@ if tag_a_graficar:
 
         if not df_hist.empty:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
-            
-            # REDONDEO A DOS DECIMALES
             df_hist['VALUE'] = df_hist['VALUE'].round(2)
             
-            # CREACIÓN DEL GRÁFICO
-            fig = px.line(
-                df_hist, 
-                x='FECHA', 
-                y='VALUE', 
-                template="plotly_dark",
-                markers=True
-            )
+            # --- CREACIÓN DEL GRÁFICO DE ÁREA ---
+            fig = go.Figure()
+
+            # Añadir la línea con área de relleno (desvanecido)
+            fig.add_trace(go.Scatter(
+                x=df_hist['FECHA'],
+                y=df_hist['VALUE'],
+                mode='lines+markers',
+                line=dict(color='#00d4ff', width=2),
+                marker=dict(size=4, color='#00d4ff'),
+                fill='tozeroy',
+                # Color de relleno con transparencia para efecto desvanecido
+                fillcolor='rgba(0, 212, 255, 0.2)', 
+                hovertemplate="<b>%{y:.2f} m</b><extra></extra>"
+            ))
             
-            # Estilo de la línea principal y puntos
-            fig.update_traces(
-                line_color='#00d4ff', 
-                line_width=2,
-                marker=dict(size=4, color='#00d4ff', line=dict(width=1, color='white')),
-                # Forzar dos decimales en el tooltip individual si se usa
-                hovertemplate="<b>Fecha:</b> %{x}<br><b>Nivel:</b> %{y:.2f} m<extra></extra>"
-            )
-            
-            # CONFIGURACIÓN DE LA LÍNEA GUÍA PUNTEADA (Dash)
+            # --- CONFIGURACIÓN DE LA LÍNEA GUÍA (ESTILO IMAGEN) ---
             fig.update_xaxes(
                 showspikes=True, 
-                spikecolor="rgba(255, 255, 255, 0.6)", 
+                spikecolor="gray",          # Color gris como la imagen
                 spikethickness=1, 
                 spikemode="across", 
                 spikesnap="cursor",
-                # AQUÍ SE DEFINE QUE SEA PUNTEADA
-                spikedash="dot", 
+                spikedash="dash",           # Estilo punteado/guiones
                 showgrid=False
             )
             
             fig.update_layout(
+                template="plotly_dark",
                 hovermode="x unified",
-                # Forzar formato de 2 decimales en el eje Y y etiquetas flotantes
-                yaxis=dict(
-                    tickformat=".2f", 
-                    showgrid=True, 
-                    gridcolor='#333',
-                    title="Nivel (m)"
-                ),
                 xaxis_title="Fecha y Hora",
+                yaxis_title="Nivel (m)",
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
+                yaxis=dict(
+                    tickformat=".2f",
+                    showgrid=True,
+                    gridcolor='#333'
+                ),
+                # Ajuste del cuadro de texto del hover (estilo imagen)
+                hoverlabel=dict(
+                    bgcolor="#1f2c38",
+                    font_size=12,
+                    font_family="Arial"
+                )
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -357,7 +356,7 @@ if tag_a_graficar:
                     use_container_width=True
                 )
         else:
-            st.warning(f"No hay datos registrados para este periodo.")
+            st.warning("No hay datos registrados para este periodo.")
             
     except Exception as e:
         st.error(f"Error en la consulta: {e}")

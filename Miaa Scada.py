@@ -326,11 +326,6 @@ if tag_a_graficar:
     
     st.stop() # Importante: Detiene el script para mostrar solo esta ventana
 
-# --- CONFIGURACIÓN NORMAL (Si no hay sector ni tanque elegido) ---
-if sector_seleccionado:
-    titulo_pestaña = f"MIAA - Sector: {sector_seleccionado}"
-else:
-    titulo_pestaña = "MIAA - Estado de Pozos"
 
 
 

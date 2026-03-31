@@ -1066,19 +1066,3 @@ with col_mapa:
 
     # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
     folium_static(m, width=None, height=750)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

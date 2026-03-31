@@ -25,7 +25,7 @@ st.set_page_config(
     layout="wide", 
     initial_sidebar_state="expanded"
 )
-count = st_autorefresh(interval=30000, limit=1000, key="scada_refresh")
+count = st_autorefresh(interval=300000, limit=1000, key="scada_refresh")
 
 # 2  SECCION------------------------------------------------------------------------------2. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
 @st.cache_resource

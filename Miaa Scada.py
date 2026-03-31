@@ -61,6 +61,7 @@ def get_postgres_conn():
     except: 
         return None
 
+@st.cache_data(ttl=10)        
 def cargar_datos_scada(lista_tags):
     engine = get_mysql_scada_engine()
     if not engine or not lista_tags: return {}
@@ -487,6 +488,23 @@ for id_rb, info in mapa_rebombeos_dict.items():
         info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
     else:
         info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+
+@st.fragment(run_every=30) # Se ejecuta cada 30 segundos automáticamente
+def mapa_tiempo_real():
+    # A. RECOLECCIÓN DE TAGS (Copia esto de tu Sección 6)
+    tags_a_consultar = []
+    for p in mapa_pozos_dict.values():
+        tags_a_consultar.extend([
+            p['bomba'], p['caudal'], p['presion'], 
+            p['nivel_tanque'], p['nivel_dinamico'], 
+            p['sumergencia'], p['columna']
+        ])
+        tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
+    
+    tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'None']]))
+    
+    # B. CONSULTA FRESCA
+    data_scada = cargar_datos_scada(tags_finales)
 
 # 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 
@@ -1071,7 +1089,7 @@ with col_mapa:
     # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
     folium_static(m, width=None, height=750)
 
-
+mapa_tiempo_real()
 
 
 

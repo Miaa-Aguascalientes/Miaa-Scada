@@ -78,24 +78,6 @@ def cargar_datos_scada(lista_tags):
         # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
         return {}
 
-def obtener_historia_7_dias(tag_name):
-    engine = get_mysql_scada_engine()
-    if not engine or not tag_name: return pd.DataFrame()
-    try:
-        query = f"""
-            SELECT h.FECHA, h.VALUE 
-            FROM vfitagnumhistory h
-            JOIN VfiTagRef r ON h.GATEID = r.GATEID
-            WHERE r.NAME = '{tag_name}'
-            AND h.FECHA >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-            ORDER BY h.FECHA ASC
-        """
-        df = pd.read_sql(query, engine)
-        # Forzamos a que sea datetime para que Streamlit detecte la hora
-        df['FECHA'] = pd.to_datetime(df['FECHA']) 
-        return df
-    except:
-        return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
@@ -239,20 +221,20 @@ def cargar_rebombeos_desde_db():
     except: return {}
 
 
-# 4 SECCION -------------------------------------------------------------------------------- 4. GRAFICAR LOS TANQUES EN EL POPUP --------------------------------------------------------------------
+# 4 SECCION -------------------------------------------------------------------------------- 4.  GRAFICAR LOS TANQUES EN EL POPUP --------------------------------------------------------------------
 params = st.query_params
 tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
 if tag_a_graficar:
     import datetime
-    # NO USAR set_page_config AQUÍ. Ya está en la Sección 1.
+    # ELIMINADO: st.set_page_config (causaba error por estar duplicado)
     
-    st.title(f"📊 Análisis Histórico: {nombre_tq}")
-    st.markdown(f"**Tag:** `{tag_a_graficar}`")
-
-    # --- FILTROS DE FECHA ---
+    st.title(f"📊 Análisis de Nivel: {nombre_tq}")
+    
+    # --- 1. FILTROS DE FECHA (CALENDARIO) ---
     col_f1, col_f2 = st.columns([1, 2])
+    
     with col_f1:
         opcion_fecha = st.selectbox(
             "Rango rápido:",
@@ -261,6 +243,7 @@ if tag_a_graficar:
         )
 
     hoy = datetime.date.today()
+    
     if opcion_fecha == "Esta Semana":
         fecha_inicio = hoy - datetime.timedelta(days=hoy.weekday())
         fecha_fin = hoy
@@ -270,52 +253,61 @@ if tag_a_graficar:
     elif opcion_fecha == "Este Mes":
         fecha_inicio = hoy.replace(day=1)
         fecha_fin = hoy
-    else: 
+    else: # Opción: Personalizado
         with col_f2:
-            rango = st.date_input("Seleccionar periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal")
+            rango = st.date_input(
+                "Selecciona el periodo:",
+                value=(hoy - datetime.timedelta(days=7), hoy),
+                max_value=hoy,
+                key="pop_calendario"
+            )
             if isinstance(rango, tuple) and len(rango) == 2:
                 fecha_inicio, fecha_fin = rango
             else:
                 fecha_inicio = fecha_fin = hoy
 
-    # --- CONSULTA A LA TABLA vfitagnumhistory ---
+    # --- 2. CONSULTA DINÁMICA (REEMPLAZA A obtener_historia_7_dias) ---
     try:
         engine = get_mysql_scada_engine()
-        # Ajustado a los nombres de columna típicos: FECHA y VALUE
+        # Usamos los mismos JOINs que tu función original pero con las fechas del calendario
         query = f"""
-            SELECT FECHA, VALUE 
-            FROM vfitagnumhistory 
-            WHERE TAG = '{tag_a_graficar}' 
-            AND FECHA BETWEEN '{fecha_inicio} 00:00:00' AND '{fecha_fin} 23:59:59'
-            ORDER BY FECHA ASC
+            SELECT h.FECHA, h.VALUE 
+            FROM vfitagnumhistory h
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID
+            WHERE r.NAME = '{tag_a_graficar}'
+            AND h.FECHA BETWEEN '{fecha_inicio} 00:00:00' AND '{fecha_fin} 23:59:59'
+            ORDER BY h.FECHA ASC
         """
         df_hist = pd.read_sql(query, engine)
 
         if not df_hist.empty:
+            # Procesamiento de datos
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
-            # Crear columna para el eje X que se vea bien
             df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
-            
-            # Graficar
+            df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
+
+            # Gráfico
             st.line_chart(
-                df_hist.rename(columns={'VALUE': 'Nivel/Presión'}), 
+                df_hist, 
                 x='Fecha y Hora', 
-                y='Nivel/Presión', 
+                y='Nivel (m)', 
                 use_container_width=True
             )
             
-            with st.expander("Ver registros detallados"):
+            with st.expander("Ver tabla de datos detallada"):
+                df_tabla = df_hist.copy()
+                df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
                 st.dataframe(
-                    df_hist[['FECHA', 'VALUE']].sort_values(by='FECHA', ascending=False), 
+                    df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='FECHA', ascending=False), 
                     use_container_width=True
                 )
         else:
-            st.warning(f"No se encontraron datos en vfitagnumhistory para el rango: {fecha_inicio} a {fecha_fin}")
+            st.warning(f"No hay datos para {tag_a_graficar} en el periodo seleccionado.")
             
     except Exception as e:
-        st.error(f"Error al consultar vfitagnumhistory: {e}")
+        st.error(f"Error al consultar la base de datos: {e}")
     
-    st.stop() # Evita que se cargue el resto de la app (mapa) debajo del gráfico
+    st.stop() # Importante: Detiene el script para mostrar solo esta ventana
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""

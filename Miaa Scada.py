@@ -245,7 +245,9 @@ tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
 if tag_a_graficar:
+    # ELIMINADO: st.set_page_config (esto causaba el error)
     import datetime
+    
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
     # --- FILTROS DE FECHA ---
@@ -274,29 +276,29 @@ if tag_a_graficar:
             rango = st.date_input(
                 "Selecciona el periodo:",
                 value=(hoy - datetime.timedelta(days=7), hoy),
-                max_value=hoy
+                max_value=hoy,
+                key="calendario_popup"
             )
             if isinstance(rango, tuple) and len(rango) == 2:
                 fecha_inicio, fecha_fin = rango
             else:
                 fecha_inicio = fecha_fin = hoy
 
-    # --- OBTENCIÓN DE DATOS (REEMPLAZA A obtener_historia_7_dias) ---
-    # Convertimos a string para la consulta SQL
+    # --- CONSULTA A LA BASE DE DATOS ---
     f_desde = f"{fecha_inicio} 00:00:00"
     f_hasta = f"{fecha_fin} 23:59:59"
     
-    # Aquí llamamos a una consulta directa o modificamos tu función
-    engine = get_mysql_scada_engine()
-    query = f"""
-        SELECT FECHA, VALUE 
-        FROM log_tanques 
-        WHERE TAG = '{tag_a_graficar}' 
-        AND FECHA BETWEEN '{f_desde}' AND '{f_hasta}'
-        ORDER BY FECHA ASC
-    """
-    
     try:
+        engine = get_mysql_scada_engine()
+        # Asegúrate que la tabla y columnas coincidan con tu DB
+        query = f"""
+            SELECT FECHA, VALUE 
+            FROM log_tanques 
+            WHERE TAG = '{tag_a_graficar}' 
+            AND FECHA BETWEEN '{f_desde}' AND '{f_hasta}'
+            ORDER BY FECHA ASC
+        """
+        
         df_hist = pd.read_sql(query, engine)
 
         if not df_hist.empty:
@@ -304,7 +306,7 @@ if tag_a_graficar:
             df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
             df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
 
-            # Graficamos
+            # Graficamos con un color azul brillante para que resalte
             st.line_chart(
                 df_hist, 
                 x='Fecha y Hora', 
@@ -325,7 +327,7 @@ if tag_a_graficar:
     except Exception as e:
         st.error(f"Error al consultar la base de datos: {e}")
     
-    st.stop()
+    st.stop() # Detiene la ejecución aquí para mostrar solo el historial
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""

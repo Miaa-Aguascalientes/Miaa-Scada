@@ -239,29 +239,27 @@ def cargar_rebombeos_desde_db():
     except: return {}
 
 
-# 4 SECCION -------------------------------------------------------------------------------- 4.  GRAFICAR LOS TANQUES EN EL POPUP --------------------------------------------------------------------
+# 4 SECCION -------------------------------------------------------------------------------- 4. GRAFICAR LOS TANQUES EN EL POPUP --------------------------------------------------------------------
 params = st.query_params
 tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
+# --- LÓGICA DE VISUALIZACIÓN ---
 if tag_a_graficar:
-    # ELIMINADO: st.set_page_config (esto causaba el error)
+    # NO poner set_page_config aquí, ya se llamó en la Sección 1
     import datetime
-    
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
-    # --- FILTROS DE FECHA ---
+    # Filtros de fecha (Rango rápido y Calendario)
     col_f1, col_f2 = st.columns([1, 2])
-    
     with col_f1:
         opcion_fecha = st.selectbox(
             "Rango rápido:",
             ["Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-            key="filtro_popup_tanque"
+            key="filtro_popup_unico"
         )
 
     hoy = datetime.date.today()
-    
     if opcion_fecha == "Esta Semana":
         fecha_inicio = hoy - datetime.timedelta(days=hoy.weekday())
         fecha_fin = hoy
@@ -271,63 +269,33 @@ if tag_a_graficar:
     elif opcion_fecha == "Este Mes":
         fecha_inicio = hoy.replace(day=1)
         fecha_fin = hoy
-    else: # Personalizado
+    else: 
         with col_f2:
-            rango = st.date_input(
-                "Selecciona el periodo:",
-                value=(hoy - datetime.timedelta(days=7), hoy),
-                max_value=hoy,
-                key="calendario_popup"
-            )
-            if isinstance(rango, tuple) and len(rango) == 2:
-                fecha_inicio, fecha_fin = rango
-            else:
-                fecha_inicio = fecha_fin = hoy
+            rango = st.date_input("Selecciona periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="cal_popup_unico")
+            fecha_inicio, fecha_fin = rango if isinstance(rango, tuple) and len(rango)==2 else (hoy, hoy)
 
-    # --- CONSULTA A LA BASE DE DATOS ---
-    f_desde = f"{fecha_inicio} 00:00:00"
-    f_hasta = f"{fecha_fin} 23:59:59"
-    
+    # Consulta a la DB
     try:
         engine = get_mysql_scada_engine()
-        # Asegúrate que la tabla y columnas coincidan con tu DB
-        query = f"""
-            SELECT FECHA, VALUE 
-            FROM log_tanques 
-            WHERE TAG = '{tag_a_graficar}' 
-            AND FECHA BETWEEN '{f_desde}' AND '{f_hasta}'
-            ORDER BY FECHA ASC
-        """
-        
+        query = f"SELECT FECHA, VALUE FROM log_tanques WHERE TAG = '{tag_a_graficar}' AND FECHA BETWEEN '{fecha_inicio} 00:00:00' AND '{fecha_fin} 23:59:59' ORDER BY FECHA ASC"
         df_hist = pd.read_sql(query, engine)
 
         if not df_hist.empty:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
             df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
-            df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
-
-            # Graficamos con un color azul brillante para que resalte
-            st.line_chart(
-                df_hist, 
-                x='Fecha y Hora', 
-                y='Nivel (m)', 
-                use_container_width=True
-            )
+            st.line_chart(df_hist.rename(columns={'VALUE': 'Nivel (m)'}), x='Fecha y Hora', y='Nivel (m)', use_container_width=True)
             
-            with st.expander("Ver tabla de datos detallada"):
-                df_tabla = df_hist.copy()
-                df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
-                st.dataframe(
-                    df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='FECHA', ascending=False), 
-                    use_container_width=True
-                )
+            with st.expander("Ver tabla"):
+                st.dataframe(df_hist[['FECHA', 'VALUE']].sort_values(by='FECHA', ascending=False), use_container_width=True)
         else:
-            st.warning(f"No hay datos registrados para {nombre_tq} entre {fecha_inicio} y {fecha_fin}")
-            
+            st.warning("No hay datos en este rango.")
     except Exception as e:
-        st.error(f"Error al consultar la base de datos: {e}")
+        st.error(f"Error DB: {e}")
     
-    st.stop() # Detiene la ejecución aquí para mostrar solo el historial
+    st.stop() # IMPORTANTE: Detiene el resto del script para que no cargue el mapa atrás
+
+# --- ESTO VA FUERA DEL IF (CONFIGURACIÓN DE TÍTULOS) ---
+# Ya no llamamos a set_page_config aquí porque ya se hizo en la Sección 1
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""

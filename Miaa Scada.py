@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 import psycopg2
 import json
 import urllib.parse
+import datetime
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
@@ -396,7 +397,7 @@ st.markdown("""
         .blink_me { animation: blink 1.2s infinite; }
     </style>
 """, unsafe_allow_html=True)
-# 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
+# 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO Y RENDERIZADO -----------------------------------------------------------------
 
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
@@ -408,42 +409,37 @@ mapa_rebombeos_dict = cargar_rebombeos_desde_db()
 tags_a_consultar = []
 
 for p in mapa_pozos_dict.values():
-    # Añadimos los campos que te faltaban: nivel_dinamico, sumergencia y columna
     tags_a_consultar.extend([
         p['bomba'], 
         p['caudal'], 
         p['presion'], 
         p['nivel_tanque'],
-        p['nivel_dinamico'], # <-- AGREGADO
-        p['sumergencia'],     # <-- AGREGADO
-        p['columna']          # <-- AGREGADO
+        p['nivel_dinamico'],
+        p['sumergencia'],
+        p['columna']
     ])
-    # Voltajes y amperajes
     tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
 
-# Tags de Tanques
 for t in mapa_tanques_dict.values():
     if t['tag_nivel']: tags_a_consultar.append(t['tag_nivel'])
 
-# Tags de Rebombeos
 for r in mapa_rebombeos_dict.values():
     tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
     tags_a_consultar.extend(r['voltajes_l'] + r['amperajes_l'])
 
-# Limpieza de la lista
 tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
 
-# 3. Consulta al SCADA pasando la LISTA corregida
+# 3. Consulta al SCADA
 data_scada = cargar_datos_scada(tags_finales)
 
-# 4. Inicialización de contadores
+# 4. Inicialización de contadores y lógica de tiempo
 pozos_on, pozos_off, pozos_sin_telemetria, pozos_falla_com = [], [], [], []
 total_q, total_p = 0.0, 0.0
 
 import datetime as dt
-ahora = dt.datetime.utcnow() - dt.timedelta(hours=6) 
+ahora = dt.datetime.now() # Ajustado a hora local según tu configuración
 
-# --- LÓGICA DE POZOS ---
+# --- LÓGICA DE PROCESAMIENTO DE POZOS ---
 for id_p, info in mapa_pozos_dict.items():
     bomba_val = str(info['bomba']).strip()
     if bomba_val == "Sin telemetria":
@@ -476,13 +472,66 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- LÓGICA DE REBOMBEOS (Presión < 0.10) ---
+# --- LÓGICA DE REBOMBEOS ---
 for id_rb, info in mapa_rebombeos_dict.items():
     pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
     if pres_val < 0.10:
         info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
     else:
         info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+
+# --- RENDERIZADO DE INTERFAZ (TABS Y FILTROS) ---
+if sector_seleccionado:
+    tab1, tab2 = st.tabs(["📍 Mapa de Sector", "📊 Niveles de Tanques"])
+    
+    with tab1:
+        # Llama a la función que renderiza el mapa (Sección 7)
+        renderizar_sistema_monitoreo(sector_seleccionado)
+    
+    with tab2:
+        st.markdown("### 📅 Histórico de Operación")
+        
+        # Fila de filtros
+        col_f1, col_f2 = st.columns([1, 2])
+        
+        with col_f1:
+            opcion_fecha = st.selectbox(
+                "Rango de tiempo",
+                ["Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
+                label_visibility="collapsed",
+                key="filtro_fechas_tab"
+            )
+
+        hoy = dt.date.today()
+        
+        if opcion_fecha == "Esta Semana":
+            fecha_inicio = hoy - dt.timedelta(days=hoy.weekday())
+            fecha_fin = hoy
+        elif opcion_fecha == "Últimos 14 días":
+            fecha_inicio = hoy - dt.timedelta(days=14)
+            fecha_fin = hoy
+        elif opcion_fecha == "Este Mes":
+            fecha_inicio = hoy.replace(day=1)
+            fecha_fin = hoy
+        else: # Personalizado
+            with col_f2:
+                rango = st.date_input(
+                    "Selecciona rango",
+                    value=(hoy - dt.timedelta(days=7), hoy),
+                    max_value=hoy,
+                    label_visibility="collapsed"
+                )
+                if isinstance(rango, tuple) and len(rango) == 2:
+                    fecha_inicio, fecha_fin = rango
+                else:
+                    fecha_inicio = fecha_fin = hoy
+
+        st.info(f"Periodo: **{fecha_inicio}** al **{fecha_fin}**")
+        
+        # Llama a la función de la Sección 8 para dibujar los gráficos
+        mostrar_graficos_tanques(sector_seleccionado, fecha_inicio, fecha_fin)
+else:
+    st.warning("Seleccione un sector para visualizar los datos.")
 
 # 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 
@@ -816,6 +865,72 @@ with col_mapa:
         @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
         </style>
         """
+
+    def mostrar_graficos_tanques(sector, f_inicio, f_fin):
+    """
+    Obtiene datos históricos del SCADA y genera los gráficos de Nivel y Presión.
+    """
+    import plotly.express as px
+    
+    try:
+        # Usamos tu función de conexión existente
+        engine = get_mysql_scada_engine()
+        
+        # 1. Preparar fechas para SQL (Cubriendo el día completo)
+        fecha_desde = f"{f_inicio} 00:00:00"
+        fecha_hasta = f"{f_fin} 23:59:59"
+        
+        # 2. Consulta SQL 
+        # NOTA: Ajusta 'log_tanques' y los nombres de columna si son distintos en tu DB
+        query = f"""
+            SELECT fecha, nivel, presion 
+            FROM log_tanques 
+            WHERE sector = '{sector}' 
+            AND fecha BETWEEN '{fecha_desde}' AND '{fecha_hasta}'
+            ORDER BY fecha ASC
+        """
+        
+        df_hist = pd.read_sql(query, engine)
+        
+        if df_hist.empty:
+            st.warning(f"No hay datos históricos para el sector {sector} en estas fechas.")
+            return
+
+        # --- GRÁFICO DE NIVEL ---
+        fig_nivel = px.line(
+            df_hist, 
+            x='fecha', 
+            y='nivel',
+            title=f'📈 Histórico de Nivel - {sector}',
+            template='plotly_dark'
+        )
+        # Estilo visual para que combine con tu fondo negro
+        fig_nivel.update_traces(line_color='#00FF00', line_width=2)
+        fig_nivel.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig_nivel, use_container_width=True)
+
+        # --- GRÁFICO DE PRESIÓN ---
+        fig_presion = px.line(
+            df_hist, 
+            x='fecha', 
+            y='presion',
+            title=f'📉 Histórico de Presión - {sector}',
+            template='plotly_dark'
+        )
+        fig_presion.update_traces(line_color='#00d4ff', line_width=2)
+        fig_presion.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig_presion, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"Error al generar gráficos: {e}")
 
 # -------------------------------------------------------------------------------------- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) --------------------------------------------------------------------------
     if ver_sectores and sectores:

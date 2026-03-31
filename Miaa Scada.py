@@ -245,7 +245,7 @@ nombre_tq = params.get("nombre", "Tanque")
 
 if tag_a_graficar:
     import datetime
-    # IMPORTANTE: NO DEBE HABER NINGUN st.set_page_config AQUÍ
+    # NO poner set_page_config aquí para evitar la pantalla roja.
     
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
@@ -255,7 +255,7 @@ if tag_a_graficar:
         opcion_fecha = st.selectbox(
             "Selecciona un rango:",
             ["Hoy", "Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
-            key="pop_selector"
+            key="pop_selector_final"
         )
 
     hoy = datetime.date.today()
@@ -264,7 +264,7 @@ if tag_a_graficar:
         fecha_inicio = hoy
         fecha_fin = hoy
     elif opcion_fecha == "Esta Semana":
-        # Calcula el lunes de la semana actual
+        # Restamos los días necesarios para llegar al lunes de esta semana
         fecha_inicio = hoy - datetime.timedelta(days=hoy.weekday())
         fecha_fin = hoy
     elif opcion_fecha == "Últimos 14 días":
@@ -275,43 +275,59 @@ if tag_a_graficar:
         fecha_fin = hoy
     else: # Personalizado
         with col_f2:
-            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal")
-            fecha_inicio, fecha_fin = rango if isinstance(rango, tuple) and len(rango)==2 else (hoy, hoy)
+            rango = st.date_input("Periodo:", value=(hoy - datetime.timedelta(days=7), hoy), max_value=hoy, key="pop_cal_final")
+            if isinstance(rango, tuple) and len(rango) == 2:
+                fecha_inicio, fecha_fin = rango
+            else:
+                fecha_inicio = fecha_fin = hoy
 
     # --- CONSULTA A LA BASE DE DATOS ---
     try:
         engine = get_mysql_scada_engine()
-        # Usamos los JOINs correctos para vfitagnumhistory
+        
+        # Forzamos las horas para que el BETWEEN agarre el día completo
+        f_desde = f"{fecha_inicio} 00:00:00"
+        f_hasta = f"{fecha_fin} 23:59:59"
+        
         query = f"""
             SELECT h.FECHA, h.VALUE 
             FROM vfitagnumhistory h
             JOIN VfiTagRef r ON h.GATEID = r.GATEID
             WHERE r.NAME = '{tag_a_graficar}'
-            AND h.FECHA BETWEEN '{fecha_inicio} 00:00:00' AND '{fecha_fin} 23:59:59'
+            AND h.FECHA BETWEEN '{f_desde}' AND '{f_hasta}'
             ORDER BY h.FECHA ASC
         """
+        
         df_hist = pd.read_sql(query, engine)
 
         if not df_hist.empty:
             df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
+            # Formato para el eje X (Día/Mes Hora:Min)
             df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
             
-            st.line_chart(
-                df_hist.rename(columns={'VALUE': 'Nivel (m)'}), 
-                x='Fecha y Hora', 
-                y='Nivel (m)', 
-                use_container_width=True
+            # Graficamos con Plotly para que sea más claro
+            import plotly.express as px
+            fig = px.line(
+                df_hist, 
+                x='FECHA', 
+                y='VALUE', 
+                title=f"Tendencia: {fecha_inicio} al {fecha_fin}",
+                template="plotly_dark"
             )
+            fig.update_traces(line_color='#00d4ff')
+            fig.update_layout(xaxis_title="Tiempo", yaxis_title="Nivel (m)")
+            
+            st.plotly_chart(fig, use_container_width=True)
             
             with st.expander("Ver tabla de datos"):
-                st.dataframe(df_hist[['FECHA', 'Nivel (m)']].sort_values(by='FECHA', ascending=False), use_container_width=True)
+                st.dataframe(df_hist[['FECHA', 'VALUE']].sort_values(by='FECHA', ascending=False), use_container_width=True)
         else:
-            st.warning(f"No hay datos para {nombre_tq} del {fecha_inicio} al {fecha_fin}")
+            st.warning(f"No hay datos registrados del {fecha_inicio} al {fecha_fin}")
             
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error en la consulta: {e}")
     
-    st.stop() # DETIENE TODO AQUÍ. No deja que el código de abajo se ejecute.
+    st.stop() # Mata la ejecución para que no salga nada abajo
 
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""

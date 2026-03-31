@@ -244,40 +244,87 @@ tag_a_graficar = params.get("graficar_tanque", None)
 nombre_tq = params.get("nombre", "Tanque")
 
 if tag_a_graficar:
-    st.set_page_config(page_title=f"Historial - {nombre_tq}", layout="wide")
+    import datetime
+    # ELIMINADO: st.set_page_config (causaba error por estar duplicado)
+    
     st.title(f"📊 Análisis de Nivel: {nombre_tq}")
     
-    df_hist = obtener_historia_7_dias(tag_a_graficar)
-
-    if not df_hist.empty:
-        # 1. Aseguramos que sea datetime
-        df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
-        
-        # 2. CREAMOS UNA COLUMNA DE TEXTO PARA EL EJE X / TOOLTIP
-        # Esto obliga a Streamlit a mostrar la hora exacta en la etiqueta
-        df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
-        df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
-
-        # 3. GRAFICAMOS USANDO LA COLUMNA DE TEXTO
-        st.line_chart(
-            df_hist, 
-            x='Fecha y Hora', 
-            y='Nivel (m)', 
-            use_container_width=True
+    # --- 1. FILTROS DE FECHA (CALENDARIO) ---
+    col_f1, col_f2 = st.columns([1, 2])
+    
+    with col_f1:
+        opcion_fecha = st.selectbox(
+            "Rango rápido:",
+            ["Esta Semana", "Últimos 14 días", "Este Mes", "Personalizado"],
+            key="pop_selector"
         )
-        
-        with st.expander("Ver tabla de datos detallada"):
-            # Formato completo para la tabla
-            df_tabla = df_hist.copy()
-            df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
-            st.dataframe(
-                df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='Fecha y Hora Full', ascending=False), 
+
+    hoy = datetime.date.today()
+    
+    if opcion_fecha == "Esta Semana":
+        fecha_inicio = hoy - datetime.timedelta(days=hoy.weekday())
+        fecha_fin = hoy
+    elif opcion_fecha == "Últimos 14 días":
+        fecha_inicio = hoy - datetime.timedelta(days=14)
+        fecha_fin = hoy
+    elif opcion_fecha == "Este Mes":
+        fecha_inicio = hoy.replace(day=1)
+        fecha_fin = hoy
+    else: # Opción: Personalizado
+        with col_f2:
+            rango = st.date_input(
+                "Selecciona el periodo:",
+                value=(hoy - datetime.timedelta(days=7), hoy),
+                max_value=hoy,
+                key="pop_calendario"
+            )
+            if isinstance(rango, tuple) and len(rango) == 2:
+                fecha_inicio, fecha_fin = rango
+            else:
+                fecha_inicio = fecha_fin = hoy
+
+    # --- 2. CONSULTA DINÁMICA (REEMPLAZA A obtener_historia_7_dias) ---
+    try:
+        engine = get_mysql_scada_engine()
+        # Usamos los mismos JOINs que tu función original pero con las fechas del calendario
+        query = f"""
+            SELECT h.FECHA, h.VALUE 
+            FROM vfitagnumhistory h
+            JOIN VfiTagRef r ON h.GATEID = r.GATEID
+            WHERE r.NAME = '{tag_a_graficar}'
+            AND h.FECHA BETWEEN '{fecha_inicio} 00:00:00' AND '{fecha_fin} 23:59:59'
+            ORDER BY h.FECHA ASC
+        """
+        df_hist = pd.read_sql(query, engine)
+
+        if not df_hist.empty:
+            # Procesamiento de datos
+            df_hist['FECHA'] = pd.to_datetime(df_hist['FECHA'])
+            df_hist['Fecha y Hora'] = df_hist['FECHA'].dt.strftime('%d/%m %H:%M')
+            df_hist = df_hist.rename(columns={'VALUE': 'Nivel (m)'})
+
+            # Gráfico
+            st.line_chart(
+                df_hist, 
+                x='Fecha y Hora', 
+                y='Nivel (m)', 
                 use_container_width=True
             )
-    else:
-        st.error(f"No hay datos para {tag_a_graficar}")
+            
+            with st.expander("Ver tabla de datos detallada"):
+                df_tabla = df_hist.copy()
+                df_tabla['Fecha y Hora Full'] = df_hist['FECHA'].dt.strftime('%d/%m/%Y %H:%M:%S')
+                st.dataframe(
+                    df_tabla[['Fecha y Hora Full', 'Nivel (m)']].sort_values(by='FECHA', ascending=False), 
+                    use_container_width=True
+                )
+        else:
+            st.warning(f"No hay datos para {tag_a_graficar} en el periodo seleccionado.")
+            
+    except Exception as e:
+        st.error(f"Error al consultar la base de datos: {e}")
     
-    st.stop()
+    st.stop() # Importante: Detiene el script para mostrar solo esta ventana
 
 # --- CONFIGURACIÓN NORMAL (Si no hay sector ni tanque elegido) ---
 if sector_seleccionado:

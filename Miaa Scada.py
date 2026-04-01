@@ -362,35 +362,32 @@ if tag_a_graficar:
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        /* --- OCULTAR ELEMENTOS DE INTERFAZ DE STREAMLIT --- */
-        header {visibility: hidden;} /* Oculta la barra superior (Deploy, Share) */
-        #MainMenu {visibility: hidden;} /* Oculta el menú de 3 puntos */
-        footer {visibility: hidden;} /* Oculta "Made with Streamlit" */
-        
+        /* --- ARREGLO DE INTERFAZ (FLECHAS VISIBLES) --- */
+        /* En lugar de ocultar todo el header, ocultamos solo el fondo y el menú de 3 puntos */
+        [data-testid="stHeader"] {
+            background-color: rgba(0,0,0,0) !important;
+            color: white !important;
+        }
+        #MainMenu { visibility: hidden; }
+        footer { visibility: hidden; }
+
         /* --- AJUSTE DE CONTENEDOR PRINCIPAL --- */
         .stApp { background-color: #000000; color: white; }
         
         .block-container {
-            padding-top: 0rem !important;    /* Elimina el espacio muerto arriba */
+            padding-top: 2rem !important;    /* Espacio suficiente para que aparezcan las flechas */
             padding-bottom: 0rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            margin-top: -30px !important;    /* Sube todo el contenido para cubrir el hueco del header */
-        }
-
-        /* --- AJUSTE ESPECÍFICO PARA BAJAR EL MAPA --- */
-        /* Esto empuja el iframe del mapa hacia abajo para que no choque con el título */
-        .element-container:has(iframe) {
-            margin-top: 10px !important;
         }
 
         /* --- TÍTULO SUPERIOR ANIMADO --- */
         .titulo-superior {
             position: fixed;
-            top: 15px; /* Ajustado para que flote centrado en el espacio superior */
+            top: 10px; 
             left: 50%;
             transform: translateX(-50%);
-            z-index: 9999999;
+            z-index: 10; /* Valor bajo para no tapar el botón del sidebar */
             color: #00d4ff; 
             font-size: 1.5rem;
             font-weight: bold;
@@ -414,28 +411,28 @@ st.markdown("""
     
         /* --- SIDEBAR Y LOGO --- */
         [data-testid="stSidebar"] { 
-            background-color: #0b1a29; 
-            border-right: 2px solid #333; 
+            background-color: #0b1a29 !important; 
+            border-right: 2px solid #1f4068; 
         }
         
-        [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
-        [data-testid="stSidebarNav"] { padding-top: 0rem !important; }
-        
+        /* Quitamos el margen negativo que escondía el logo */
         .sidebar-logo { 
             display: flex; 
             justify-content: center; 
-            padding: 0px !important; 
-            margin-top: -50px !important; 
+            padding: 10px 0 !important; 
+            margin-top: 0px !important; 
             margin-bottom: 10px;
         }
         .sidebar-logo img { max-width: 85%; height: auto; }
 
-        /* --- COMPONENTES DEL DASHBOARD --- */
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 auto !important;
+        /* Estilo para el botón de las flechas (hacerlo resaltar) */
+        button[kind="headerNoPadding"] {
+            background-color: rgba(0, 212, 255, 0.2) !important;
+            color: #00d4ff !important;
+            border-radius: 5px;
         }
-        
+
+        /* --- COMPONENTES DEL DASHBOARD --- */
         .resumen-card { 
             background: #050505; 
             border: 1px solid #1f4068; 
@@ -454,14 +451,6 @@ st.markdown("""
         
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
         .status-err { background-color: #b71c1c; color: #ef9a9a; }
-        
-        .section-header { 
-            padding: 10px; 
-            border-radius: 3px; 
-            font-weight: bold; 
-            margin-bottom: 5px; 
-            color: white; 
-        }
 
         /* ANIMACIÓN DE PARPADEO */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }

@@ -9,6 +9,19 @@ import json
 import urllib.parse
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+import hashlib
+import bcrypt
+import time # Necesario para controlar la duración del intro
+import urllib.parse
+
+
+st.set_page_config(
+    page_title="Sistema Scada", 
+    page_icon="https://www.miaa.mx/favicon.ico", 
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 
 # 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 params = st.query_params
@@ -362,77 +375,95 @@ if tag_a_graficar:
 # 5  SECCION-----------------------------------------------------------------------------------5. ESTILO CSS ----------------------------------------------------------------------------------------------------------
 st.markdown("""
     <style>
-        /* --- ARREGLO DE INTERFAZ (FLECHAS VISIBLES) --- */
-        /* En lugar de ocultar todo el header, ocultamos solo el fondo y el menú de 3 puntos */
-        [data-testid="stHeader"] {
-            background-color: rgba(0,0,0,0) !important;
-            color: white !important;
+        /* 1. BLOQUEO TOTAL DE SIDEBAR Y ELIMINACIÓN DE FLECHAS */
+        [data-testid="collapsedControl"], 
+        button[kind="headerNoPadding"], 
+        [data-testid="stSidebarCollapseButton"] {
+            display: none !important;
         }
-        #MainMenu { visibility: hidden; }
-        footer { visibility: hidden; }
 
-        /* --- AJUSTE DE CONTENEDOR PRINCIPAL --- */
+        [data-testid="stSidebar"] {
+            min-width: 320px !important; 
+            max-width: 320px !important;
+            width: 320px !important;
+        }
+
+        /* 2. LIMPIEZA DE INTERFAZ Y MODO ADMINISTRADOR */
+        [data-testid="stNotification"], .stAlert, [data-testid="stStatusWidget"] {
+            display: none !important;
+        }
+        header { visibility: hidden !important; height: 0px !important; }
+        #MainMenu { visibility: hidden !important; }
+        footer { visibility: hidden !important; }
+
+        /* 3. LOGO EN LO MÁS ALTO */
+        .sidebar-logo { 
+            position: fixed;
+            top: 0px;
+            left: 0px;
+            width: 320px;
+            height: 100px;
+            z-index: 999999;
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            background-color: #0b1a29; 
+            border-bottom: 1px solid #1f4068;
+        }
+        .sidebar-logo img { width: 80%; height: auto; }
+
+        /* 4. CONTENEDOR PRINCIPAL - ELIMINAR EL HUECO ENTRE TÍTULO Y MAPA */
         .stApp { background-color: #000000; color: white; }
         
         .block-container {
-            padding-top: 2rem !important;    /* Espacio suficiente para que aparezcan las flechas */
+            padding-top: 0rem !important;    /* Elimina el espacio muerto arriba */
             padding-bottom: 0rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
+            margin-top: 100px !important;    /* Sube todo el contenido para cubrir el hueco del header */
         }
 
-        /* --- TÍTULO SUPERIOR ANIMADO --- */
+        /* QUITAMOS CUALQUIER MARGEN EXTRA DEL COMPONENTE DEL MAPA */
+        iframe {
+            margin-top: -110px !important; /* Margen negativo para succionar el mapa hacia arriba */
+        }
+
+        /* 5. TÍTULO SUPERIOR (BARRA FIJA) */
         .titulo-superior {
             position: fixed;
-            top: 10px; 
-            left: 50%;
+            top: 0px; 
+            left: calc(50% + 160px); 
             transform: translateX(-50%);
-            z-index: 10; /* Valor bajo para no tapar el botón del sidebar */
+            z-index: 1000;
             color: #00d4ff; 
             font-size: 1.5rem;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 2px;
-            white-space: nowrap;
             text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-            animation: glow 2s ease-in-out infinite alternate;
+            background-color: #000000; /* Fondo sólido para que no haya transparencias feas */
+            width: 100%;
+            text-align: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #1f4068;
         }
 
-        @keyframes glow {
-            from {
-                text-shadow: 0 0 5px #00d4ff, 0 0 10px #00d4ff;
-                transform: translateX(-50%) scale(1);
-            }
-            to {
-                text-shadow: 0 0 15px #00d4ff, 0 0 25px #0077ff;
-                transform: translateX(-50%) scale(1.02);
-            }
+        /* 6. SIDEBAR - CONTENIDO PEGADO AL LOGO */
+        [data-testid="stSidebarContent"] {
+            padding-top: 110px !important; 
         }
-    
-        /* --- SIDEBAR Y LOGO --- */
+
         [data-testid="stSidebar"] { 
             background-color: #0b1a29 !important; 
             border-right: 2px solid #1f4068; 
         }
+
+                /* --- COMPONENTES DEL DASHBOARD --- */
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 auto !important;
+        }
         
-        /* Quitamos el margen negativo que escondía el logo */
-        .sidebar-logo { 
-            display: flex; 
-            justify-content: center; 
-            padding: 10px 0 !important; 
-            margin-top: 0px !important; 
-            margin-bottom: 10px;
-        }
-        .sidebar-logo img { max-width: 85%; height: auto; }
-
-        /* Estilo para el botón de las flechas (hacerlo resaltar) */
-        button[kind="headerNoPadding"] {
-            background-color: rgba(0, 212, 255, 0.2) !important;
-            color: #00d4ff !important;
-            border-radius: 5px;
-        }
-
-        /* --- COMPONENTES DEL DASHBOARD --- */
         .resumen-card { 
             background: #050505; 
             border: 1px solid #1f4068; 
@@ -451,6 +482,14 @@ st.markdown("""
         
         .status-ok { background-color: #1b5e20; color: #a5d6a7; }
         .status-err { background-color: #b71c1c; color: #ef9a9a; }
+        
+        .section-header { 
+            padding: 10px; 
+            border-radius: 3px; 
+            font-weight: bold; 
+            margin-bottom: 5px; 
+            color: white; 
+        }
 
         /* ANIMACIÓN DE PARPADEO */
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
@@ -537,17 +576,38 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- LÓGICA DE REBOMBEOS (Presión < 0.10) ---
+# --- LÓGICA DE REBOMBEOS (CORREGIDA) ---
 for id_rb, info in mapa_rebombeos_dict.items():
-    pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
-    if pres_val < 0.10:
-        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
+    # 1. Validar primero si el equipo está marcado como "Sin telemetria"
+    # Convertimos a string y quitamos espacios para asegurar la comparación
+    telemetria_status = str(info.get('telemetria', '')).strip().lower()
+    
+    if telemetria_status == "sin telemetria":
+        info.update({
+            'status_label': 'SIN TELEMETRÍA', 
+            'color_final': '#808080',  # Color Gris
+            'blink': False
+        })
     else:
-        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+        # 2. Si tiene telemetría, aplicar la lógica de presión actual
+        pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
+        if pres_val < 0.10:
+            info.update({
+                'status_label': 'APAGADO', 
+                'color_final': '#FF0000', 
+                'blink': True
+            })
+        else:
+            info.update({
+                'status_label': 'OPERANDO', 
+                'color_final': '#00FF00', 
+                'blink': False
+            })
 
-# 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 
+# 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR ---------------------------------------------------------------
 if sector_seleccionado:
+    # 1. Título superior fijo
     st.markdown(f'<div class="titulo-superior">Análisis de Sector: {sector_seleccionado}</div>', unsafe_allow_html=True)
     
     datos_s = next((s for s in sectores if s['sector'] == sector_seleccionado), None)
@@ -555,30 +615,57 @@ if sector_seleccionado:
     if datos_s:
         st.markdown("""
             <style>
-                .block-container { padding-top: 3.5rem !important; }
+                /* Reducimos el espacio que Streamlit reserva arriba */
+                .block-container { 
+                    padding-top: 3.5rem !important; 
+                    margin-top: 0px !important; 
+                }
+                
+                /* Contenedor de métricas ultra-compacto */
+                .metrics-container {
+                    position: relative;
+                    z-index: 9999;
+                    margin-top: -700px; /* Subimos las métricas hacia el título */
+                    margin-bottom: 5px;
+                }
+
                 .micro-card {
-                    background: #0b1a29; border: 1px solid #1f4068;
-                    border-radius: 5px; padding: 8px; text-align: center;
-                    margin-top: -10px; margin-bottom: 5px;
+                    background: #0b1a29; 
+                    border: 1px solid #1f4068;
+                    border-radius: 5px; 
+                    padding: 8px; /* Padding más pequeño */
+                    text-align: center;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
                 }
                 .micro-label { color: #888; font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
                 .micro-value { color: #00d4ff; font-size: 15px; font-weight: bold; }
-                hr { margin-top: 0.5rem !important; margin-bottom: 0.5rem !important; }
+                
+                /* Reducimos el espacio que ocupa el divisor */
+                hr {
+                    margin-top: 5px !important;
+                    margin-bottom: 10px !important;
+                    opacity: 0.3;
+                }
+
+                /* Ajuste del mapa para que no suba sobre las métricas pero no deje huecos */
+                iframe {
+                    margin-top: 0px !important;
+                }
             </style>
         """, unsafe_allow_html=True)
 
-        def micro_metric(label, value):
-            st.markdown(f'<div class="micro-card"><div class="micro-label">{label}</div><div class="micro-value">{value}</div></div>', unsafe_allow_html=True)
-
+        # Renderizado de métricas
+        st.markdown('<div class="metrics-container">', unsafe_allow_html=True)
         c1, c2, c3, c4, c5, c6 = st.columns(6)
-        with c1: micro_metric("Población", f"{datos_s.get('Poblacion', 0):,.0f}")
-        with c2: micro_metric("U. Totales", f"{datos_s.get('U_Tot', 0):,.0f}")
-        with c3: micro_metric("U. Domésticos", f"{datos_s.get('U_Domesticos', 0):,.0f}")
-        with c4: micro_metric("Consumo m³", f"{datos_s.get('Cons_m3', 0):,.1f}")
-        with c5: micro_metric("Dotación", f"{datos_s.get('Dotacion', 0):,.1f}")
-        with c6: micro_metric("Balance", f"{datos_s.get('Balance_Estimado', 0):,.1f}%")
+        with c1: st.markdown(f'<div class="micro-card"><div class="micro-label">Población</div><div class="micro-value">{datos_s.get("Poblacion", 0):,.0f}</div></div>', unsafe_allow_html=True)
+        with c2: st.markdown(f'<div class="micro-card"><div class="micro-label">U. Totales</div><div class="micro-value">{datos_s.get("U_Tot", 0):,.0f}</div></div>', unsafe_allow_html=True)
+        with c3: st.markdown(f'<div class="micro-card"><div class="micro-label">U. Domésticos</div><div class="micro-value">{datos_s.get("U_Domesticos", 0):,.0f}</div></div>', unsafe_allow_html=True)
+        with c4: st.markdown(f'<div class="micro-card"><div class="micro-label">Consumo m³</div><div class="micro-value">{datos_s.get("Cons_m3", 0):,.1f}</div></div>', unsafe_allow_html=True)
+        with c5: st.markdown(f'<div class="micro-card"><div class="micro-label">Dotación</div><div class="micro-value">{datos_s.get("Dotacion", 0):,.1f}</div></div>', unsafe_allow_html=True)
+        with c6: st.markdown(f'<div class="micro-card"><div class="micro-label">Balance</div><div class="micro-value">{datos_s.get("Balance_Estimado", 0):,.1f}%</div></div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.divider()
+        st.divider() # Este divisor ahora es más delgado por el CSS de arriba
 
         # --- MAPA DEL SECTOR ---
         ids_pozos = [p.strip() for p in datos_s.get('Pozos_Sector', '').split(',')] if datos_s.get('Pozos_Sector') else []
@@ -879,40 +966,79 @@ with col_mapa:
         """
 
 # -------------------------------------------------------------------------------------- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) --------------------------------------------------------------------------
-    if ver_sectores and sectores:
-        for s in sectores:
-            try:
-                nombre_sec = s['sector']
-                url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-                geo_data = json.loads(s['geo'])
-                
-                html_sector = f"""
-                <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                    <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                    <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
-                </div>
-                """
-                
-                # Aquí restauramos el estilo interactivo
-                folium.GeoJson(
-                    geo_data, 
-                    style_function=lambda x: {
-                        'fillColor': '#00d4ff', 
-                        'color': '#00d4ff', 
-                        'weight': 1.5, 
-                        'fillOpacity': 0.1
-                    },
-                    highlight_function=lambda x: {
-                        'fillColor': '#00d4ff', 
-                        'color': '#ffffff',  # Borde blanco al pasar el mouse
-                        'weight': 3, 
-                        'fillOpacity': 0.4
-                    },
-                    popup=folium.Popup(html_sector, max_width=250),
-                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-                ).add_to(m)
-            except: continue
 
+# 1. Definimos una función de estilo estática para evitar cálculos pesados en el loop
+def get_sector_style(feature, visible):
+    return {
+        'fillColor': '#00d4ff',
+        'color': '#00d4ff' if visible else 'transparent',
+        'weight': 1.5 if visible else 0,
+        'fillOpacity': 0.12 if visible else 0.01, # Nunca 0 para que el objeto exista en el DOM
+    }
+
+# 1. Cargamos los datos con tu función de caché
+sectores_data = cargar_sectores_poligonos()
+
+if sectores_data:
+    fg_sectores = folium.FeatureGroup(name="Sectores Hidráulicos", z_index=1)
+    
+    for s in sectores_data:
+        try:
+            if not s.get('geo'): continue
+            
+            nombre_sec = s['sector']
+            geo_dict = json.loads(s['geo'])
+            
+            # 2. Reconstrucción del enlace de acceso (Botón)
+            # Usamos quote para manejar espacios o caracteres especiales en el nombre del sector
+            sector_encoded = urllib.parse.quote(nombre_sec)
+            url_acceso = f"/?sector={sector_encoded}&access=granted&role={st.session_state.rol}"
+            
+            # 3. Popup con diseño y botón restaurado
+            html_popup = f"""
+            <div style="font-family: 'Segoe UI', sans-serif; width: 220px; background-color: #0b1a29; color: white; padding: 12px; border-radius: 10px; border: 1px dashed #00d4ff;">
+                <h4 style="margin:0 0 8px 0; color:#00d4ff; text-align:center;">{nombre_sec}</h4>
+                <table style="width:100%; font-size: 11px; margin-bottom: 10px; border-collapse: collapse;">
+                    <tr><td><b>Población:</b></td><td style="text-align:right;">{s.get('Poblacion', 0):,.0f}</td></tr>
+                    <tr><td><b>Pozos:</b></td><td style="text-align:right;">{s.get('Pozos_Sector', 0)}</td></tr>
+                    <tr><td><b>Fugas:</b></td><td style="text-align:right; color:#ff4b4b;">{s.get('Fugas_Tot', 0)}</td></tr>
+                </table>
+                
+                <a href="{url_acceso}" target="_blank" 
+                   style="display: block; text-align: center; background-color: #00d4ff; color: #0b1a29; 
+                          text-decoration: none; font-weight: bold; font-size: 12px; padding: 8px; 
+                          border-radius: 5px; transition: 0.3s;">
+                   🚀 ABRIR SECTOR
+                </a>
+            </div>
+            """
+
+            # 4. Lógica de visibilidad (Siempre presentes en el código)
+            estilo = {
+                'fillColor': '#00d4ff',
+                'color': '#00d4ff' if ver_sectores else 'transparent',
+                'weight': 1.5 if ver_sectores else 0,
+                'fillOpacity': 0.12 if ver_sectores else 0.0001 # Invisible pero "clicable"
+            }
+
+            folium.GeoJson(
+                geo_dict,
+                style_function=lambda x, stl=estilo: stl,
+                highlight_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#ffffff', 
+                    'weight': 3, 
+                    'fillOpacity': 0.4
+                },
+                tooltip=f"Sector: {nombre_sec}",
+                popup=folium.Popup(html_popup, max_width=260)
+            ).add_to(fg_sectores)
+
+        except Exception:
+            continue
+
+    fg_sectores.add_to(m)
+    
     # ------------------------------------------------------------------------------ RENDERIZADO DE POZOS (UNIFICADO) ---------------------------------------------------------------------------------------------
     # Usamos solo 'ver_pozos' para controlar ambas cosas
     for id_p, info in mapa_pozos_dict.items():
@@ -1045,9 +1171,14 @@ with col_mapa:
                 n_max = info['nivel_max'] if info['nivel_max'] else 1.0
                 porcentaje = (val_nivel / n_max) * 100
                 
-# URL que apunta a la misma app con el nuevo parámetro
-                # Usamos target="_blank" para que sea en pestaña nueva
-                url_grafico = f"?graficar_tanque={info['tag_nivel']}&nombre={info['nombre'].replace(' ', '%20')}"
+                # --- CAMBIO CLAVE: Pegamos la "llave" de acceso a la URL del gráfico ---
+                # Esto permite que al abrir el histórico, la Sección 0 detecte el permiso y no pida login.
+                url_grafico = (
+                    f"?graficar_tanque={info['tag_nivel']}"
+                    f"&nombre={info['nombre'].replace(' ', '%20')}"
+                    f"&access=granted"
+                    f"&role={st.session_state.get('rol', 'usuario')}"
+                )
 
                 html_popup_tq = f"""
                 <div style="background: #050505; color: white; padding: 12px; border-radius: 10px; width: 250px; border: 2px solid #00d4ff; font-family: sans-serif;">

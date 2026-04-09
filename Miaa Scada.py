@@ -508,6 +508,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 # 6 SECCION------------------------------------------------------- 6. PROCESAMIENTO (MODIFICADO) -----------------------------------------------------------------
 
+# 1. Carga de datos base (Postgres es prioritario aquí)
+sectores = cargar_sectores_poligonos()
+if not sectores:
+    st.sidebar.error("Sectores no cargados. Revisa la conexión a Postgres.")
+
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()

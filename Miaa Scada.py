@@ -739,7 +739,7 @@ with st.sidebar:
     # 1. Inicializamos variables de estado (Solo si no existen)
     if 'centro_mapa' not in st.session_state:
         st.session_state.centro_mapa = [21.8820, -102.2800]
-        st.session_state.zoom_inicial = 12.5
+        st.session_state.zoom_inicial = 9.5
 
     # --- RESUMEN GLOBAL ---
     st.markdown(f"""

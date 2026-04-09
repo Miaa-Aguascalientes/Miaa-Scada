@@ -50,30 +50,31 @@ def get_mysql_telemetria_engine():
 
 @st.cache_resource
 def get_postgres_conn():
-    """
-    Establece y retorna la conexión a PostgreSQL. 
-    Se utiliza cache_resource para mantener el pool de conexión activo.
-    """
+    """Forzamos la conexión a PostgreSQL con validación explícita."""
     try: 
-        # Forzamos la conexión usando los secretos configurados en Streamlit Cloud / local
-        conn = psycopg2.connect(**st.secrets["postgres"])
+        # Extraemos credenciales
+        creds = st.secrets["postgres"]
+        conn = psycopg2.connect(
+            host=creds["host"],
+            port=creds["port"],
+            database=creds["database"],
+            user=creds["user"],
+            password=creds["password"],
+            connect_timeout=10 # Evita que se quede colgado si la red falla
+        )
         return conn
     except Exception as e:
-        st.error(f"❌ Error crítico de conexión a PostgreSQL: {e}")
+        st.error(f"❌ ERROR CRÍTICO POSTGRES: {e}")
         return None
 
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
-    """
-    Consulta la base de datos de Sectorización y retorna los GeoJSON.
-    """
+    """Carga forzada de polígonos con validación de datos."""
     conn = get_postgres_conn()
-    if conn is None:
-        st.warning("⚠️ No se pudo establecer conexión con PostgreSQL. Los sectores no se visualizarán.")
+    if not conn:
         return []
     
     try:
-        # Query optimizada para traer los datos y la geometría transformada
         query = """
             SELECT sector, "Pozos_Sector", 
                    "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
@@ -84,17 +85,17 @@ def cargar_sectores_poligonos():
                    ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
             FROM "Sectorizacion"."Sectores_hidr"
         """
-        # Usamos pandas para leer directamente de la conexión de psycopg2
+        # Forzamos la lectura a un DataFrame
         df = pd.read_sql(query, conn)
+        
+        if df.empty:
+            st.warning("⚠️ La consulta a PostgreSQL no devolvió sectores.")
+            return []
+            
         return df.to_dict('records')
     except Exception as e:
-        st.error(f"❌ Error al ejecutar la consulta de sectores: {e}")
+        st.error(f"❌ ERROR AL LEER SECTORES: {e}")
         return []
-    finally:
-        # No cerramos la conexión aquí si usamos cache_resource, 
-        # pero si no usas el decorador, deberías cerrarla.
-        pass
-
 def cargar_datos_scada(lista_tags):
     engine = get_mysql_scada_engine()
     if not engine or not lista_tags: return {}
@@ -134,28 +135,6 @@ def obtener_historia_7_dias(tag_name):
     except:
         return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
-def cargar_sectores_poligonos():
-    conn = get_postgres_conn()
-    if not conn: return []
-    try:
-        # Añadimos los campos numéricos solicitados en la consulta
-        query = """
-            SELECT sector, "Pozos_Sector", 
-                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
-                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
-                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
-                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
-                   "Recaudacion", "Dotacion", "Balance_Estimado",
-                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
-            FROM "Sectorizacion"."Sectores_hidr"
-        """
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df.to_dict('records')
-    except Exception as e:
-        st.error(f"Error al cargar sectores: {e}")
-        return []
 
 def formato_hora(decimal):
     try:
@@ -934,38 +913,28 @@ with col_mapa:
 
 # -------------------------------------------------------------------------------------- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) --------------------------------------------------------------------------
     if ver_sectores and sectores:
-        for s in sectores:
-            try:
-                nombre_sec = s['sector']
-                url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-                geo_data = json.loads(s['geo'])
-                
-                html_sector = f"""
-                <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                    <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                    <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
-                </div>
-                """
-                
-                # Aquí restauramos el estilo interactivo
-                folium.GeoJson(
-                    geo_data, 
-                    style_function=lambda x: {
-                        'fillColor': '#00d4ff', 
-                        'color': '#00d4ff', 
-                        'weight': 1.5, 
-                        'fillOpacity': 0.1
-                    },
-                    highlight_function=lambda x: {
-                        'fillColor': '#00d4ff', 
-                        'color': '#ffffff',  # Borde blanco al pasar el mouse
-                        'weight': 3, 
-                        'fillOpacity': 0.4
-                    },
-                    popup=folium.Popup(html_sector, max_width=250),
-                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-                ).add_to(m)
-            except: continue
+    for s in sectores:
+        try:
+            # Validamos que existan los datos mínimos antes de intentar dibujar
+            if not s.get('geo'): continue
+            
+            geo_data = json.loads(s['geo'])
+            nombre_sec = s.get('sector', 'S/N')
+            
+            folium.GeoJson(
+                geo_data, 
+                style_function=lambda x: {
+                    'fillColor': '#00d4ff', 
+                    'color': '#00d4ff', 
+                    'weight': 1.5, 
+                    'fillOpacity': 0.1
+                },
+                tooltip=f"Sector: {nombre_sec}"
+            ).add_to(m)
+        except Exception as e:
+            # Si falla un polígono, imprimimos el error pero NO matamos el mapa
+            print(f"Error renderizando sector {s.get('sector')}: {e}")
+            continue
 
     # ------------------------------------------------------------------------------ RENDERIZADO DE POZOS (UNIFICADO) ---------------------------------------------------------------------------------------------
     # Usamos solo 'ver_pozos' para controlar ambas cosas

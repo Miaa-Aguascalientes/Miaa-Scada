@@ -731,7 +731,117 @@ if sector_seleccionado:
     
     st.stop()
     
+# 8 SECCION ------------------------------------------------------------------------------- 8. SIDEBAR BARRA LATERAL IZQUIERDA ------------------------------------------------------------------------------------------
+with st.sidebar:
+    # Contenedor del logo
+    st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Lecturas-Hes/c45d926ef0e34215c237cd3c7f71f7b97bf9a784/LogoMIAA-BpcVaQaq.svg"></div>', unsafe_allow_html=True)
 
+    # 1. Inicializamos variables de estado (Solo si no existen)
+    if 'centro_mapa' not in st.session_state:
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+        st.session_state.zoom_inicial = 12.5
+
+    # --- RESUMEN GLOBAL ---
+    st.markdown(f"""
+        <div class="resumen-card">
+            <h4 style="color:#00d4ff; margin-top:0;">RESUMEN GLOBAL</h4>
+            <p>Caudal Total: <b style="color:#00FF00;">{total_q:.2f} l/s</b></p>
+            <p>Presión Prom: <b style="color:#FFFF00;">{total_p/max(len(pozos_on),1):.2f} Kg/cm²</b></p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # --- ESTADO DE LAS CONEXIONES ---    
+    with st.expander("🔌 Estado de las Conexiones", expanded=False):
+        status_mysql_scada = "OK" if get_mysql_scada_engine() else "ERROR"
+        status_mysql_tele = "OK" if get_mysql_telemetria_engine() else "ERROR"
+        status_postgres = "OK" if get_postgres_conn() else "ERROR"
+
+        def render_status_line(label, status):
+            cls = "status-ok" if status == "OK" else "status-err"
+            html = f"""
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <span style="font-weight: bold; font-size: 13px;">{label}</span>
+                <span class="status-tag {cls}">{status}</span>
+            </div>
+            """
+            st.markdown(html, unsafe_allow_html=True)
+
+        render_status_line("BD-Scada:", status_mysql_scada)
+        render_status_line("BD-Diccionarios:", status_mysql_tele)
+        render_status_line("BD-PostgreSQL:", status_postgres)
+    
+    # 2. Buscador de Pozos
+    lista_pozos_nombres = sorted(list(mapa_pozos_dict.keys()))
+    pozo_buscado = st.selectbox(
+        "🔍 Localizar Sitio",
+        options=[""] + lista_pozos_nombres,
+        format_func=lambda x: "Seleccionar Sitio..." if x == "" else f" {x}"
+    )
+
+    # 3. Buscador de Sectores
+    lista_sectores = sorted([s['sector'] for s in sectores])
+    sector_buscado = st.selectbox(
+        "🏘️ Localizar Sector",
+        options=[""] + lista_sectores,
+        format_func=lambda x: "Seleccionar Sector..." if x == "" else f" {x}",
+        key="busqueda_sectores"
+    )
+
+    # 4. ASIGNACIÓN DE POSICIÓN Y PRIORIDAD
+    datos_sector_resaltado = None
+
+    if pozo_buscado:
+        # Prioridad 1: Pozo seleccionado
+        st.session_state.centro_mapa = mapa_pozos_dict[pozo_buscado]['coord']
+        st.session_state.zoom_inicial = 18
+    elif sector_buscado:
+        # Prioridad 2: Sector seleccionado
+        datos_s = next((s for s in sectores if s['sector'] == sector_buscado), None)
+        if datos_s:
+            datos_sector_resaltado = datos_s
+            try:
+                geom = json.loads(datos_s['geo'])
+                coords_raw = geom['coordinates'][0][0][0] if geom['type'] == 'MultiPolygon' else geom['coordinates'][0][0]
+                st.session_state.centro_mapa = [coords_raw[1], coords_raw[0]]
+                st.session_state.zoom_inicial = 14.5
+            except:
+                pass
+    else:
+        # Prioridad 3: Si no hay nada seleccionado, mantener o resetear a vista general
+        st.session_state.centro_mapa = [21.8820, -102.2800]
+        st.session_state.zoom_inicial = 12.5
+        
+    # --- BOTON ACTUALIZAR ---
+    if st.button("♻️ Actualizar Datos", use_container_width=True):
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        st.rerun()
+        
+    # --- CONTROL DE CAPAS ---
+    with st.expander("🗺️ Control de Capas", expanded=False):
+        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
+        ver_pozos = st.checkbox("Mostrar Pozos", value=True)
+        ver_tanques = st.checkbox("Mostrar Tanques", value=True)
+        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=True)
+    
+    # --- LISTADO DE ESTADOS ---
+    with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
+        for p in sorted(pozos_on): 
+            st.write(f"🟢 {p}")
+    
+    with st.expander(f"🔴 Bombas OFF ({len(pozos_off)})", expanded=False):
+        for p in sorted(pozos_off): 
+            st.write(f"🔴 {p}")
+
+    if pozos_falla_com:
+        with st.expander(f"⚠️ Falla de Com. ({len(pozos_falla_com)})", expanded=False):
+            for p in sorted(pozos_falla_com):
+                st.write(f"🟠 {p}")
+    
+    if pozos_sin_telemetria:
+        with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
+            for p in sorted(pozos_sin_telemetria): 
+                st.write(f"⚪ {p}")
 # 9  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL -----------------------------------------------------------------------------------------------------------
 # DASHBOARD
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)

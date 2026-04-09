@@ -50,12 +50,50 @@ def get_mysql_telemetria_engine():
 
 @st.cache_resource
 def get_postgres_conn():
+    """
+    Establece y retorna la conexión a PostgreSQL. 
+    Se utiliza cache_resource para mantener el pool de conexión activo.
+    """
     try: 
+        # Forzamos la conexión usando los secretos configurados en Streamlit Cloud / local
         conn = psycopg2.connect(**st.secrets["postgres"])
-        conn.close() 
-        return psycopg2.connect(**st.secrets["postgres"])
-    except: 
+        return conn
+    except Exception as e:
+        st.error(f"❌ Error crítico de conexión a PostgreSQL: {e}")
         return None
+
+@st.cache_data(ttl=3600)
+def cargar_sectores_poligonos():
+    """
+    Consulta la base de datos de Sectorización y retorna los GeoJSON.
+    """
+    conn = get_postgres_conn()
+    if conn is None:
+        st.warning("⚠️ No se pudo establecer conexión con PostgreSQL. Los sectores no se visualizarán.")
+        return []
+    
+    try:
+        # Query optimizada para traer los datos y la geometría transformada
+        query = """
+            SELECT sector, "Pozos_Sector", 
+                   "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
+                   "U_NoDom", "U_Tot", "Poblacion", "Cons_m3", 
+                   "Faltas_Agua", "Fugas_Tot", "FTC", "FTA", 
+                   "Vol_Medid", "Vol_Fact", "Kwh", "costoKw-hr", 
+                   "Recaudacion", "Dotacion", "Balance_Estimado",
+                   ST_AsGeoJSON(ST_Transform(geom, 4326)) as geo 
+            FROM "Sectorizacion"."Sectores_hidr"
+        """
+        # Usamos pandas para leer directamente de la conexión de psycopg2
+        df = pd.read_sql(query, conn)
+        return df.to_dict('records')
+    except Exception as e:
+        st.error(f"❌ Error al ejecutar la consulta de sectores: {e}")
+        return []
+    finally:
+        # No cerramos la conexión aquí si usamos cache_resource, 
+        # pero si no usas el decorador, deberías cerrarla.
+        pass
 
 def cargar_datos_scada(lista_tags):
     engine = get_mysql_scada_engine()

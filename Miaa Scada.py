@@ -913,28 +913,39 @@ with col_mapa:
 
 # -------------------------------------------------------------------------------------- RENDERIZADO DE SECTORES (CON RESALTADO RESTAURADO) --------------------------------------------------------------------------
     if ver_sectores and sectores:
-    for s in sectores:
-        try:
-            # Validamos que existan los datos mínimos antes de intentar dibujar
-            if not s.get('geo'): continue
-            
-            geo_data = json.loads(s['geo'])
-            nombre_sec = s.get('sector', 'S/N')
-            
-            folium.GeoJson(
-                geo_data, 
-                style_function=lambda x: {
-                    'fillColor': '#00d4ff', 
-                    'color': '#00d4ff', 
-                    'weight': 1.5, 
-                    'fillOpacity': 0.1
-                },
-                tooltip=f"Sector: {nombre_sec}"
-            ).add_to(m)
-        except Exception as e:
-            # Si falla un polígono, imprimimos el error pero NO matamos el mapa
-            print(f"Error renderizando sector {s.get('sector')}: {e}")
-            continue
+        for s in sectores:
+            try:
+                # 1. Validación de datos mínimos
+                if not s or not s.get('geo'):
+                    continue
+                
+                # 2. Carga del GeoJSON
+                geo_data = json.loads(s['geo'])
+                nombre_sec = s.get('sector', 'S/N')
+                
+                # 3. Creación de la capa con estilo
+                folium.GeoJson(
+                    geo_data, 
+                    style_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#00d4ff', 
+                        'weight': 1.5, 
+                        'fillOpacity': 0.1
+                    },
+                    highlight_function=lambda x: {
+                        'fillColor': '#00d4ff', 
+                        'color': '#ffffff', 
+                        'weight': 3, 
+                        'fillOpacity': 0.4
+                    },
+                    tooltip=folium.Tooltip(f"<b>Sector:</b> {nombre_sec}", sticky=True)
+                ).add_to(m)
+                
+            except Exception as e:
+                # Imprimimos el error en la consola de Streamlit para diagnóstico
+                # pero permitimos que el bucle continúe para no dejar el mapa en blanco
+                st.sidebar.error(f"Error en sector {s.get('sector', 'Desconocido')}: {e}")
+                continue
 
     # ------------------------------------------------------------------------------ RENDERIZADO DE POZOS (UNIFICADO) ---------------------------------------------------------------------------------------------
     # Usamos solo 'ver_pozos' para controlar ambas cosas

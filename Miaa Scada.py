@@ -841,7 +841,7 @@ with st.sidebar:
         
     # --- CONTROL DE CAPAS ---
     with st.expander("🗺️ Control de Capas", expanded=False):
-        ver_sectores = st.checkbox("Mostrar Sectores", value=True)
+        ver_sectores = st.checkbox("Mostrar Sectores", value=False)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
         ver_tanques = st.checkbox("Mostrar Tanques", value=True)
         ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=True)

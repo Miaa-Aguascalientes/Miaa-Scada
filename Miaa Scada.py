@@ -10,8 +10,8 @@ import urllib.parse
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
-         st.cache_data.clear()
-         st.cache_resource.clear()
+st.cache_data.clear()
+st.cache_resource.clear()
 
 # 1  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 params = st.query_params

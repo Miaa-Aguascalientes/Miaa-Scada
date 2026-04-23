@@ -847,7 +847,7 @@ with st.sidebar:
         ver_sectores = st.checkbox("Mostrar Sectores", value=False)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
         ver_tanques = st.checkbox("Mostrar Tanques", value=True)
-        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=True)
+        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=False)
     
     # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):

@@ -7,3 +7,8 @@ streamlit-folium
 folium
 plotly
 streamlit-autorefresh
+bcrypt
+shapely
+matplotlib
+SQLAlchemy
+kaleido==0.2.1

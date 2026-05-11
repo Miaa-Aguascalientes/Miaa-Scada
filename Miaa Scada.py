@@ -34,9 +34,10 @@ def get_mysql_scada_engine():
         c = st.secrets["mysql_scada"]
         pwd = urllib.parse.quote_plus(c["password"])
         engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        with engine.connect() as conn: pass 
         return engine
-    except: return None
+    except Exception as e:
+        st.error(f"Error MySQL SCADA: {e}") # Esto te dirá el error real
+        return None
 
 @st.cache_resource
 def get_mysql_telemetria_engine():

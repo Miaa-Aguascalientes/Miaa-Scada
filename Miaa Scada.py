@@ -44,10 +44,17 @@ def get_mysql_telemetria_engine():
     try:
         c = st.secrets["mysql_telemetria"]
         pwd = urllib.parse.quote_plus(c["password"])
-        engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
-        with engine.connect() as conn: pass 
+        # Cambiamos a una cadena de conexión estándar para probar
+        url = f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}"
+        engine = create_engine(url)
+        # Intentamos una conexión real para forzar el error si existe
+        with engine.connect() as conn:
+            pass 
         return engine
-    except: return None
+    except Exception as e:
+        # ESTO MOSTRARÁ EL ERROR REAL EN TU APP
+        st.sidebar.error(f"Error técnico en Diccionarios: {e}")
+        return None
 
 @st.cache_resource
 def get_postgres_conn():

@@ -27,35 +27,31 @@ st.set_page_config(
 )
 count = st_autorefresh(interval=300000, limit=1000, key="scada_refresh")
 
-# 2  SECCION------------------------------------------------------------------------------2. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
+# 2.  SECCION------------------------------------------------------------------------------2. FUNCIONES DE CONEXIÓN ------------------------------------------------------------------------------------------------------
+
+# 2.1. Secretos de la base de datos de SCADA
 @st.cache_resource
 def get_mysql_scada_engine():
     try:
         c = st.secrets["mysql_scada"]
         pwd = urllib.parse.quote_plus(c["password"])
         engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
+        with engine.connect() as conn: pass 
         return engine
-    except Exception as e:
-        st.error(f"Error MySQL SCADA: {e}") # Esto te dirá el error real
-        return None
+    except: return None
 
+# 2.2. Secretos de la base de datos de Telemetria 2
 @st.cache_resource
 def get_mysql_telemetria_engine():
     try:
         c = st.secrets["mysql_telemetria"]
         pwd = urllib.parse.quote_plus(c["password"])
-        # Cambiamos a una cadena de conexión estándar para probar
-        url = f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}"
-        engine = create_engine(url)
-        # Intentamos una conexión real para forzar el error si existe
-        with engine.connect() as conn:
-            pass 
+        engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
+        with engine.connect() as conn: pass 
         return engine
-    except Exception as e:
-        # ESTO MOSTRARÁ EL ERROR REAL EN TU APP
-        st.sidebar.error(f"Error técnico en Diccionarios: {e}")
-        return None
+    except: return None
 
+# 2.3. Secretos de la base de datos de POSTGRES
 @st.cache_resource
 def get_postgres_conn():
     try: 
@@ -64,12 +60,13 @@ def get_postgres_conn():
         return psycopg2.connect(**st.secrets["postgres"])
     except: 
         return None
-
+        
+ # 2.4. Funcion para cargar el ultimo dato de SCADA
 def cargar_datos_scada(lista_tags):
     engine = get_mysql_scada_engine()
     if not engine or not lista_tags: return {}
     try:
-        # Convertimos la lista a un string separado por comas para el SQL
+      
         tags_str = "', '".join(lista_tags)
         query = f"""
             SELECT r.NAME, h.VALUE, h.FECHA 
@@ -79,12 +76,12 @@ def cargar_datos_scada(lista_tags):
             AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)
         """
         df = pd.read_sql(query, engine)
-        # Retornamos un diccionario con el nombre del tag como llave
+        
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except Exception as e:
-        # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
         return {}
 
+# 2.5. Funcion para optener los ultimos 7 dias de valores de SCADA
 def obtener_historia_7_dias(tag_name):
     engine = get_mysql_scada_engine()
     if not engine or not tag_name: return pd.DataFrame()
@@ -98,18 +95,17 @@ def obtener_historia_7_dias(tag_name):
             ORDER BY h.FECHA ASC
         """
         df = pd.read_sql(query, engine)
-        # Forzamos a que sea datetime para que Streamlit detecte la hora
         df['FECHA'] = pd.to_datetime(df['FECHA']) 
         return df
     except:
         return pd.DataFrame()
-
+        
+# 2.6. Funcion para optener los poligonos de los sectores y sus demas campos
 @st.cache_data(ttl=3600)
 def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Añadimos los campos numéricos solicitados en la consulta
         query = """
             SELECT sector, "Pozos_Sector", 
                    "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
@@ -127,6 +123,7 @@ def cargar_sectores_poligonos():
         st.error(f"Error al cargar sectores: {e}")
         return []
 
+# 2.7. Funcion para cambiar el formato de horas
 def formato_hora(decimal):
     try:
         if decimal == "N/A" or decimal is None: return "00:00"
@@ -136,6 +133,7 @@ def formato_hora(decimal):
     except:
         return "00:00"
 
+# 2.8. Funcion para el color de los sectores
 def get_blink_icon(color):
     return f"""
     <div style="
@@ -150,9 +148,10 @@ def get_blink_icon(color):
     </style>
     """
 
-# 3 SECCION -------------------------------------------------------------------------------- 3. CARGA DE DATOS DE DICCIONARIOS -------------------------------------------------------------------------------------------
-# DICCIONARIO POZOS
-@st.cache_data(ttl=600)
+# 3. SECCION -------------------------------------------------------------------------------- 3. CARGA DE DATOS DE DICCIONARIOS -------------------------------------------------------------------------------------------
+
+# 3.1 Funcion para optener la base de datos Diccionario_de_pozos  
+@st.cache_data(ttl=3600) 
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
     if not engine: return {}
@@ -180,14 +179,15 @@ def cargar_mapa_pozos_desde_db():
                 "h_arranque": row['H_arranque'],
                 "h_paro": row['H_paro'],
                 "voltajes_l": [row['voltaje_L1'], row['voltaje_L2'], row['voltaje_L3']],
-                "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']]
+                "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']],
+                "totalizado": row['totalizado']
             }
         return nuevo_mapa
     except:
         return {}
 
-# DICCIONARIO DE TANQUES
-@st.cache_data(ttl=600)
+# 3.2. Funcion para optener la base de datos Diccionario_de_tanques
+@st.cache_data(ttl=3600)
 def cargar_tanques_desde_db():
     engine = get_mysql_telemetria_engine()
     if not engine: return {}
@@ -198,18 +198,17 @@ def cargar_tanques_desde_db():
         nuevo_mapa_tq = {}
         for _, row in df_tq.iterrows():
             try:
-                # Limpiar y separar coordenadas
+
                 coords_str = str(row['coord']).strip().replace('(', '').replace(')', '')
                 lat, lon = map(float, coords_str.split(','))
                 
-                # Validación de Nivel Máximo para evitar división por cero o error
                 n_max = float(row['Nivel_max']) if row.get('Nivel_max') is not None else 1.0
                 if n_max <= 0: n_max = 1.0
 
                 nuevo_mapa_tq[row['TQ']] = {
                     "nombre": row['Nombre_tq'],
                     "coord": (lat, lon),
-                    "tag_nivel": row['nivel_tanque'], # Usamos el campo nivel_tanque
+                    "tag_nivel": row['nivel_tanque'],
                     "nivel_max": n_max,
                     "sitios": row['Sitios']
                 }
@@ -217,8 +216,8 @@ def cargar_tanques_desde_db():
         return nuevo_mapa_tq
     except: return {}
         
-# DICCIONARIO DE REBOMBEOS
-@st.cache_data(ttl=600)
+# 3.3. Funcion para optener la base de datos Diccionario_de_rebombeos
+@st.cache_data(ttl=3600)
 def cargar_rebombeos_desde_db():
     engine = get_mysql_telemetria_engine()
     if not engine: return {}
@@ -245,6 +244,60 @@ def cargar_rebombeos_desde_db():
         return nuevo_mapa_rb
     except: return {}
 
+# 3.4. Funcion para optener los puntos de control de la base de datos Diccionario_puntos_de_control
+@st.cache_data(ttl=5)
+def cargar_puntos_de_control_desde_db():
+    engine = get_mysql_telemetria_engine()
+    if not engine: return {}
+    try:
+        df = pd.read_sql("SELECT * FROM Diccionario_puntos_de_control", engine)
+        d_res = {}
+        for _, r in df.iterrows():
+            try:
+                raw_c = str(r['coord']).replace('(', '').replace(')', '').replace(' ', '').strip()
+                lat_s, lon_s = raw_c.split(',')
+                id_reg = r.get('Serie', r.get('Registrador', 'ID'))
+                d_res[str(id_reg)] = {
+                    "nombre": str(r.get('Domicilio', r.get('Nombre_registrador', 'S/N'))),
+                    "coord": [float(lat_s), float(lon_s)],
+                    "sector": str(r['Sector']).split('.')[0].strip(),
+                    "tag_p1": r.get('Presion_1'), 
+                    "tag_p2": r.get('Presion_2'), 
+                    "tag_q": r.get('Caudal'),     
+                    "tag_vbat": r.get('bateria'), 
+                    "tag_idx": r.get('indice')    
+                }
+            except Exception as e:
+                continue
+        return d_res
+    except Exception as e:
+        return {}
+
+# 3.5. Funcion para optener los puntos de criticos de la base de datos Diccionario_puntos_criticos
+@st.cache_data(ttl=5)
+def cargar_puntos_criticos_desde_db():
+    engine = get_mysql_telemetria_engine()
+    if not engine: return {}
+    try:
+        df = pd.read_sql("SELECT * FROM Diccionario_puntos_criticos", engine)
+        d_res = {}
+        for _, r in df.iterrows():
+            try:
+                raw_c = str(r['coord']).replace('(', '').replace(')', '').replace(' ', '').strip()
+                lat_s, lon_s = raw_c.split(',')
+                id_reg = r.get('Serie', r.get('Registrador', 'ID'))
+                d_res[str(id_reg)] = {
+                    "nombre": str(r.get('Domicilio', r.get('Nombre_registrador', 'S/N'))),
+                    "coord": [float(lat_s), float(lon_s)],
+                    "sector": str(r['Sector']).split('.')[0].strip(),
+                    "tag_p1": r.get('Presion_1'),
+                    "tag_q": r.get('Caudal'),        
+                }
+            except Exception as e:
+                continue
+        return d_res
+    except Exception as e:
+        return {}
 
 # 4 SECCION -------------------------------------------------------------------------------- 4. GRAFICAR LOS TANQUES EN EL POPUP --------------------------------------------------------------------
 params = st.query_params

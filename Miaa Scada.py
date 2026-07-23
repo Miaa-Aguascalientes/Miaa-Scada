@@ -36,7 +36,15 @@ st.set_page_config(
 # 0. SECCION -------------------------------------------------------------------------------- 0. SISTEMA DE AUTENTICACIÓN HUD DEFINITIVO --------------------------------------------------------------------
 
 
-
+@st.cache_resource
+def get_postgres_conn():
+    try: 
+        # Simplemente crea y retorna el objeto de conexión
+        conn = psycopg2.connect(**st.secrets["postgres"])
+        return conn
+    except Exception as e: 
+        st.error(f"Error de conexión Postgres: {e}")
+        return None
 # 0.2. FUNCIONES DE BASE DE DATOS (REFORZADAS) 
 @st.cache_resource
 def get_mysql_telemetria_engine():

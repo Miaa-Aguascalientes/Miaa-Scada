@@ -324,7 +324,7 @@ if sector_seleccionado:
         st.error(f"No se encontró información para el sector {sector_seleccionado}")
     st.stop()
 
-# 8. SIDEBAR (BARRA LATERAL) - DECLARADA ANTES DEL MAPA PRINCIPAL PARA EVITAR PROBLEMAS DE CARGA
+# 8. SIDEBAR (BARRA LATERAL)
 with st.sidebar:
     st.markdown('<div class="sidebar-logo"><img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Logos/38504978c8f77a4dac38ad476f74dbdee6af2cad/LogoMIAA.svg"></div>', unsafe_allow_html=True)
 
@@ -383,12 +383,10 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
         
-    # --- CONTROL DE CAPAS (DEFINIDAS ANTES DEL MAPA) ---
+    # --- CONTROL DE CAPAS (SOLO SECTORES Y POZOS) ---
     with st.expander("🗺️ Control de Capas", expanded=False):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
-        ver_tanques = st.checkbox("Mostrar Tanques", value=False)
-        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=False)
     
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
         for p in sorted(pozos_on): st.write(f"🟢 {p}")
@@ -401,166 +399,164 @@ with st.sidebar:
         with st.expander(f"⚪ Sin Telemetría ({len(pozos_sin_telemetria)})", expanded=False):
             for p in sorted(pozos_sin_telemetria): st.write(f"⚪ {p}")
 
-# 9. MAPA PRINCIPAL
+# 9. MAPA PRINCIPAL (RENDERIZADO A ANCHO COMPLETO PARA EVITAR BLOQUEOS)
 st.markdown('<div class="titulo-superior">Sistema de monitoreo - Aguascalientes</div>', unsafe_allow_html=True)
-col_mapa, col_capas = st.columns([0.9, 0.1], gap="small")
 
-with col_mapa:
-    m = folium.Map(
-        location=st.session_state.centro_mapa, 
-        zoom_start=st.session_state.zoom_inicial, 
-        tiles="CartoDB dark_matter"
-    )
-    Fullscreen().add_to(m)
+m = folium.Map(
+    location=st.session_state.centro_mapa, 
+    zoom_start=st.session_state.zoom_inicial, 
+    tiles="CartoDB dark_matter"
+)
+Fullscreen().add_to(m)
 
-    if datos_sector_resaltado:
-        folium.GeoJson(
-            json.loads(datos_sector_resaltado['geo']),
-            style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4}
+if datos_sector_resaltado:
+    folium.GeoJson(
+        json.loads(datos_sector_resaltado['geo']),
+        style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4}
+    ).add_to(m)
+
+# RENDERIZADO DE SECTORES
+if ver_sectores and sectores:
+    for s in sectores:
+        try:
+            nombre_sec = s['sector']
+            url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
+            geo_data = json.loads(s['geo'])
+            
+            html_sector = f"""
+            <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
+                <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
+                <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
+            </div>
+            """
+            
+            folium.GeoJson(
+                geo_data, 
+                style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1},
+                highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
+                popup=folium.Popup(html_sector, max_width=250),
+                tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
+            ).add_to(m)
+        except: continue
+
+# RENDERIZADO DE POZOS
+if ver_pozos:
+    for id_p, info in mapa_pozos_dict.items():
+        d = lambda tag: data_scada.get(tag, (0, "N/A"))
+        is_st = (info['status_label'] == 'SIN TELEMETRÍA')
+        
+        q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+        p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+        sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+        dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+        tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+        col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
+        
+        h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+        h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+        h_arr_fmt = formato_hora(h_arr_val)
+        h_par_fmt = formato_hora(h_par_val)
+
+        v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+        a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+
+        html_popup = f"""
+            <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                    <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+                    <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px;">
+                        <span>🚀 Presión: <b>{p:.2f} kg</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
+                    </div>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>🔋 Nivel de Tanque: <b>{tanq:.2f} mts</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>📉 Nivel Dinámico/Estatico: <b>{dinam:.2f} m</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>📏 Sumergencia: <b>{sumer:.2f} m</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px;">
+                        <span>🏗️ Longitud de Columna: <b>{col:.2f} m</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
+                    </div>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
+                    <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
+                        <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
+                            <th style="padding: 4px;">Fase</th>
+                            <th style="padding: 4px;">Voltaje / Act.</th>
+                            <th style="padding: 4px;">Amp / Act.</th>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #222;">
+                            <td style="padding: 6px 4px;">L1-L2</td>
+                            <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
+                            <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #222;">
+                            <td style="padding: 6px 4px;">L2-L3</td>
+                            <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
+                            <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 4px;">L1-L3</td>
+                            <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
+                            <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
+                        </tr>
+                    </table>
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>▶️ Arranque: <b>{h_arr_fmt}</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px;">
+                        <span>⏹️ Paro: <b>{h_par_fmt}</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
+                    </div>
+                </div>
+            </div>
+            """
+
+        folium.Marker(
+            location=info['coord'],
+            icon=folium.DivIcon(
+                icon_size=(150,36),
+                icon_anchor=(-12, 10),
+                html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
+            )
         ).add_to(m)
 
-    # RENDERIZADO DE SECTORES
-    if ver_sectores and sectores:
-        for s in sectores:
-            try:
-                nombre_sec = s['sector']
-                url_sector = f"/?sector={urllib.parse.quote(nombre_sec)}"
-                geo_data = json.loads(s['geo'])
-                
-                html_sector = f"""
-                <div style="font-family: sans-serif; text-align: center; color: white; background: #0b1a29; padding: 10px; border-radius: 8px; border: 1px solid #00d4ff;">
-                    <h4 style="margin: 0; color: #00d4ff;">{nombre_sec}</h4>
-                    <a href="{url_sector}" target="_blank" style="display: inline-block; padding: 6px 12px; background-color: #00d4ff; color: black; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 12px; margin-top:5px;">🚀 Ver Detalles</a>
-                </div>
-                """
-                
-                folium.GeoJson(
-                    geo_data, 
-                    style_function=lambda x: {'fillColor': '#00d4ff', 'color': '#00d4ff', 'weight': 1.5, 'fillOpacity': 0.1},
-                    highlight_function=lambda x: {'fillColor': '#00d4ff', 'color': '#ffffff', 'weight': 3, 'fillOpacity': 0.4},
-                    popup=folium.Popup(html_sector, max_width=250),
-                    tooltip=folium.Tooltip(f"Sector: {nombre_sec}", sticky=True)
-                ).add_to(m)
-            except: continue
-
-    # RENDERIZADO DE POZOS
-    if ver_pozos:
-        for id_p, info in mapa_pozos_dict.items():
-            d = lambda tag: data_scada.get(tag, (0, "N/A"))
-            is_st = (info['status_label'] == 'SIN TELEMETRÍA')
-            
-            q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
-            p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
-            sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
-            dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
-            tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
-            col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-            
-            h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
-            h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
-            h_arr_fmt = formato_hora(h_arr_val)
-            h_par_fmt = formato_hora(h_par_val)
-
-            v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
-            a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
-
-            html_popup = f"""
-                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
-                        <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
-                        <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
-                    </div>
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px;">
-                            <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
-                        </div>
-                    </div>
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>🔋 Nivel de Tanque: <b>{tanq:.2f} mts</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>📉 Nivel Dinámico/Estatico: <b>{dinam:.2f} m</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>📏 Sumergencia: <b>{sumer:.2f} m</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px;">
-                            <span>🏗️ Longitud de Columna: <b>{col:.2f} m</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
-                        </div>
-                    </div>
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-                        <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
-                            <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                                <th style="padding: 4px;">Fase</th>
-                                <th style="padding: 4px;">Voltaje / Act.</th>
-                                <th style="padding: 4px;">Amp / Act.</th>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #222;">
-                                <td style="padding: 6px 4px;">L1-L2</td>
-                                <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
-                                <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #222;">
-                                <td style="padding: 6px 4px;">L2-L3</td>
-                                <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
-                                <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 6px 4px;">L1-L3</td>
-                                <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
-                                <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
-                            </tr>
-                        </table>
-                        <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>▶️ Arranque: <b>{h_arr_fmt}</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px;">
-                            <span>⏹️ Paro: <b>{h_par_fmt}</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
-                        </div>
-                    </div>
-                </div>
-                """
-
+        if info.get('blink'):
             folium.Marker(
                 location=info['coord'],
-                icon=folium.DivIcon(
-                    icon_size=(150,36),
-                    icon_anchor=(-12, 10),
-                    html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
-                )
+                icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                popup=folium.Popup(html_popup, max_width=450)
+            ).add_to(m)
+        else:
+            folium.CircleMarker(
+                location=info['coord'],
+                radius=4,
+                color=info['color_final'],
+                fill=True,
+                fill_color=info['color_final'],
+                fill_opacity=1,
+                popup=folium.Popup(html_popup, max_width=450)
             ).add_to(m)
 
-            if info.get('blink'):
-                folium.Marker(
-                    location=info['coord'],
-                    icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                    popup=folium.Popup(html_popup, max_width=450)
-                ).add_to(m)
-            else:
-                folium.CircleMarker(
-                    location=info['coord'],
-                    radius=4,
-                    color=info['color_final'],
-                    fill=True,
-                    fill_color=info['color_final'],
-                    fill_opacity=1,
-                    popup=folium.Popup(html_popup, max_width=450)
-                ).add_to(m)
-
-    folium_static(m, width=None, height=750)
+folium_static(m, width=None, height=750)

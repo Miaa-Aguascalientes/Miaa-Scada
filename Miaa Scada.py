@@ -64,18 +64,7 @@ def get_mysql_telemetria_engine():
         st.error(f"⚠️ ERROR CRÍTICO DE CONEXIÓN: {e}")
         return None
 
-def verificar_credenciales(usuario_input, password_input):
-    try:
-        engine = get_mysql_telemetria_engine()
-        if engine is None: return None
-        query = f"SELECT password, tipo_usuario FROM usuarios WHERE usuario = '{usuario_input}'"
-        df_user = pd.read_sql(query, engine)
-        if not df_user.empty and str(password_input) == str(df_user['password'].iloc[0]):
-            return df_user['tipo_usuario'].iloc[0]
-        return None
-    except Exception as e:
-        st.error(f"Error al consultar usuario: {e}")
-        return None
+
 
 
 # 0.4. LÓGICA DE INTERFAZ (COLUMNAS AJUSTADAS) ---

@@ -35,17 +35,7 @@ st.set_page_config(
 
 # 0. SECCION -------------------------------------------------------------------------------- 0. SISTEMA DE AUTENTICACIÓN HUD DEFINITIVO --------------------------------------------------------------------
 
-# 0.1. INICIALIZACIÓN DE ESTADOS 
-if 'autenticado' not in st.session_state:
-    query_params = st.query_params
-    if query_params.get("access") == "granted":
-        st.session_state.autenticado = True
-        st.session_state.rol = query_params.get("role", "usuario")
-    else:
-        st.session_state.autenticado = False
 
-if 'fase_carga' not in st.session_state:
-    st.session_state.fase_carga = False
 
 # 0.2. FUNCIONES DE BASE DE DATOS (REFORZADAS) 
 @st.cache_resource
@@ -67,21 +57,7 @@ def get_mysql_telemetria_engine():
 
 
 
-# 0.4. LÓGICA DE INTERFAZ (COLUMNAS AJUSTADAS) ---
-if not st.session_state.autenticado:
-    col_esp1, col_vis, col_log, col_esp2 = st.columns([0.1, 1.8, 2, 1.1])
-    
-    with col_vis:
-        st.markdown('<div style="height: 12vh;"></div>', unsafe_allow_html=True)
-        st.markdown(f'''
-        <div class="visual-core">
-            <div class="ring r1"></div><div class="ring r2"></div>
-            <div class="center-logo">
-                <img src="https://raw.githubusercontent.com/Miaa-Aguascalientes/Logos/38504978c8f77a4dac38ad476f74dbdee6af2cad/LogoMIAA.svg" class="logo-miaa">
-                <h2 style="color:#00d4ff; font-family:Orbitron; font-size:-400px; letter-spacing:5px; margin-top:-35px;"></h2>
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+
 
     with col_log:
         st.markdown('<div style="height: 20vh;"></div>', unsafe_allow_html=True)

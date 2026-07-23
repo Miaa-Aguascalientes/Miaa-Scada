@@ -128,39 +128,71 @@ def get_blink_icon(color):
     """
 
 # 3. CARGA DE DICCIONARIO DE POZOS
-@st.cache_data(ttl=3600) 
+@st.cache_data(ttl=600)
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
-    if not engine: return {}
+    if not engine: 
+        return {}
     try:
         query = "SELECT * FROM Diccionario_de_pozos"
         df_pozos = pd.read_sql(query, engine)
         
+        # 1. Normalizar nombres de columnas a minúsculas sin espacios
+        df_pozos.columns = [str(col).strip().lower() for col in df_pozos.columns]
+        
         nuevo_mapa = {}
         for _, row in df_pozos.iterrows():
-            try:
-                coords_str = str(row['coord']).strip().replace('(', '').replace(')', '')
-                lat, lon = map(float, coords_str.split(','))
-                coords = (lat, lon)
-            except: continue
+            # 2. Identificar dinámicamente la columna que contiene la clave/ID del pozo
+            id_pozo = row.get('pozos') or row.get('pozo') or row.get('id') or row.get('nombre')
+            if pd.isna(id_pozo) or not str(id_pozo).strip():
+                continue
+            id_pozo = str(id_pozo).strip()
 
-            nuevo_mapa[row['Pozos']] = {
+            # 3. Extraer y validar el texto de la columna 'coord'
+            coord_val = str(row.get('coord', '')).strip()
+            if not coord_val or coord_val.lower() in ['none', 'nan', 'null', '']:
+                continue
+
+            try:
+                # Separar latitud y longitud por la coma (formato "21.88229, -102.31542")
+                parts = coord_val.split(',')
+                lat = float(parts[0].strip())
+                lon = float(parts[1].strip())
+
+                # Validar que caiga dentro del rango geográfico esperado para Aguascalientes
+                if not (15.0 <= lat <= 30.0 and -115.0 <= lon <= -95.0):
+                    continue
+                coords = (lat, lon)
+            except (IndexError, ValueError):
+                # Si una fila tiene formato corrupto, se salta únicamente esa fila sin tumbar las demás
+                continue
+
+            # 4. Mapear metadatos del pozo usando nombres normalizados en minúsculas
+            nuevo_mapa[id_pozo] = {
                 "coord": coords,
-                "bomba": row['bomba'],
-                "caudal": row['caudal'],
-                "presion": row['presion'],
-                "sumergencia": row['sumergencia'],
-                "nivel_dinamico": row['nivel_dinamico'],
-                "nivel_tanque": row['nivel_tanque'],
-                "columna": row['columna'],
-                "h_arranque": row['H_arranque'],
-                "h_paro": row['H_paro'],
-                "voltajes_l": [row['voltaje_L1'], row['voltaje_L2'], row['voltaje_L3']],
-                "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']],
-                "totalizado": row['totalizado']
+                "bomba": str(row.get('bomba', '')).strip(),
+                "caudal": str(row.get('caudal', '')).strip(),
+                "presion": str(row.get('presion', '')).strip(),
+                "sumergencia": str(row.get('sumergencia', '')).strip(),
+                "nivel_dinamico": str(row.get('nivel_dinamico', '')).strip(),
+                "nivel_tanque": str(row.get('nivel_tanque', '')).strip(),
+                "columna": str(row.get('columna', '')).strip(),
+                "h_arranque": str(row.get('h_arranque', '')).strip(),
+                "h_paro": str(row.get('h_paro', '')).strip(),
+                "voltajes_l": [
+                    str(row.get('voltaje_l1', '')).strip(), 
+                    str(row.get('voltaje_l2', '')).strip(), 
+                    str(row.get('voltaje_l3', '')).strip()
+                ],
+                "amperajes_l": [
+                    str(row.get('amperaje_l1', '')).strip(), 
+                    str(row.get('amperaje_l2', '')).strip(), 
+                    str(row.get('amperaje_l3', '')).strip()
+                ]
             }
         return nuevo_mapa
-    except:
+    except Exception as e:
+        st.error(f"Error al leer la tabla Diccionario_de_pozos: {e}")
         return {}
 
 # 5. ESTILO CSS

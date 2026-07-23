@@ -2985,7 +2985,7 @@ with st.sidebar:
         st.warning("No hay macromedidores disponibles.")
                 
 # 9.  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL -----------------------------------------------------------------------------------------------------------
-st.markdown('<div class="titulo-superior">SISTEMA SCADA - AGUASCALIENTES</div>', unsafe_allow_html=True)
+st.markdown('<div class="titulo-superior">SISTEMA - AGUASCALIENTES</div>', unsafe_allow_html=True)
 
 # Indicadores usando el sistema de Grid para que ocupen todo el ancho
 c_total = total_q if 'total_q' in locals() else 0.0

@@ -159,10 +159,22 @@ def cargar_mapa_pozos_desde_db():
         nuevo_mapa = {}
         for _, row in df_pozos.iterrows():
             try:
-                coords_str = str(row['coord']).strip().replace('(', '').replace(')', '')
-                lat, lon = map(float, coords_str.split(','))
+                coords_raw = str(row['coord']).strip()
+                # Limpieza robusta de paréntesis, corchetes o espacios
+                coords_str = coords_raw.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
+                
+                # Manejar si usa coma o punto y coma como separador
+                if ';' in coords_str:
+                    parts = coords_str.split(';')
+                else:
+                    parts = coords_str.split(',')
+                    
+                lat, lon = float(parts[0].strip()), float(parts[1].strip())
                 coords = (lat, lon)
-            except: continue
+            except Exception as e:
+                # Comenta esto temporalmente si quieres ver en pantalla qué pozo está fallando
+                # st.warning(f"Pozo {row.get('Pozos', 'Desconocido')} con coordenada inválida '{row.get('coord')}': {e}")
+                continue
 
             nuevo_mapa[row['Pozos']] = {
                 "coord": coords,
@@ -179,7 +191,8 @@ def cargar_mapa_pozos_desde_db():
                 "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']]
             }
         return nuevo_mapa
-    except:
+    except Exception as e:
+        st.error(f"Error al cargar diccionario de pozos: {e}")
         return {}
 
 # DICCIONARIO DE TANQUES

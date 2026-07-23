@@ -3447,8 +3447,8 @@ if sectores_data:
                 es_match = (col_sel is not None and nombre_actual == col_sel.get('Col_atl'))
                 
                 return {
-                    'fillColor': '#F1C40F' if es_match else '#2ECC71', # Amarillo si es selección
-                    'color': '#F39C12' if es_match else '#27AE60',
+                    'fillColor': '#F1C40F' if es_match else '#1F92C0', # Amarillo si es selección
+                    'color': '#F39C12' if es_match else '#1F92C0',
                     'weight': 3 if es_match else 1,
                     'fillOpacity': 0.6 if es_match else 0.2
                 }

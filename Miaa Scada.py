@@ -33,19 +33,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 0. SECCION -------------------------------------------------------------------------------- 0. SISTEMA DE AUTENTICACIÓN HUD DEFINITIVO --------------------------------------------------------------------
 
-# 0.1. INICIALIZACIÓN DE ESTADOS 
-if 'autenticado' not in st.session_state:
-    query_params = st.query_params
-    if query_params.get("access") == "granted":
-        st.session_state.autenticado = True
-        st.session_state.rol = query_params.get("role", "usuario")
-    else:
-        st.session_state.autenticado = False
-
-if 'fase_carga' not in st.session_state:
-    st.session_state.fase_carga = False
 
 # 0.2. FUNCIONES DE BASE DE DATOS (REFORZADAS) 
 @st.cache_resource
@@ -64,18 +52,7 @@ def get_mysql_telemetria_engine():
         st.error(f"⚠️ ERROR CRÍTICO DE CONEXIÓN: {e}")
         return None
 
-def verificar_credenciales(usuario_input, password_input):
-    try:
-        engine = get_mysql_telemetria_engine()
-        if engine is None: return None
-        query = f"SELECT password, tipo_usuario FROM usuarios WHERE usuario = '{usuario_input}'"
-        df_user = pd.read_sql(query, engine)
-        if not df_user.empty and str(password_input) == str(df_user['password'].iloc[0]):
-            return df_user['tipo_usuario'].iloc[0]
-        return None
-    except Exception as e:
-        st.error(f"Error al consultar usuario: {e}")
-        return None
+
 
 # 0.3. ESTILO VISUAL HUD AJUSTADO
 st.markdown("""

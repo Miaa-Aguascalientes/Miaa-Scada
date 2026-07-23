@@ -1,13 +1,10 @@
 import streamlit as st
 import pandas as pd
 import folium
-from streamlit_folium import st_folium
 from sqlalchemy import create_engine
 import psycopg2
 import urllib.parse
 from datetime import datetime
-import geopandas as gpd
-from shapely import wkt
 
 # ==========================================
 # 1. CONFIGURACIÓN DE PÁGINA
@@ -113,7 +110,7 @@ m = folium.Map(
 for sec in sectores:
     try:
         if sec.get('geo'):
-            geo_json = import_json_geo = eval(sec['geo']) if isinstance(sec['geo'], str) else sec['geo']
+            geo_json = eval(sec['geo']) if isinstance(sec['geo'], str) else sec['geo']
             folium.GeoJson(
                 geo_json,
                 style_function=lambda x: {
@@ -142,5 +139,6 @@ for id_pozo, info in mapa_pozos_dict.items():
             tooltip=f"Pozo: {id_pozo}"
         ).add_to(m)
 
-# Renderizar mapa en Streamlit
-st_folium(m, width="100%", height=700)
+# Renderizar mapa usando HTML nativo para evitar errores de DOM en Streamlit
+map_html = m._repr_html_()
+st.components.v1.html(map_html, height=700, scrolling=True)

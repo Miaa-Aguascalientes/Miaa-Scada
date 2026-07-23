@@ -51,9 +51,9 @@ def get_mysql_telemetria_engine():
 @st.cache_resource
 def get_postgres_conn():
     try: 
+        # Retornamos la conexión directamente sin cerrarla en la prueba
         conn = psycopg2.connect(**st.secrets["postgres"])
-        conn.close() 
-        return psycopg2.connect(**st.secrets["postgres"])
+        return conn
     except: 
         return None
 
@@ -101,7 +101,6 @@ def cargar_sectores_poligonos():
     conn = get_postgres_conn()
     if not conn: return []
     try:
-        # Añadimos los campos numéricos solicitados en la consulta
         query = """
             SELECT sector, "Pozos_Sector", 
                    "Superficie", "Long_Red", "Vol_Prod", "U_Domesticos", 
@@ -117,6 +116,11 @@ def cargar_sectores_poligonos():
         return df.to_dict('records')
     except Exception as e:
         st.error(f"Error al cargar sectores: {e}")
+        try:
+            if conn:
+                conn.close()
+        except:
+            pass
         return []
 
 def formato_hora(decimal):

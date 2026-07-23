@@ -132,67 +132,74 @@ def get_blink_icon(color):
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
     if not engine: 
+        print("❌ ERROR: No se pudo conectar a la base de datos de telemetría.")
         return {}
     try:
         query = "SELECT * FROM Diccionario_de_pozos"
         df_pozos = pd.read_sql(query, engine)
-        
-        # 1. Normalizar nombres de columnas a minúsculas sin espacios
-        df_pozos.columns = [str(col).strip().lower() for col in df_pozos.columns]
+        print(f"📊 Columnas crudas en DF Diccionario_de_pozos: {df_pozos.columns.tolist()}")
+        print(f"📊 Total de filas obtenidas: {len(df_pozos)}")
         
         nuevo_mapa = {}
-        for _, row in df_pozos.iterrows():
-            # 2. Identificar dinámicamente la columna que contiene la clave/ID del pozo
-            id_pozo = row.get('pozos') or row.get('pozo') or row.get('id') or row.get('nombre')
-            if pd.isna(id_pozo) or not str(id_pozo).strip():
+        for idx, row in df_pozos.iterrows():
+            # Buscar explícitamente las variantes de nombres de columnas comunes
+            id_pozo = None
+            for col_candidata in ['Pozos', 'pozos', 'pozo', 'POZO', 'id', 'ID', 'nombre', 'Nombre']:
+                if col_candidata in df_pozos.columns and not pd.isna(row[col_candidata]):
+                    id_pozo = str(row[col_candidata]).strip()
+                    break
+            
+            if not id_pozo:
+                print(f"⚠️ Fila {idx}: No se encontró identificador de pozo válido. Columnas evaluadas.")
                 continue
-            id_pozo = str(id_pozo).strip()
 
-            # 3. Extraer y validar el texto de la columna 'coord'
-            coord_val = str(row.get('coord', '')).strip()
+            # Extraer coordenada probando variaciones de nombre
+            coord_val = ""
+            for col_coord in ['coord', 'Coord', 'COORD', 'coordenadas', 'Coordenadas']:
+                if col_coord in df_pozos.columns and not pd.isna(row[col_coord]):
+                    coord_val = str(row[col_coord]).strip()
+                    break
+
             if not coord_val or coord_val.lower() in ['none', 'nan', 'null', '']:
+                print(f"⚠️ Pozo {id_pozo}: Coordenada vacía o nula.")
                 continue
 
             try:
-                # Separar latitud y longitud por la coma (formato "21.88229, -102.31542")
                 parts = coord_val.split(',')
                 lat = float(parts[0].strip())
                 lon = float(parts[1].strip())
-
-                # Validar que caiga dentro del rango geográfico esperado para Aguascalientes
-                if not (15.0 <= lat <= 30.0 and -115.0 <= lon <= -95.0):
-                    continue
                 coords = (lat, lon)
-            except (IndexError, ValueError):
-                # Si una fila tiene formato corrupto, se salta únicamente esa fila sin tumbar las demás
+            except Exception as e:
+                print(f"⚠️ Pozo {id_pozo}: Error al parsear coordenada '{coord_val}': {e}")
                 continue
 
-            # 4. Mapear metadatos del pozo usando nombres normalizados en minúsculas
+            # Mapeo seguro con valores por defecto si la columna no existe
+            def val(nombre_col):
+                for variante in [nombre_col, nombre_col.lower(), nombre_col.upper(), nombre_col.capitalize()]:
+                    if variante in df_pozos.columns:
+                        val_celda = row[variante]
+                        return "" if pd.isna(val_celda) else str(val_celda).strip()
+                return ""
+
             nuevo_mapa[id_pozo] = {
                 "coord": coords,
-                "bomba": str(row.get('bomba', '')).strip(),
-                "caudal": str(row.get('caudal', '')).strip(),
-                "presion": str(row.get('presion', '')).strip(),
-                "sumergencia": str(row.get('sumergencia', '')).strip(),
-                "nivel_dinamico": str(row.get('nivel_dinamico', '')).strip(),
-                "nivel_tanque": str(row.get('nivel_tanque', '')).strip(),
-                "columna": str(row.get('columna', '')).strip(),
-                "h_arranque": str(row.get('h_arranque', '')).strip(),
-                "h_paro": str(row.get('h_paro', '')).strip(),
-                "voltajes_l": [
-                    str(row.get('voltaje_l1', '')).strip(), 
-                    str(row.get('voltaje_l2', '')).strip(), 
-                    str(row.get('voltaje_l3', '')).strip()
-                ],
-                "amperajes_l": [
-                    str(row.get('amperaje_l1', '')).strip(), 
-                    str(row.get('amperaje_l2', '')).strip(), 
-                    str(row.get('amperaje_l3', '')).strip()
-                ]
+                "bomba": val('bomba'),
+                "caudal": val('caudal'),
+                "presion": val('presion'),
+                "sumergencia": val('sumergencia'),
+                "nivel_dinamico": val('nivel_dinamico'),
+                "nivel_tanque": val('nivel_tanque'),
+                "columna": val('columna'),
+                "h_arranque": val('H_arranque') if 'H_arranque' in df_pozos.columns else val('h_arranque'),
+                "h_paro": val('H_paro') if 'H_paro' in df_pozos.columns else val('h_paro'),
+                "voltajes_l": [val('voltaje_L1'), val('voltaje_L2'), val('voltaje_L3')],
+                "amperajes_l": [val('amperaje_L1'), val('amperaje_L2'), val('amperaje_L3')]
             }
+            
+        print(f"✅ Pozos procesados correctamente en diccionario: {len(nuevo_mapa)}")
         return nuevo_mapa
     except Exception as e:
-        st.error(f"Error al leer la tabla Diccionario_de_pozos: {e}")
+        print(f"❌ ERROR CRÍTICO en cargar_mapa_pozos_desde_db: {e}")
         return {}
 
 # 5. ESTILO CSS

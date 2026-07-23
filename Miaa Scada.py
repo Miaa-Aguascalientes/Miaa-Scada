@@ -339,9 +339,6 @@ for p in mapa_pozos_dict.values():
     tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
 
 
-
-
-
 # Limpieza de la lista
 tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))
 
@@ -387,7 +384,6 @@ for id_p, info in mapa_pozos_dict.items():
         else:
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
-
 
 
 # 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
@@ -655,8 +651,7 @@ with st.sidebar:
     with st.expander("🗺️ Control de Capas", expanded=False):
         ver_sectores = st.checkbox("Mostrar Sectores", value=True)
         ver_pozos = st.checkbox("Mostrar Pozos", value=True)
-        ver_tanques = st.checkbox("Mostrar Tanques", value=False)
-        ver_rebombeos = st.checkbox("Mostrar Rebombeos", value=False)
+     
     
     # --- LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
@@ -883,8 +878,6 @@ with col_mapa:
                 ).add_to(m)
 
 
-            
-   
 
     # --- RENDERIZADO FINAL DEL MAPA (FUERA DE LOS IF) ---
     folium_static(m, width=None, height=750)

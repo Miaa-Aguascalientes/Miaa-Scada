@@ -338,14 +338,9 @@ for p in mapa_pozos_dict.values():
     # Voltajes y amperajes
     tags_a_consultar.extend(p['voltajes_l'] + p['amperajes_l'])
 
-# Tags de Tanques
-for t in mapa_tanques_dict.values():
-    if t['tag_nivel']: tags_a_consultar.append(t['tag_nivel'])
 
-# Tags de Rebombeos
-for r in mapa_rebombeos_dict.values():
-    tags_a_consultar.extend([r['presion'], r['nivel_tanque']])
-    tags_a_consultar.extend(r['voltajes_l'] + r['amperajes_l'])
+
+
 
 # Limpieza de la lista
 tags_finales = list(set([str(t).strip() for t in tags_a_consultar if t and str(t) not in ['0', 'Sin telemetria', 'None']]))

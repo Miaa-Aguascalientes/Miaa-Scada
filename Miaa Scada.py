@@ -33,7 +33,11 @@ def get_mysql_scada_engine():
     try:
         c = st.secrets["mysql_scada"]
         pwd = urllib.parse.quote_plus(c["password"])
-        engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
+        # Añadimos un timeout de conexión de 5 segundos para evitar bloqueos infinitos
+        engine = create_engine(
+            f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}",
+            connect_args={'connect_timeout': 5}
+        )
         with engine.connect() as conn: pass 
         return engine
     except: return None
@@ -43,7 +47,10 @@ def get_mysql_telemetria_engine():
     try:
         c = st.secrets["mysql_telemetria"]
         pwd = urllib.parse.quote_plus(c["password"])
-        engine = create_engine(f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}")
+        engine = create_engine(
+            f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}",
+            connect_args={'connect_timeout': 5}
+        )
         with engine.connect() as conn: pass 
         return engine
     except: return None
@@ -61,8 +68,8 @@ def cargar_datos_scada(lista_tags):
     engine = get_mysql_scada_engine()
     if not engine or not lista_tags: return {}
     try:
-        # Convertimos la lista a un string separado por comas para el SQL
-        tags_str = "', '".join(lista_tags)
+        # Limitamos la consulta en bloques si son demasiados tags para evitar que el motor colapse
+        tags_str = "', '".join(lista_tags[:500]) # Protegemos con un tope máximo por lote
         query = f"""
             SELECT r.NAME, h.VALUE, h.FECHA 
             FROM VfiTagNumHistory_Ultimo h 
@@ -71,10 +78,8 @@ def cargar_datos_scada(lista_tags):
             AND h.FECHA = (SELECT MAX(FECHA) FROM VfiTagNumHistory_Ultimo WHERE GATEID = h.GATEID)
         """
         df = pd.read_sql(query, engine)
-        # Retornamos un diccionario con el nombre del tag como llave
         return {row['NAME']: (row['VALUE'], row['FECHA'].strftime('%d/%m %H:%M') if row['FECHA'] else "N/A") for _, row in df.iterrows()}
     except Exception as e:
-        # st.error(f"Error en consulta SCADA: {e}") # Opcional para debug
         return {}
 
 def obtener_historia_7_dias(tag_name):

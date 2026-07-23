@@ -128,7 +128,7 @@ def get_blink_icon(color):
     """
 
 # 3. CARGA DE DICCIONARIO DE POZOS
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=3600) 
 def cargar_mapa_pozos_desde_db():
     engine = get_mysql_telemetria_engine()
     if not engine: return {}
@@ -139,18 +139,10 @@ def cargar_mapa_pozos_desde_db():
         nuevo_mapa = {}
         for _, row in df_pozos.iterrows():
             try:
-                coords_raw = str(row['coord']).strip()
-                coords_str = coords_raw.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
-                
-                if ';' in coords_str:
-                    parts = coords_str.split(';')
-                else:
-                    parts = coords_str.split(',')
-                    
-                lat, lon = float(parts[0].strip()), float(parts[1].strip())
+                coords_str = str(row['coord']).strip().replace('(', '').replace(')', '')
+                lat, lon = map(float, coords_str.split(','))
                 coords = (lat, lon)
-            except Exception:
-                continue
+            except: continue
 
             nuevo_mapa[row['Pozos']] = {
                 "coord": coords,
@@ -164,11 +156,11 @@ def cargar_mapa_pozos_desde_db():
                 "h_arranque": row['H_arranque'],
                 "h_paro": row['H_paro'],
                 "voltajes_l": [row['voltaje_L1'], row['voltaje_L2'], row['voltaje_L3']],
-                "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']]
+                "amperajes_l": [row['amperaje_L1'], row['amperaje_L2'], row['amperaje_L3']],
+                "totalizado": row['totalizado']
             }
         return nuevo_mapa
-    except Exception as e:
-        st.error(f"Error al cargar diccionario de pozos: {e}")
+    except:
         return {}
 
 # 5. ESTILO CSS

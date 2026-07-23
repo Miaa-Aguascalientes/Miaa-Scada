@@ -34,28 +34,6 @@ st.set_page_config(
 )
 
 
-
-# 0.2. FUNCIONES DE BASE DE DATOS (REFORZADAS) 
-@st.cache_resource
-def get_mysql_telemetria_engine():
-    try:
-        c = st.secrets["mysql_telemetria"]
-        pwd = urllib.parse.quote_plus(c["password"])
-        # pool_pre_ping=True es vital para evitar que el mapa se quede en blanco por conexión muerta
-        engine = create_engine(
-            f"mysql+mysqlconnector://{c['user']}:{pwd}@{c['host']}/{c['database']}",
-            pool_recycle=3600,
-            pool_pre_ping=True
-        )
-        return engine
-    except Exception as e:
-        st.error(f"⚠️ ERROR CRÍTICO DE CONEXIÓN: {e}")
-        return None
-
-
-
-
-
 # 1.  SECCION---------------------------------------------------------------------------1. CONFIGURACIÓN DE PÁGINA ----------------------------------------------------------------------------------------------------------
 params = st.query_params
 sector_seleccionado = params.get("sector", None)

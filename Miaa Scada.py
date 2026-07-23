@@ -319,8 +319,7 @@ st.markdown("""
 # 1. Carga de datos base
 sectores = cargar_sectores_poligonos()
 mapa_pozos_dict = cargar_mapa_pozos_desde_db()
-mapa_tanques_dict = cargar_tanques_desde_db()
-mapa_rebombeos_dict = cargar_rebombeos_desde_db()
+
 
 # 2. Recolección de tags para la consulta masiva
 tags_a_consultar = []

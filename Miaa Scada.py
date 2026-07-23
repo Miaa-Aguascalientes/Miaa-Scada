@@ -388,13 +388,7 @@ for id_p, info in mapa_pozos_dict.items():
             info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
             pozos_off.append(id_p)
 
-# --- LÓGICA DE REBOMBEOS (Presión < 0.10) ---
-for id_rb, info in mapa_rebombeos_dict.items():
-    pres_val, _ = data_scada.get(info['presion'], (0, "N/A"))
-    if pres_val < 0.10:
-        info.update({'status_label': 'APAGADO', 'color_final': '#FF0000', 'blink': True})
-    else:
-        info.update({'status_label': 'OPERANDO', 'color_final': '#00FF00', 'blink': False})
+
 
 # 7 SECCIÓN --------------------------------------------------------------7 VISTA DETALLE DEL SECTOR (SE ABRE EN NUEVA PESTAÑA DEL NAVEGADOR) ---------------------------------------------------------------
 

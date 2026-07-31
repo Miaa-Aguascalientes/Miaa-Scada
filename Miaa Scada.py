@@ -257,14 +257,22 @@ def cargar_sectores_poligonos():
         if conn:
             conn.close()
 
+
 # Función corregida para leer el campo 'geom' directamente
 @st.cache_data(ttl=3600)
 def get_todas_las_colonias():
-    # Eliminamos el filtro WHERE para obtener todo el diccionario
-    query = "SELECT ST_AsText(geom) as geom_wkt, Pozos, Col_atl, Sector, Distrito, Supervisor FROM Diccionario_colonias"
+    query = """
+        SELECT ST_AsText(geom) as geom_wkt, Pozos, Col_atl, Sector, Distrito, Supervisor,
+               Pozo_1, Afectacion_1, Pozo_2, Afectacion_2, 
+               Pozo_3, Afectacion_3, Pozo_4, Afectacion_4, 
+               Pozo_5, Afectacion_5, Pozo_6, Afectacion_6, 
+               Pozo_7, Afectacion_7, Pozo_8, Afectacion_8, 
+               Pozo_9, Afectacion_9, Pozo_10, Afectacion_10 
+        FROM Diccionario_colonias
+    """
     try:
         df = pd.read_sql(query, get_mysql_telemetria_engine())
-        if not df.empty:
+        if not df.empty and df['geom_wkt'].iloc[0] is not None:
             df['geometry'] = df['geom_wkt'].apply(wkt.loads)
             gdf = gpd.GeoDataFrame(df, geometry='geometry')
             gdf.set_crs(epsg=32613, inplace=True)
@@ -272,6 +280,74 @@ def get_todas_las_colonias():
     except Exception as e:
         st.error(f"Error cargando polígonos: {e}")
     return None
+
+@st.cache_data(ttl=60)
+def obtener_pozos_con_incidencias_hoy():
+    engine = get_mysql_scada_engine()
+    if engine is None:
+        return {}
+    try:
+        # Consultamos tanto el pozo, el estatus, como el diagnóstico de la falla
+        query = """
+            SELECT NUM_POZO, DIAGNOSTICO_FALLA, ESTATUS 
+            FROM vw_incidencias_en_pozos 
+            WHERE ESTATUS != 'CERRADA'
+        """
+        df_inc = pd.read_sql(query, engine)
+        dic_incidencias = {}
+        for _, row in df_inc.iterrows():
+            val = row['NUM_POZO']
+            if pd.notna(val):
+                numero_limpio = re.sub(r'\D', '', str(val))
+                if numero_limpio:
+                    diagnostico = row['DIAGNOSTICO_FALLA'] or 'Sin diagnóstico'
+                    dic_incidencias[numero_limpio] = diagnostico
+                    dic_incidencias[str(int(numero_limpio))] = diagnostico
+        return dic_incidencias
+    except Exception as e:
+        return {}
+
+def calcular_color_colonia(props, pozos_con_incidencia):
+    max_afectacion = 0
+    tiene_incidencia_activa = False
+    
+    for i in range(1, 11):
+        pozo_col = props.get(f'Pozo_{i}')
+        afectacion_col = props.get(f'Afectacion_{i}')
+        
+        if pozo_col is not None:
+            num_col_limpio = re.sub(r'\D', '', str(pozo_col))
+            if num_col_limpio:
+                num_col_normalizado = str(int(num_col_limpio))
+                
+                if num_col_limpio in pozos_con_incidencia or num_col_normalizado in pozos_con_incidencia:
+                    tiene_incidencia_activa = True
+                    if pd.notna(afectacion_col):
+                        try:
+                            val_str = str(afectacion_col).replace('%', '').strip()
+                            val_afect = float(val_str)
+                            if val_afect > max_afectacion:
+                                max_afectacion = val_afect
+                        except:
+                            pass
+
+    if not tiene_incidencia_activa:
+        return '#3498DB', 0  # Azul para colonias sin afectación activa
+
+    if tiene_incidencia_activa and max_afectacion == 0:
+        return '#FFA500', 1  
+
+    # Rangos de color según la afectación activa
+    if 76 <= max_afectacion <= 100:
+        return '#FF0000', max_afectacion  # Rojo
+    elif 51 <= max_afectacion <= 75:
+        return '#FFFF00', max_afectacion  # Amarillo
+    elif 31 <= max_afectacion <= 50:
+        return '#FFA500', max_afectacion  # Naranja
+    elif 1 <= max_afectacion <= 30:
+        return '#69ADDD', max_afectacion  # Naranja bajito
+    else:
+        return '#3498DB', 0
 
 # 2.7. Funcion para cambiar el formato de horas
 def formato_hora(decimal):
@@ -3432,41 +3508,86 @@ if sectores_data:
             except Exception as e:
                 continue
 
-# 9.10. RENDERIZADO DE POLÍGONOS DE COLONIAS (Nivel 4 espacios: fuera del FOR, pero dentro del IF padre)
+# 9.10. RENDERIZADO DE POLÍGONOS DE COLONIAS
     if ver_colonias:
-        gdf_colonias = st.session_state.get('gdf_colonias_lista')
+        gdf_colonias = get_todas_las_colonias()
+        dic_incidencias_activas = obtener_pozos_con_incidencias_hoy()
         
         if gdf_colonias is not None and not gdf_colonias.empty:
+            
+            lista_incidencias_tooltip = []
+            lista_afectacion_tooltip = []
+            
+            for idx, row in gdf_colonias.iterrows():
+                max_afec = 0
+                descripciones_fallas = []
+                
+                for i in range(1, 11):
+                    pozo_col = row.get(f'Pozo_{i}')
+                    afectacion_col = row.get(f'Afectacion_{i}')
+                    
+                    if pd.notna(pozo_col):
+                        num_col_limpio = re.sub(r'\D', '', str(pozo_col))
+                        if num_col_limpio:
+                            num_norm = str(int(num_col_limpio))
+                            
+                            if num_norm in dic_incidencias_activas or num_col_limpio in dic_incidencias_activas:
+                                falla = dic_incidencias_activas.get(num_norm, dic_incidencias_activas.get(num_col_limpio, 'Activa'))
+                                descripciones_fallas.append(f"{pozo_col}: {falla}")
+                                
+                                if pd.notna(afectacion_col):
+                                    try:
+                                        val_str = str(afectacion_col).replace('%', '').strip()
+                                        val_f = float(val_str)
+                                        if val_f > max_afec:
+                                            max_afec = val_f
+                                    except:
+                                        pass
+                
+                if descripciones_fallas:
+                    lista_incidencias_tooltip.append(" | ".join(descripciones_fallas))
+                    lista_afectacion_tooltip.append(f"{int(max_afec)}%" if max_afec > 0 else "N/D")
+                else:
+                    lista_incidencias_tooltip.append("Ninguna")
+                    lista_afectacion_tooltip.append("0%")
+
+            gdf_colonias['Info_Incidencia'] = lista_incidencias_tooltip
+            gdf_colonias['Info_Porcentaje'] = lista_afectacion_tooltip
+
             fg_colonias = folium.FeatureGroup(name="Colonias")
             
-            # --- ESTILOS ---
             def estilo_final(feature):
                 props = feature.get('properties', {})
                 nombre_actual = props.get('Col_atl')
                 col_sel = st.session_state.get('colonia_resaltada')
                 es_match = (col_sel is not None and nombre_actual == col_sel.get('Col_atl'))
                 
+                color_dinamico, afectacion_val = calcular_color_colonia(props, dic_incidencias_activas)
+                
+                fill_color_final = '#F1C40F' if es_match else color_dinamico
+                # Borde azul elegante para las colonias normales, o naranja si están seleccionadas
+                border_color_final = '#F39C12' if es_match else ('#2980B9' if afectacion_val == 0 else '#27AE60')
+                weight_final = 3 if es_match else 1
+                opacity_final = 0.6 if es_match else (0.7 if afectacion_val > 0 else 0.15)
+                
                 return {
-                    'fillColor': '#F1C40F' if es_match else '#1F92C0', # Amarillo si es selección
-                    'color': '#F39C12' if es_match else '#1F92C0',
-                    'weight': 3 if es_match else 1,
-                    'fillOpacity': 0.6 if es_match else 0.2
+                    'fillColor': fill_color_final,
+                    'color': border_color_final,
+                    'weight': weight_final,
+                    'fillOpacity': opacity_final
                 }
 
             def estilo_hover(feature):
-                return {'fillOpacity': 0.8, 'weight': 4, 'color': '#34495E'}
+                return {'fillOpacity': 0.8, 'weight': 4, 'color': '#FFFFFF'}
 
-            # --- RENDERIZADO CON TOOLTIP COMPLETO ---
             folium.GeoJson(
                 gdf_colonias,
                 name="Colonias",
                 style_function=estilo_final,
                 highlight_function=estilo_hover,
                 tooltip=folium.GeoJsonTooltip(
-                    # Asegúrate de que estos nombres coincidan con las columnas de tu DF:
-                    # ['Col_atl', 'Pozos', 'Sector', 'Distrito']
-                    fields=['Col_atl', 'Pozos', 'Sector', 'Distrito'],
-                    aliases=['Colonia:', 'Pozos:', 'Sector:', 'Distrito:'],
+                    fields=['Col_atl', 'Pozos', 'Sector', 'Distrito', 'Info_Incidencia', 'Info_Porcentaje'],
+                    aliases=['Colonia:', 'Pozos:', 'Sector:', 'Distrito:', 'Incidencia:', 'Afectación:'],
                     localize=True,
                     sticky=True
                 )
@@ -3474,9 +3595,9 @@ if sectores_data:
             
             fg_colonias.add_to(m)
 
-    # 9.11. CONTROL DE CAPAS Y RENDERIZADO FINAL (Nivel 4 espacios)
+    # 9.11. CONTROL DE CAPAS Y RENDERIZADO FINAL
     folium.LayerControl(position='topright', collapsed=False).add_to(m)
-    folium_static(m, width=None, height=800)
+    folium_static(m, width=None, height=600)
 
     # ---------------------------------------------------------------------------- FINAL DEL MAPA -------------------------------------------------------------------------------------------
 

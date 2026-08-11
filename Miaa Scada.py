@@ -3461,9 +3461,9 @@ if ver_pozos:
             )
         ).add_to(fg_pozos)
 
-        # ==========================================
-        # 2. MARCADOR CONDICIONAL (USANDO LAS VARIANTES)
 # ==========================================
+        # 2. MARCADOR CONDICIONAL (LIMPIO Y UNIFICADO)
+        # ==========================================
         if tiene_incidencia_activa:
             info_incidencia = (
                 dic_incidencias_activas.get(id_p_limpio) or 
@@ -3476,37 +3476,34 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            # --- NUEVA ESTRUCTURA DE ETIQUETA ---
-            # Este HTML combina el ID del pozo y la falla debajo
-            html_etiqueta_falla = f"""
+            # HTML limpio que une la llave, el ID y la falla en una sola tarjeta sin estorbarse
+            html_tarjeta_incidencia = f"""
             <div style="
-                display: flex; 
-                flex-direction: column; 
-                align-items: flex-start; 
+                display: flex;
+                align-items: center;
+                background: rgba(15, 15, 20, 0.9);
+                border: 2px solid #ff4d4d;
+                border-radius: 6px;
+                padding: 3px 6px;
+                white-space: nowrap;
+                box-shadow: 0 3px 6px rgba(0,0,0,0.5);
                 font-family: sans-serif;
-                pointer-events: none;">
-                <div style="font-size: 10px; font-weight: bold; color: #ff4d4d; text-shadow: 1px 1px 2px #000;">{id_p}</div>
-                <div style="font-size: 8px; font-weight: bold; color: white; background: #ff4d4d; padding: 1px 4px; border-radius: 3px; white-space: nowrap; border: 1px solid white;">
-                    {diagnostico_falla.upper()}
+                pointer-events: auto;">
+                <span style="font-size: 14px; margin-right: 5px;">🛠️</span>
+                <div style="display: flex; flex-direction: column;">
+                    <span style="font-size: 10px; font-weight: bold; color: #ff4d4d; line-height: 1.1;">{id_p}</span>
+                    <span style="font-size: 9px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 1px 4px; border-radius: 3px; margin-top: 2px;">{diagnostico_falla.upper()}</span>
                 </div>
             </div>
             """
             
-            # Marcador con ícono de herramienta y la etiqueta flotante
             folium.Marker(
                 location=info['coord'],
                 icon=folium.DivIcon(
-                    icon_size=(200, 50),
-                    icon_anchor=(-15, 15), # Ajustado para que no tape el ícono
-                    html=html_etiqueta_falla
+                    icon_size=(220, 40),
+                    icon_anchor=(-10, 15),
+                    html=html_tarjeta_incidencia
                 ),
-                popup=folium.Popup(html_popup, max_width=450)
-            ).add_to(fg_pozos)
-            
-            # Agregamos también el ícono de la herramienta (wrench) sin texto extra para no duplicar
-            folium.Marker(
-                location=info['coord'],
-                icon=folium.Icon(color='red', icon='wrench', prefix='fa'),
                 popup=folium.Popup(html_popup, max_width=450),
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)

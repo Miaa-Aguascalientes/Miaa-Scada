@@ -3470,21 +3470,19 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            html_solo_linea = """
-            <div style="position: relative; width: 40px; height: 60px; pointer-events: none;">
-                <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;">
-                    <line x1="15" y1="45" x2="30" y2="20" stroke="#ff4d4d" stroke-width="2" />
-                    <circle cx="15" cy="45" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="2" />
-                </svg>
+            # Marcador limpio ajustado justo encima del punto exacto del pozo sin líneas gigantes
+            html_marcador_falla = """
+            <div style="position: relative; width: 24px; height: 24px; pointer-events: none;">
+                <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #ffffff; border: 2px solid #ff4d4d; border-radius: 50%;"></div>
             </div>
             """
             
             folium.Marker(
                 location=info['coord'],
                 icon=folium.DivIcon(
-                    icon_size=(40, 60),
-                    icon_anchor=(15, 45),
-                    html=html_solo_linea
+                    icon_size=(24, 24),
+                    icon_anchor=(6, 6),
+                    html=html_marcador_falla
                 ),
                 popup=folium.Popup(html_popup, max_width=450),
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"

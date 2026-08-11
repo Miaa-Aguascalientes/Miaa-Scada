@@ -62,11 +62,6 @@ def get_mysql_telemetria_engine():
         st.error(f"⚠️ ERROR CRÍTICO DE CONEXIÓN: {e}")
         return None
 
-
-
-
-
-
     with col_log:
         st.markdown('<div style="height: 20vh;"></div>', unsafe_allow_html=True)
         
@@ -257,7 +252,6 @@ def cargar_sectores_poligonos():
         if conn:
             conn.close()
 
-
 # Función corregida para leer el campo 'geom' directamente
 @st.cache_data(ttl=3600)
 def get_todas_las_colonias():
@@ -287,7 +281,6 @@ def obtener_pozos_con_incidencias_hoy():
     if engine is None:
         return {}
     try:
-        # Consultamos tanto el pozo, el estatus, como el diagnóstico de la falla
         query = """
             SELECT NUM_POZO, DIAGNOSTICO_FALLA, ESTATUS 
             FROM vw_incidencias_en_pozos 
@@ -298,17 +291,17 @@ def obtener_pozos_con_incidencias_hoy():
         for _, row in df_inc.iterrows():
             val = row['NUM_POZO']
             if pd.notna(val):
-                numero_limpio = re.sub(r'\D', '', str(val))
-                if numero_limpio:
+                # CORRECCIÓN: Conservamos letras, números y guiones medios (ej. P-087A, R-087)
+                id_limpio = str(val).strip().upper()
+                if id_limpio:
                     diagnostico = row['DIAGNOSTICO_FALLA'] or 'Sin diagnóstico'
-                    dic_incidencias[numero_limpio] = diagnostico
-                    dic_incidencias[str(int(numero_limpio))] = diagnostico
+                    dic_incidencias[id_limpio] = diagnostico
         return dic_incidencias
     except Exception as e:
         return {}
 
 def calcular_color_colonia(props, pozos_con_incidencia):
-    max_afectacion = 0
+    suma_afectacion = 0.0
     tiene_incidencia_activa = False
     
     for i in range(1, 11):
@@ -316,38 +309,42 @@ def calcular_color_colonia(props, pozos_con_incidencia):
         afectacion_col = props.get(f'Afectacion_{i}')
         
         if pozo_col is not None:
-            num_col_limpio = re.sub(r'\D', '', str(pozo_col))
-            if num_col_limpio:
-                num_col_normalizado = str(int(num_col_limpio))
+            # Normalización robusta con y sin guion (ej. P087A / P-087A)
+            id_p_limpio = str(pozo_col).strip().upper()
+            id_p_con_guion = re.sub(r'^([A-Z]+)(\d+)([A-Z]*)$', r'\1-\2\3', id_p_limpio)
+            id_p_sin_guion = id_p_limpio.replace('-', '')
+            
+            if (id_p_limpio in pozos_con_incidencia or 
+                id_p_con_guion in pozos_con_incidencia or 
+                id_p_sin_guion in pozos_con_incidencia):
                 
-                if num_col_limpio in pozos_con_incidencia or num_col_normalizado in pozos_con_incidencia:
-                    tiene_incidencia_activa = True
-                    if pd.notna(afectacion_col):
-                        try:
-                            val_str = str(afectacion_col).replace('%', '').strip()
-                            val_afect = float(val_str)
-                            if val_afect > max_afectacion:
-                                max_afectacion = val_afect
-                        except:
-                            pass
+                tiene_incidencia_activa = True
+                if pd.notna(afectacion_col):
+                    try:
+                        val_str = str(afectacion_col).replace('%', '').strip()
+                        val_afect = float(val_str)
+                        # ⚠️ CAMBIO CLAVE: Sumar los porcentajes en lugar de buscar el máximo
+                        suma_afectacion += val_afect
+                    except:
+                        pass
 
     if not tiene_incidencia_activa:
         return '#3498DB', 0  # Azul para colonias sin afectación activa
 
-    if tiene_incidencia_activa and max_afectacion == 0:
+    if tiene_incidencia_activa and suma_afectacion == 0:
         return '#FFA500', 1  
 
-    # Rangos de color según la afectación activa
-    if 76 <= max_afectacion <= 100:
-        return '#FF0000', max_afectacion  # Rojo
-    elif 51 <= max_afectacion <= 75:
-        return '#FFFF00', max_afectacion  # Amarillo
-    elif 31 <= max_afectacion <= 50:
-        return '#FFA500', max_afectacion  # Naranja
-    elif 1 <= max_afectacion <= 30:
-        return '#69ADDD', max_afectacion  # Naranja bajito
+    # Rangos de color según la afectación acumulada total
+    if 76 <= suma_afectacion <= 100:
+        return '#FF0000', suma_afectacion  # Rojo
+    elif 51 <= suma_afectacion <= 75:
+        return '#FFFF00', suma_afectacion  # Amarillo
+    elif 31 <= suma_afectacion <= 50:
+        return '#FFA500', suma_afectacion  # Naranja
+    elif 1 <= suma_afectacion <= 30:
+        return '#69ADDD', suma_afectacion  # Naranja bajito
     else:
-        return '#3498DB', 0
+        return '#FF0000', suma_afectacion  # Por si supera el 100%
 
 # 2.7. Funcion para cambiar el formato de horas
 def formato_hora(decimal):
@@ -3010,12 +3007,14 @@ with st.sidebar:
         
     # 8.8. CONTROL DE CAPAS ---
     with st.expander("🗺️ Control de Capas", expanded=False):
-        ver_sectores = st.checkbox("🏘️ Sectores", value=False)
+        
         ver_pozos = st.checkbox("💧 Pozos", value=True)
+        ver_colonias = st.checkbox("🏙️ Colonias", value=True)
+        ver_sectores = st.checkbox("🏘️ Sectores", value=False)
         ver_tanques = st.checkbox("🛢️ Tanques", value=False)
         ver_rebombeos = st.checkbox("🧊 Rebombeos", value=False) # Activado por defecto para facilitar localización
         ver_macromedidores = st.checkbox("🌀 Macromedidores", value=False)
-        ver_colonias = st.checkbox("🏙️ Colonias", value=True)
+        
     
     # 8.9. LISTADO DE ESTADOS ---
     with st.expander(f"🟢 Bombas ON ({len(pozos_on)})", expanded=False):
@@ -3059,6 +3058,8 @@ with st.sidebar:
                 st.write(f"🟣 {id_medidor}")
     else:
         st.warning("No hay macromedidores disponibles.")
+
+          
                 
 # 9.  SECCION--------------------------------------------------------------------------------- 9. MAPA PRINCIPAL -----------------------------------------------------------------------------------------------------------
 st.markdown('<div class="titulo-superior">SISTEMA - AGUASCALIENTES</div>', unsafe_allow_html=True)
@@ -3149,7 +3150,7 @@ with col_mapa:
         </style>
         """
 
-# 9.5. RENDERIZADO DE SECTORES EN EL MAPA PRINCIPAL   --------------------------------------------
+# 9.5. RENDERIZADO DE SECTORES EN EL MAPA PRINCIPAL ___________________________________________________________________________________________________________________________________
 
 def get_sector_style(feature, visible):
     return {
@@ -3214,142 +3215,299 @@ if sectores_data:
         except Exception:
             continue
 
-    fg_sectores.add_to(m)
+    fg_sectores.add_to(m)                
+
+# Declaración global de incidencias para que esté disponible para pozos y colonias siempre
+dic_incidencias_activas = obtener_pozos_con_incidencias_hoy() if 'obtener_pozos_con_incidencias_hoy' in globals() else {}            
+
+# 9.6. RENDERIZADO DE POLÍGONOS DE COLONIAS __________________________________________________________________________________________________________________________________
+if ver_colonias:
+    gdf_colonias = get_todas_las_colonias()
     
-# 9.6. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL  ---------------------------------------------------------------------------------------------
-    for id_p, info in mapa_pozos_dict.items():
-        if ver_pozos:  # Si el checkbox está activo, dibujamos todo
-            d = lambda tag: data_scada.get(tag, (0, "N/A"))
-            is_st = (info['status_label'] == 'SIN TELEMETRÍA')
-            q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
-            p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
-            sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
-            dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
-            tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
-            col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
-            h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
-            h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
-            h_arr_fmt = formato_hora(h_arr_val)
-            h_par_fmt = formato_hora(h_par_val)
-            v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
-            a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
-
-            # SOLUCIÓN AL LOGIN: Incluimos access=granted y el rol actual en la URL
-            rol_actual = st.session_state.get('rol', 'usuario')
-            nombre_codificado = urllib.parse.quote(id_p)
+    if gdf_colonias is not None and not gdf_colonias.empty:
+        
+        lista_incidencias_tooltip = []
+        lista_afectacion_tooltip = []
+        
+        for idx, row in gdf_colonias.iterrows():
+            suma_afec = 0.0
+            descripciones_fallas = []
             
-            url_pozo_graf = f"?graficar_pozo={id_p}&nombre={nombre_codificado}&access=granted&role={rol_actual}"
-
-            html_popup = f"""
-                <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
-                        <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
-                        <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
-                    </div>
+            for i in range(1, 11):
+                pozo_col = row.get(f'Pozo_{i}')
+                afectacion_col = row.get(f'Afectacion_{i}')
+                
+                if pd.notna(pozo_col):
+                    id_p_limpio = str(pozo_col).strip().upper()
+                    id_p_con_guion = re.sub(r'^([A-Z]+)(\d+)([A-Z]*)$', r'\1-\2\3', id_p_limpio)
+                    id_p_sin_guion = id_p_limpio.replace('-', '')
                     
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px;">
-                            <span>🚀 Presión: <b>{p:.2f} kg</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
-                        </div>
+                    if (id_p_limpio in dic_incidencias_activas or 
+                        id_p_con_guion in dic_incidencias_activas or 
+                        id_p_sin_guion in dic_incidencias_activas):
+                        
+                        falla = (
+                            dic_incidencias_activas.get(id_p_limpio) or 
+                            dic_incidencias_activas.get(id_p_con_guion) or 
+                            dic_incidencias_activas.get(id_p_sin_guion, 'Activa')
+                        )
+                        if isinstance(falla, dict):
+                            falla_txt = falla.get('diagnostico', falla.get('motivo', 'Activa'))
+                        else:
+                            falla_txt = str(falla)
+                            
+                        descripciones_fallas.append(f"{pozo_col}: {falla_txt}")
+                        
+                        if pd.notna(afectacion_col):
+                            try:
+                                val_str = str(afectacion_col).replace('%', '').strip()
+                                val_f = float(val_str)
+                                suma_afec += val_f  # ⚠️ Suma acumulativa para el tooltip
+                            except:
+                                pass
+            
+            if descripciones_fallas:
+                lista_incidencias_tooltip.append(" | ".join(descripciones_fallas))
+                lista_afectacion_tooltip.append(f"{int(suma_afec)}%" if suma_afec > 0 else "N/D")
+            else:
+                lista_incidencias_tooltip.append("Ninguna")
+                lista_afectacion_tooltip.append("0%")
+
+        gdf_colonias['Info_Incidencia'] = lista_incidencias_tooltip
+        gdf_colonias['Info_Porcentaje'] = lista_afectacion_tooltip
+
+        fg_colonias = folium.FeatureGroup(name="Colonias")
+        
+        def estilo_final(feature):
+            props = feature.get('properties', {})
+            nombre_actual = props.get('Col_atl')
+            col_sel = st.session_state.get('colonia_resaltada')
+            es_match = (col_sel is not None and nombre_actual == col_sel.get('Col_atl'))
+            
+            color_dinamico, afectacion_val = calcular_color_colonia(props, dic_incidencias_activas)
+            fill_color_final = '#F1C40F' if es_match else color_dinamico
+            
+            if es_match:
+                border_color_final = '#F39C12'
+                weight_final = 3
+                opacity_final = 0.5
+            elif afectacion_val > 0:
+                border_color_final = color_dinamico
+                weight_final = 2.5
+                opacity_final = 0.25
+            else:
+                border_color_final = '#2980B9'
+                weight_final = 1
+                opacity_final = 0.08
+            
+            return {
+                'fillColor': fill_color_final,
+                'color': border_color_final,
+                'weight': weight_final,
+                'fillOpacity': opacity_final
+            }
+
+        def estilo_hover(feature):
+            return {'fillOpacity': 0.8, 'weight': 4, 'color': '#FFFFFF'}
+
+        folium.GeoJson(
+            gdf_colonias,
+            name="Colonias",
+            style_function=estilo_final,
+            highlight_function=estilo_hover,
+            tooltip=folium.GeoJsonTooltip(
+                fields=['Col_atl', 'Pozos', 'Sector', 'Distrito', 'Info_Incidencia', 'Info_Porcentaje'],
+                aliases=['Colonia:', 'Pozos:', 'Sector:', 'Distrito:', 'Incidencia:', 'Afectación:'],
+                localize=True,
+                sticky=True
+            )
+        ).add_to(fg_colonias)
+        
+        fg_colonias.add_to(m)
+
+      
+    
+# 9.7. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL  ___________________________________________________________________________________________________________________________________
+
+if ver_pozos:  
+    fg_pozos = folium.FeatureGroup(name="Pozos", overlay=True, control=True)
+
+    for id_p, info in mapa_pozos_dict.items():
+        d = lambda tag: data_scada.get(tag, (0, "N/A"))
+        is_st = (info['status_label'] == 'SIN TELEMETRÍA')
+        q, f_q = d(info['caudal']) if not is_st else (0.0, "N/A")
+        p, f_p = d(info['presion']) if not is_st else (0.0, "N/A")
+        sumer, f_s = d(info['sumergencia']) if not is_st else (0.0, "N/A")
+        dinam, f_d = d(info['nivel_dinamico']) if not is_st else (0.0, "N/A")
+        tanq, f_t = d(info['nivel_tanque']) if not is_st else (0.0, "N/A")
+        col, f_col = d(info['columna']) if not is_st else (0.0, "N/A")
+        h_arr_val, f_h_arr = d(info['h_arranque']) if not is_st else (0.0, "N/A")
+        h_par_val, f_h_par = d(info['h_paro']) if not is_st else (0.0, "N/A")
+        h_arr_fmt = formato_hora(h_arr_val)
+        h_par_fmt = formato_hora(h_par_val)
+        v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
+        a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
+
+        # ==========================================
+        # AQUÍ VA LA VALIDACIÓN TOLERANTE CON/SIN GUION
+        # ==========================================
+        id_p_limpio = str(id_p).strip().upper()
+        
+        # Generar posibles variantes con o sin guion y con sufijos de letra (ej. P087A / P-087A)
+        id_p_con_guion = re.sub(r'^([A-Z]+)(\d+)([A-Z]*)$', r'\1-\2\3', id_p_limpio)
+        id_p_sin_guion = id_p_limpio.replace('-', '')
+        
+        tiene_incidencia_activa = (
+            id_p_limpio in dic_incidencias_activas or 
+            id_p_con_guion in dic_incidencias_activas or 
+            id_p_sin_guion in dic_incidencias_activas
+        )
+
+        rol_actual = st.session_state.get('rol', 'usuario')
+        nombre_codificado = urllib.parse.quote(id_p)
+        
+        url_pozo_graf = f"?graficar_pozo={id_p}&nombre={nombre_codificado}&access=granted&role={rol_actual}"
+
+        html_popup = f"""
+            <div style="background: #050505; color: white; padding: 15px; border-radius: 12px; width: 380px; border: 1px solid {info['color_final']}; font-family: sans-serif;">
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px;">
+                    <b style="color: #00d4ff; font-size: 16px;">POZO {id_p}</b>
+                    <span style="font-size: 10px; background: {info['color_final']}; color: black; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{info['status_label']}</span>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">HIDRÁULICA</div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>💧 Caudal: <b>{q:.2f} L/s</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_q}</span>
                     </div>
-
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>🔋 Nivel de Tanque:<b>{tanq:.2f} mts</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>📉 Nivel Dinámico/Estatico: <b>{dinam:.2f} m</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>📏 Sumergencia: <b>{sumer:.2f} m</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px;">
-                            <span>🏗️ Longitud de Columna: <b>{col:.2f} m</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
-                        </div>
-                    </div>
-
-                    <div style="margin-bottom: 12px;">
-                        <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
-                        <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
-                            <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
-                                <th style="padding: 4px;">Fase</th>
-                                <th style="padding: 4px;">Voltaje / Act.</th>
-                                <th style="padding: 4px;">Amp / Act.</th>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #222;">
-                                <td style="padding: 6px 4px;">L1-L2</td>
-                                <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
-                                <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #222;">
-                                <td style="padding: 6px 4px;">L2-L3</td>
-                                <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
-                                <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 6px 4px;">L1-L3</td>
-                                <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
-                                <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
-                            </tr>
-                        </table>
-                        <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; padding-top: 5px;">HORARIOS</div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
-                            <span>▶️ Arranque: <b>{h_arr_fmt}</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; font-size: 11px;">
-                            <span>⏹️ Paro: <b>{h_par_fmt}</b></span>
-                            <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
-                        </div>
-
-                        <div style="border-top: 1px solid #333; padding-top: 10px;">
-                        <a href="{url_pozo_graf}" target="_blank" style="text-decoration: none;">
-                            <div style="background: #00d4ff; color: #050a10; text-align: center; padding: 10px; border-radius: 6px; font-weight: bold; font-size: 12px;">
-                                📊 VER ANÁLISIS HISTÓRICO
-                            </div>
-                        </a>
+                    <div style="display: flex; align-items: baseline; font-size: 11px;">
+                        <span>🚀 Presión: <b>{p:.2f} kg</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_p}</span>
                     </div>
                 </div>
-                """
 
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">NIVELES</div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>🔋 Nivel de Tanque:<b>{tanq:.2f} mts</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_t}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>📉 Nivel Dinámico/Estatico: <b>{dinam:.2f} m</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_d}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>📏 Sumergencia: <b>{sumer:.2f} m</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_s}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px;">
+                        <span>🏗️ Longitud de Columna: <b>{col:.2f} m</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_col}</span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px;">ELÉCTRICO</div>
+                    <table style="width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 8px;">
+                        <tr style="color: #00d4ff; border-bottom: 1px solid #333; text-align: left;">
+                            <th style="padding: 4px;">Fase</th>
+                            <th style="padding: 4px;">Voltaje / Act.</th>
+                            <th style="padding: 4px;">Amp / Act.</th>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #222;">
+                            <td style="padding: 6px 4px;">L1-L2</td>
+                            <td><b>{v[0][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[0][1]}</span></td>
+                            <td><b>{a[0][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[0][1]}</span></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #222;">
+                            <td style="padding: 6px 4px;">L2-L3</td>
+                            <td><b>{v[1][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[1][1]}</span></td>
+                            <td><b>{a[1][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[1][1]}</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 4px;">L1-L3</td>
+                            <td><b>{v[2][0]:.1f}V</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{v[2][1]}</span></td>
+                            <td><b>{a[2][0]:.1f}A</b> <span style="color:#FFFF00; font-size:8px; margin-left:4px;">{a[2][1]}</span></td>
+                        </tr>
+                    </table>
+                    <div style="font-size: 10px; color: #888; margin-bottom: 4px; border-top: 1px solid #222; paddingTop: 5px;">HORARIOS</div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px; margin-bottom: 3px;">
+                        <span>▶️ Arranque: <b>{h_arr_fmt}</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_arr}</span>
+                    </div>
+                    <div style="display: flex; align-items: baseline; font-size: 11px;">
+                        <span>⏹️ Paro: <b>{h_par_fmt}</b></span>
+                        <span style="color: #FFFF00; font-size: 8px; margin-left: auto;">{f_h_par}</span>
+                    </div>
+
+                    <div style="border-top: 1px solid #333; padding-top: 10px;">
+                    <a href="{url_pozo_graf}" target="_blank" style="text-decoration: none;">
+                        <div style="background: #00d4ff; color: #050a10; text-align: center; padding: 10px; border-radius: 6px; font-weight: bold; font-size: 12px;">
+                            📊 VER ANÁLISIS HISTÓRICO
+                        </div>
+                    </a>
+                </div>
+            </div>
+            """
+
+        # 1. Etiqueta de texto del pozo
+        folium.Marker(
+            location=info['coord'],
+            icon=folium.DivIcon(
+                icon_size=(150,36),
+                icon_anchor=(-12, 10),
+                html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
+            )
+        ).add_to(fg_pozos)
+
+        # ==========================================
+        # 2. MARCADOR CONDICIONAL (USANDO LAS VARIANTES)
+        # ==========================================
+        if tiene_incidencia_activa:
+            info_incidencia = (
+                dic_incidencias_activas.get(id_p_limpio) or 
+                dic_incidencias_activas.get(id_p_con_guion) or 
+                dic_incidencias_activas.get(id_p_sin_guion, {})
+            )
+            
+            if isinstance(info_incidencia, dict):
+                diagnostico_falla = info_incidencia.get('diagnostico', info_incidencia.get('motivo', 'INCIDENCIA REGISTRADA'))
+            else:
+                diagnostico_falla = str(info_incidencia)
+            
             folium.Marker(
                 location=info['coord'],
-                icon=folium.DivIcon(
-                    icon_size=(150,36),
-                    icon_anchor=(-12, 10),
-                    html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
-                )
-            ).add_to(m)
+                icon=folium.Icon(
+                    color='red',
+                    icon='wrench',
+                    prefix='fa'
+                ),
+                popup=folium.Popup(html_popup, max_width=450),
+                tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
+            ).add_to(fg_pozos)
+            
+        elif info.get('blink'):
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                popup=folium.Popup(html_popup, max_width=450)
+            ).add_to(fg_pozos)
+        else:
+            folium.CircleMarker(
+                location=info['coord'],
+                radius=4,
+                color=info['color_final'],
+                fill=True,
+                fill_color=info['color_final'],
+                fill_opacity=1,
+                popup=folium.Popup(html_popup, max_width=450)
+            ).add_to(fg_pozos)
 
-            if info.get('blink'):
-                folium.Marker(
-                    location=info['coord'],
-                    icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                    popup=folium.Popup(html_popup, max_width=450)
-                ).add_to(m)
-            else:
-                folium.CircleMarker(
-                    location=info['coord'],
-                    radius=4,
-                    color=info['color_final'],
-                    fill=True,
-                    fill_color=info['color_final'],
-                    fill_opacity=1,
-                    popup=folium.Popup(html_popup, max_width=450)
-                ).add_to(m)
+    fg_pozos.add_to(m)
+          
 
-# 9.7. RENDERIZADO DE TANQUES EN EL MAPA PRINCIPAL ---------------------------------------------------------------------------------------
+# 9.8. RENDERIZADO DE TANQUES EN EL MAPA PRINCIPAL ________________________________________________________________________________________________________________________________
     if ver_tanques:
         for id_tq, info in mapa_tanques_dict.items():
             try:
@@ -3400,7 +3558,7 @@ if sectores_data:
                 ).add_to(m)
             except: continue
             
-# 9.8.  RENDERIZADO DE REBOMBEOS EN EL MAPA PRINCIPAL --------------------------------------------------------------------------------------
+# 9.9.  RENDERIZADO DE REBOMBEOS EN EL MAPA PRINCIPAL ___________________________________________________________________________________________________________________
     if ver_rebombeos:
         for id_rb, info in mapa_rebombeos_dict.items():
             try:
@@ -3441,7 +3599,7 @@ if sectores_data:
                 continue
                 MousePosition().add_to(m_sec)
 
-# 9.9. RENDERIZADO DE MACROMEDIDORES EN EL MAPA PRINCIPAL ----------------------------------------------------------------------
+# 9.10. RENDERIZADO DE MACROMEDIDORES EN EL MAPA PRINCIPAL ___________________________________________________________________________________________________________________
     if ver_macromedidores:
         from datetime import datetime, timedelta
         datos_macromedidores = cargar_medidores_desde_db()
@@ -3508,98 +3666,13 @@ if sectores_data:
             except Exception as e:
                 continue
 
-# 9.10. RENDERIZADO DE POLÍGONOS DE COLONIAS
-    if ver_colonias:
-        gdf_colonias = get_todas_las_colonias()
-        dic_incidencias_activas = obtener_pozos_con_incidencias_hoy()
-        
-        if gdf_colonias is not None and not gdf_colonias.empty:
-            
-            lista_incidencias_tooltip = []
-            lista_afectacion_tooltip = []
-            
-            for idx, row in gdf_colonias.iterrows():
-                max_afec = 0
-                descripciones_fallas = []
-                
-                for i in range(1, 11):
-                    pozo_col = row.get(f'Pozo_{i}')
-                    afectacion_col = row.get(f'Afectacion_{i}')
-                    
-                    if pd.notna(pozo_col):
-                        num_col_limpio = re.sub(r'\D', '', str(pozo_col))
-                        if num_col_limpio:
-                            num_norm = str(int(num_col_limpio))
-                            
-                            if num_norm in dic_incidencias_activas or num_col_limpio in dic_incidencias_activas:
-                                falla = dic_incidencias_activas.get(num_norm, dic_incidencias_activas.get(num_col_limpio, 'Activa'))
-                                descripciones_fallas.append(f"{pozo_col}: {falla}")
-                                
-                                if pd.notna(afectacion_col):
-                                    try:
-                                        val_str = str(afectacion_col).replace('%', '').strip()
-                                        val_f = float(val_str)
-                                        if val_f > max_afec:
-                                            max_afec = val_f
-                                    except:
-                                        pass
-                
-                if descripciones_fallas:
-                    lista_incidencias_tooltip.append(" | ".join(descripciones_fallas))
-                    lista_afectacion_tooltip.append(f"{int(max_afec)}%" if max_afec > 0 else "N/D")
-                else:
-                    lista_incidencias_tooltip.append("Ninguna")
-                    lista_afectacion_tooltip.append("0%")
 
-            gdf_colonias['Info_Incidencia'] = lista_incidencias_tooltip
-            gdf_colonias['Info_Porcentaje'] = lista_afectacion_tooltip
 
-            fg_colonias = folium.FeatureGroup(name="Colonias")
-            
-            def estilo_final(feature):
-                props = feature.get('properties', {})
-                nombre_actual = props.get('Col_atl')
-                col_sel = st.session_state.get('colonia_resaltada')
-                es_match = (col_sel is not None and nombre_actual == col_sel.get('Col_atl'))
-                
-                color_dinamico, afectacion_val = calcular_color_colonia(props, dic_incidencias_activas)
-                
-                fill_color_final = '#F1C40F' if es_match else color_dinamico
-                # Borde azul elegante para las colonias normales, o naranja si están seleccionadas
-                border_color_final = '#F39C12' if es_match else ('#2980B9' if afectacion_val == 0 else '#27AE60')
-                weight_final = 3 if es_match else 1
-                opacity_final = 0.6 if es_match else (0.7 if afectacion_val > 0 else 0.15)
-                
-                return {
-                    'fillColor': fill_color_final,
-                    'color': border_color_final,
-                    'weight': weight_final,
-                    'fillOpacity': opacity_final
-                }
-
-            def estilo_hover(feature):
-                return {'fillOpacity': 0.8, 'weight': 4, 'color': '#FFFFFF'}
-
-            folium.GeoJson(
-                gdf_colonias,
-                name="Colonias",
-                style_function=estilo_final,
-                highlight_function=estilo_hover,
-                tooltip=folium.GeoJsonTooltip(
-                    fields=['Col_atl', 'Pozos', 'Sector', 'Distrito', 'Info_Incidencia', 'Info_Porcentaje'],
-                    aliases=['Colonia:', 'Pozos:', 'Sector:', 'Distrito:', 'Incidencia:', 'Afectación:'],
-                    localize=True,
-                    sticky=True
-                )
-            ).add_to(fg_colonias)
-            
-            fg_colonias.add_to(m)
-
-    # 9.11. CONTROL DE CAPAS Y RENDERIZADO FINAL
+    # 9.11. CONTROL DE CAPAS Y RENDERIZADO FINAL 
     folium.LayerControl(position='topright', collapsed=False).add_to(m)
     folium_static(m, width=None, height=600)
 
-        # --- % DE AFECTACIONES POR COLONIAS ---
+    # --- % DE AFECTACIONES POR COLONIAS ---
     st.markdown("##### 🗺️ % de Afectación en Colonias")
     
     col_l1, col_l2, col_l3, col_l4, col_l5 = st.columns(5)
@@ -3630,6 +3703,6 @@ if sectores_data:
             unsafe_allow_html=True
         )
 
+    
+
     # ---------------------------------------------------------------------------- FINAL DEL MAPA -------------------------------------------------------------------------------------------
-
-

@@ -3327,10 +3327,15 @@ if ver_colonias:
 
       
     
-# 9.7. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL  ___________________________________________________________________________________________________________________________________
+# ==========================================
+# 9.7. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL
+# ==========================================
 
 if ver_pozos:  
     fg_pozos = folium.FeatureGroup(name="Pozos", overlay=True, control=True)
+    
+    # 1. Inicializar acumulador de incidencias antes del ciclo
+    html_items_acumulados = ""
 
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
@@ -3348,12 +3353,8 @@ if ver_pozos:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # ==========================================
-        # AQUÍ VA LA VALIDACIÓN TOLERANTE CON/SIN GUION
-        # ==========================================
+        # Validación tolerante con/sin guion
         id_p_limpio = str(id_p).strip().upper()
-        
-        # Generar posibles variantes con o sin guion y con sufijos de letra (ej. P087A / P-087A)
         id_p_con_guion = re.sub(r'^([A-Z]+)(\d+)([A-Z]*)$', r'\1-\2\3', id_p_limpio)
         id_p_sin_guion = id_p_limpio.replace('-', '')
         
@@ -3365,7 +3366,6 @@ if ver_pozos:
 
         rol_actual = st.session_state.get('rol', 'usuario')
         nombre_codificado = urllib.parse.quote(id_p)
-        
         url_pozo_graf = f"?graficar_pozo={id_p}&nombre={nombre_codificado}&access=granted&role={rol_actual}"
 
         html_popup = f"""
@@ -3461,9 +3461,7 @@ if ver_pozos:
             )
         ).add_to(fg_pozos)
 
-        # ==========================================
-        # 2. MARCADOR CON LÍNEA EN EL POZO + LISTA EN EL PANEL
-        # ==========================================
+        # 2. Renderizado condicional para Incidencias / Bajar o Círculo normal
         if tiene_incidencia_activa:
             info_incidencia = (
                 dic_incidencias_activas.get(id_p_limpio) or 
@@ -3476,13 +3474,11 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            # 1. MANTENEMOS LA LÍNEA Y EL PUNTO EXACTO EN EL POZO (sin el texto al lado)
+            # Línea y punto exacto sobre el pozo
             html_solo_linea = f"""
             <div style="position: relative; width: 40px; height: 60px; pointer-events: none;">
                 <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;">
-                    <!-- Línea pequeña que sale del pozo hacia arriba a la derecha -->
                     <line x1="15" y1="45" x2="30" y2="20" stroke="#ff4d4d" stroke-width="2" />
-                    <!-- Puntito blanco exacto sobre la coordenada del pozo -->
                     <circle cx="15" cy="45" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="2" />
                 </svg>
             </div>
@@ -3492,15 +3488,15 @@ if ver_pozos:
                 location=info['coord'],
                 icon=folium.DivIcon(
                     icon_size=(40, 60),
-                    icon_anchor=(15, 45),  # Ancla exacta en el punto del pozo
+                    icon_anchor=(15, 45),
                     html=html_solo_linea
                 ),
                 popup=folium.Popup(html_popup, max_width=450),
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)
             
-            # 2. ENVIAMOS EL CUADRO DE INCIDENCIA AL PANEL FIJO DE LA DERECHA/ABAJO
-            item_html = f"""
+            # Acumulamos el diseño para el panel inferior derecho
+            html_items_acumulados += f"""
             <div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;">
                 <div>
                     <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{id_p}</span>
@@ -3508,10 +3504,47 @@ if ver_pozos:
                 </div>
             </div>
             """
-            script_add_incidencia = f"""
-            document.getElementById('lista_incidencias').innerHTML += `{item_html}`;
-            """
-            mapa.get_root().html.add_child(folium.Element(f"<script>{script_add_incidencia}</script>"))
+            
+        elif info.get('blink'):
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
+                popup=folium.Popup(html_popup, max_width=450)
+            ).add_to(fg_pozos)
+        else:
+            folium.CircleMarker(
+                location=info['coord'],
+                radius=4,
+                color=info['color_final'],
+                fill=True,
+                fill_color=info['color_final'],
+                fill_opacity=1,
+                popup=folium.Popup(html_popup, max_width=450)
+            ).add_to(fg_pozos)
+
+    # 3. Inyectar el panel flotante de incidencias una sola vez al terminar el ciclo
+    html_panel_incidencias = f"""
+    <div id="panel_incidencias" style="
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 320px;
+        max-height: 400px;
+        background: rgba(0, 0, 0, 0.9);
+        border: 2px solid #ff4d4d;
+        border-radius: 8px;
+        padding: 10px;
+        z-index: 99999;
+        overflow-y: auto;
+        font-family: sans-serif;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.7);">
+        <h4 style="color: #ff4d4d; margin: 0 0 10px 0; font-size: 13px; text-align: center; font-weight: bold;">INCIDENCIAS ACTIVAS</h4>
+        <div>{html_items_acumulados}</div>
+    </div>
+    """
+    mapa.get_root().html.add_child(folium.Element(html_panel_incidencias))
+
+    fg_pozos.add_to(mapa)
             
         elif info.get('blink'):
             folium.Marker(

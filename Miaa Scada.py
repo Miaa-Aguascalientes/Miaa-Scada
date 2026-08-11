@@ -3456,7 +3456,7 @@ if ver_pozos:
             location=info['coord'],
             icon=folium.DivIcon(
                 icon_size=(150,36),
-                icon_anchor=(-12, 2),
+                icon_anchor=(-12, 5),
                 html=f'<div style="font-size: 9px; font-weight: bold; color: {info["color_final"]}; white-space: nowrap; text-shadow: 1px 1px #000; pointer-events: none;">{id_p}</div>'
             )
         ).add_to(fg_pozos)

@@ -3462,7 +3462,7 @@ if ver_pozos:
         ).add_to(fg_pozos)
 
         # ==========================================
-        # 2. MARCADOR CONDICIONAL (GLOBO DESPLAZADO MÁS A LA DERECHA)
+        # 2. MARCADOR CON LÍNEA EN EL POZO + LISTA EN EL PANEL
         # ==========================================
         if tiene_incidencia_activa:
             info_incidencia = (
@@ -3476,47 +3476,42 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            # Ampliamos el contenedor y movemos la tarjeta más a la derecha (left: 75px)
-            html_globo_incidencia = f"""
-            <div style="position: relative; width: 350px; height: 80px; pointer-events: none; font-family: sans-serif;">
-                <!-- Línea SVG conectora más larga -->
+            # 1. MANTENEMOS LA LÍNEA Y EL PUNTO EXACTO EN EL POZO (sin el texto al lado)
+            html_solo_linea = f"""
+            <div style="position: relative; width: 40px; height: 60px; pointer-events: none;">
                 <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;">
-                    <line x1="15" y1="65" x2="75" y2="35" stroke="#ff4d4d" stroke-width="2" />
+                    <!-- Línea pequeña que sale del pozo hacia arriba a la derecha -->
+                    <line x1="15" y1="45" x2="30" y2="20" stroke="#ff4d4d" stroke-width="2" />
                     <!-- Puntito blanco exacto sobre la coordenada del pozo -->
-                    <circle cx="15" cy="65" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="2" />
+                    <circle cx="15" cy="45" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="2" />
                 </svg>
-                
-                <!-- Tarjeta de texto desplazada aún más a la derecha -->
-                <div style="
-                    position: absolute;
-                    top: 0px;
-                    left: 75px;
-                    display: inline-flex;
-                    align-items: center;
-                    background: #000000;
-                    border: 2px solid #ff4d4d;
-                    border-radius: 6px;
-                    padding: 4px 8px;
-                    white-space: nowrap;
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.6);
-                    pointer-events: auto;">
-                    <span style="font-size: 14px; margin-right: 6px;">🛠️</span>
-                    <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{id_p}</span>
-                    <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 6px; border-radius: 4px;">{diagnostico_falla.upper()}</span>
-                </div>
             </div>
             """
             
             folium.Marker(
                 location=info['coord'],
                 icon=folium.DivIcon(
-                    icon_size=(350, 80),
-                    icon_anchor=(15, 65),  # Ancla en el punto exacto del pozo
-                    html=html_globo_incidencia
+                    icon_size=(40, 60),
+                    icon_anchor=(15, 45),  # Ancla exacta en el punto del pozo
+                    html=html_solo_linea
                 ),
                 popup=folium.Popup(html_popup, max_width=450),
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)
+            
+            # 2. ENVIAMOS EL CUADRO DE INCIDENCIA AL PANEL FIJO DE LA DERECHA/ABAJO
+            item_html = f"""
+            <div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{id_p}</span>
+                    <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 5px; border-radius: 3px;">{diagnostico_falla.upper()}</span>
+                </div>
+            </div>
+            """
+            script_add_incidencia = f"""
+            document.getElementById('lista_incidencias').innerHTML += `{item_html}`;
+            """
+            mapa.get_root().html.add_child(folium.Element(f"<script>{script_add_incidencia}</script>"))
             
         elif info.get('blink'):
             folium.Marker(

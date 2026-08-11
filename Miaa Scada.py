@@ -3470,7 +3470,7 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            html_solo_linea = f"""
+            html_solo_linea = """
             <div style="position: relative; width: 40px; height: 60px; pointer-events: none;">
                 <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;">
                     <line x1="15" y1="45" x2="30" y2="20" stroke="#ff4d4d" stroke-width="2" />
@@ -3489,6 +3489,11 @@ if ver_pozos:
                 popup=folium.Popup(html_popup, max_width=450),
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)
+            
+            # Guardamos los datos limpios en una lista temporal en lugar de HTML crudo
+            if 'temp_incidencias_activas' not in locals():
+                temp_incidencias_activas = []
+            temp_incidencias_activas.append((id_p, diagnostico_falla))
             
             html_items_acumulados += f"""
             <div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;">

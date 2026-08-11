@@ -3363,7 +3363,7 @@ if ver_pozos:
         )
 
         rol_actual = st.session_state.get('rol', 'usuario')
-        nombre_codificado = urllib.parse.quote(id_p)
+        nombre_codificado = urllib.parse.quote(str(id_p))
         url_pozo_graf = f"?graficar_pozo={id_p}&nombre={nombre_codificado}&access=granted&role={rol_actual}"
 
         html_popup = f"""
@@ -3490,7 +3490,7 @@ if ver_pozos:
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)
             
-            temp_incidencias_activas.append((id_p, diagnostico_falla))
+            temp_incidencias_activas.append((id_p, str(diagnostico_falla)))
             
         elif info.get('blink'):
             folium.Marker(
@@ -3513,16 +3513,12 @@ if ver_pozos:
     fg_pozos.add_to(m)
 
     if temp_incidencias_activas:
-        items_html = ""
+        items_html_parts = []
         for p_id, falla_txt in temp_incidencias_activas:
-            items_html += f"""
-            <div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;">
-                <div>
-                    <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{p_id}</span>
-                    <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 5px; border-radius: 3px;">{falla_txt.upper()}</span>
-                </div>
-            </div>
-            """
+            item_code = f"""<div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;"><div style="display:flex; align-items:center; width:100%;"><span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{p_id}</span><span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 5px; border-radius: 3px; margin-left:auto;">{falla_txt.upper()}</span></div></div>"""
+            items_html_parts.append(item_code)
+        
+        inner_items_str = "".join(items_html_parts)
 
         panel_html = f"""
         <div style="
@@ -3540,7 +3536,7 @@ if ver_pozos:
             font-family: sans-serif;
             box-shadow: 0 4px 10px rgba(0,0,0,0.7);">
             <h4 style="color: #ff4d4d; margin: 0 0 10px 0; font-size: 13px; text-align: center; font-weight: bold;">INCIDENCIAS ACTIVAS</h4>
-            <div>{items_html}</div>
+            <div>{inner_items_str}</div>
         </div>
         """
         st.markdown(panel_html, unsafe_allow_html=True)

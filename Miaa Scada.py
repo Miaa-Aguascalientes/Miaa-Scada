@@ -3334,7 +3334,7 @@ if ver_colonias:
 if ver_pozos:  
     fg_pozos = folium.FeatureGroup(name="Pozos", overlay=True, control=True)
     
-    html_items_acumulados = ""
+    temp_incidencias_activas = []
 
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
@@ -3490,19 +3490,7 @@ if ver_pozos:
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)
             
-            # Guardamos los datos limpios en una lista temporal en lugar de HTML crudo
-            if 'temp_incidencias_activas' not in locals():
-                temp_incidencias_activas = []
             temp_incidencias_activas.append((id_p, diagnostico_falla))
-            
-            html_items_acumulados += f"""
-            <div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;">
-                <div>
-                    <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{id_p}</span>
-                    <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 5px; border-radius: 3px;">{diagnostico_falla.upper()}</span>
-                </div>
-            </div>
-            """
             
         elif info.get('blink'):
             folium.Marker(
@@ -3524,7 +3512,18 @@ if ver_pozos:
 
     fg_pozos.add_to(m)
 
-    if html_items_acumulados:
+    if temp_incidencias_activas:
+        items_html = ""
+        for p_id, falla_txt in temp_incidencias_activas:
+            items_html += f"""
+            <div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{p_id}</span>
+                    <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 5px; border-radius: 3px;">{falla_txt.upper()}</span>
+                </div>
+            </div>
+            """
+
         panel_html = f"""
         <div style="
             position: fixed;
@@ -3541,7 +3540,7 @@ if ver_pozos:
             font-family: sans-serif;
             box-shadow: 0 4px 10px rgba(0,0,0,0.7);">
             <h4 style="color: #ff4d4d; margin: 0 0 10px 0; font-size: 13px; text-align: center; font-weight: bold;">INCIDENCIAS ACTIVAS</h4>
-            <div>{html_items_acumulados}</div>
+            <div>{items_html}</div>
         </div>
         """
         st.markdown(panel_html, unsafe_allow_html=True)

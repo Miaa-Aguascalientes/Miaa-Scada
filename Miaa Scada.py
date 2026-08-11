@@ -3220,9 +3220,7 @@ if sectores_data:
 # Declaración global de incidencias para que esté disponible para pozos y colonias siempre
 dic_incidencias_activas = obtener_pozos_con_incidencias_hoy() if 'obtener_pozos_con_incidencias_hoy' in globals() else {}            
 
-# ==========================================
-# 9.6. RENDERIZADO DE POLÍGONOS DE COLONIAS
-# ==========================================
+# 9.6. RENDERIZADO DE POLÍGONOS DE COLONIAS __________________________________________________________________________________________________________________________________
 if ver_colonias:
     gdf_colonias = get_todas_las_colonias()
     
@@ -3264,7 +3262,7 @@ if ver_colonias:
                             try:
                                 val_str = str(afectacion_col).replace('%', '').strip()
                                 val_f = float(val_str)
-                                suma_afec += val_f 
+                                suma_afec += val_f  # ⚠️ Suma acumulativa para el tooltip
                             except:
                                 pass
             
@@ -3327,14 +3325,12 @@ if ver_colonias:
         
         fg_colonias.add_to(m)
 
+      
+    
+# 9.7. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL  ___________________________________________________________________________________________________________________________________
 
-# ==========================================
-# 9.7. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL _________________________
-# ==========================================
 if ver_pozos:  
     fg_pozos = folium.FeatureGroup(name="Pozos", overlay=True, control=True)
-    
-    temp_incidencias_activas = []
 
     for id_p, info in mapa_pozos_dict.items():
         d = lambda tag: data_scada.get(tag, (0, "N/A"))
@@ -3352,7 +3348,12 @@ if ver_pozos:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
+        # ==========================================
+        # AQUÍ VA LA VALIDACIÓN TOLERANTE CON/SIN GUION
+        # ==========================================
         id_p_limpio = str(id_p).strip().upper()
+        
+        # Generar posibles variantes con o sin guion y con sufijos de letra (ej. P087A / P-087A)
         id_p_con_guion = re.sub(r'^([A-Z]+)(\d+)([A-Z]*)$', r'\1-\2\3', id_p_limpio)
         id_p_sin_guion = id_p_limpio.replace('-', '')
         
@@ -3363,7 +3364,8 @@ if ver_pozos:
         )
 
         rol_actual = st.session_state.get('rol', 'usuario')
-        nombre_codificado = urllib.parse.quote(str(id_p))
+        nombre_codificado = urllib.parse.quote(id_p)
+        
         url_pozo_graf = f"?graficar_pozo={id_p}&nombre={nombre_codificado}&access=granted&role={rol_actual}"
 
         html_popup = f"""
@@ -3449,6 +3451,7 @@ if ver_pozos:
             </div>
             """
 
+        # 1. Etiqueta de texto del pozo
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(
@@ -3458,6 +3461,9 @@ if ver_pozos:
             )
         ).add_to(fg_pozos)
 
+        # ==========================================
+        # 2. MARCADOR CONDICIONAL (GLOBO DESPLAZADO MÁS A LA DERECHA)
+        # ==========================================
         if tiene_incidencia_activa:
             info_incidencia = (
                 dic_incidencias_activas.get(id_p_limpio) or 
@@ -3470,25 +3476,47 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            # Marcador limpio ajustado justo encima del punto exacto del pozo sin líneas gigantes
-            html_marcador_falla = """
-            <div style="position: relative; width: 24px; height: 24px; pointer-events: none;">
-                <div style="position: absolute; top: 0; left: 0; width: 12px; height: 12px; background: #ffffff; border: 2px solid #ff4d4d; border-radius: 50%;"></div>
+            # Ampliamos el contenedor y movemos la tarjeta más a la derecha (left: 75px)
+            html_globo_incidencia = f"""
+            <div style="position: relative; width: 350px; height: 80px; pointer-events: none; font-family: sans-serif;">
+                <!-- Línea SVG conectora más larga -->
+                <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;">
+                    <line x1="15" y1="65" x2="75" y2="35" stroke="#ff4d4d" stroke-width="2" />
+                    <!-- Puntito blanco exacto sobre la coordenada del pozo -->
+                    <circle cx="15" cy="65" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="2" />
+                </svg>
+                
+                <!-- Tarjeta de texto desplazada aún más a la derecha -->
+                <div style="
+                    position: absolute;
+                    top: 0px;
+                    left: 75px;
+                    display: inline-flex;
+                    align-items: center;
+                    background: #000000;
+                    border: 2px solid #ff4d4d;
+                    border-radius: 6px;
+                    padding: 4px 8px;
+                    white-space: nowrap;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+                    pointer-events: auto;">
+                    <span style="font-size: 14px; margin-right: 6px;">🛠️</span>
+                    <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{id_p}</span>
+                    <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 6px; border-radius: 4px;">{diagnostico_falla.upper()}</span>
+                </div>
             </div>
             """
             
             folium.Marker(
                 location=info['coord'],
                 icon=folium.DivIcon(
-                    icon_size=(24, 24),
-                    icon_anchor=(6, 6),
-                    html=html_marcador_falla
+                    icon_size=(350, 80),
+                    icon_anchor=(15, 65),  # Ancla en el punto exacto del pozo
+                    html=html_globo_incidencia
                 ),
                 popup=folium.Popup(html_popup, max_width=450),
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)
-            
-            temp_incidencias_activas.append((id_p, str(diagnostico_falla)))
             
         elif info.get('blink'):
             folium.Marker(
@@ -3496,7 +3524,6 @@ if ver_pozos:
                 icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
                 popup=folium.Popup(html_popup, max_width=450)
             ).add_to(fg_pozos)
-            
         else:
             folium.CircleMarker(
                 location=info['coord'],
@@ -3509,35 +3536,6 @@ if ver_pozos:
             ).add_to(fg_pozos)
 
     fg_pozos.add_to(m)
-
-    if temp_incidencias_activas:
-        items_html_parts = []
-        for p_id, falla_txt in temp_incidencias_activas:
-            item_code = f"""<div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;"><div style="display:flex; align-items:center; width:100%;"><span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{p_id}</span><span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 5px; border-radius: 3px; margin-left:auto;">{falla_txt.upper()}</span></div></div>"""
-            items_html_parts.append(item_code)
-        
-        inner_items_str = "".join(items_html_parts)
-
-        panel_html = f"""
-        <div style="
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 320px;
-            max-height: 400px;
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #ff4d4d;
-            border-radius: 8px;
-            padding: 10px;
-            z-index: 999999;
-            overflow-y: auto;
-            font-family: sans-serif;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.7);">
-            <h4 style="color: #ff4d4d; margin: 0 0 10px 0; font-size: 13px; text-align: center; font-weight: bold;">INCIDENCIAS ACTIVAS</h4>
-            <div>{inner_items_str}</div>
-        </div>
-        """
-        st.markdown(panel_html, unsafe_allow_html=True)
           
 
 # 9.8. RENDERIZADO DE TANQUES EN EL MAPA PRINCIPAL ________________________________________________________________________________________________________________________________
@@ -3737,5 +3735,3 @@ if ver_pozos:
         )
 
     
-
-    # ---------------------------------------------------------------------------- FINAL DEL MAPA -------------------------------------------------------------------------------------------

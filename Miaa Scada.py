@@ -3461,7 +3461,7 @@ if ver_pozos:
             )
         ).add_to(fg_pozos)
 
-        # 2. Renderizado condicional para Incidencias / Bajar o Círculo normal
+        # 2. Renderizado condicional para Incidencias / Blink / Círculo normal
         if tiene_incidencia_activa:
             info_incidencia = (
                 dic_incidencias_activas.get(id_p_limpio) or 
@@ -3511,6 +3511,7 @@ if ver_pozos:
                 icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
                 popup=folium.Popup(html_popup, max_width=450)
             ).add_to(fg_pozos)
+            
         else:
             folium.CircleMarker(
                 location=info['coord'],
@@ -3522,7 +3523,7 @@ if ver_pozos:
                 popup=folium.Popup(html_popup, max_width=450)
             ).add_to(fg_pozos)
 
-    # 3. Inyectar el panel flotante de incidencias una sola vez al terminar el ciclo
+    # 3. Inyectar el panel flotante de incidencias una sola vez al terminar el ciclo (FUERA DEL FOR)
     html_panel_incidencias = f"""
     <div id="panel_incidencias" style="
         position: fixed;
@@ -3545,25 +3546,6 @@ if ver_pozos:
     mapa.get_root().html.add_child(folium.Element(html_panel_incidencias))
 
     fg_pozos.add_to(mapa)
-            
-        elif info.get('blink'):
-            folium.Marker(
-                location=info['coord'],
-                icon=folium.DivIcon(html=get_blink_icon(info['color_final'])),
-                popup=folium.Popup(html_popup, max_width=450)
-            ).add_to(fg_pozos)
-        else:
-            folium.CircleMarker(
-                location=info['coord'],
-                radius=4,
-                color=info['color_final'],
-                fill=True,
-                fill_color=info['color_final'],
-                fill_opacity=1,
-                popup=folium.Popup(html_popup, max_width=450)
-            ).add_to(fg_pozos)
-
-    fg_pozos.add_to(m)
           
 
 # 9.8. RENDERIZADO DE TANQUES EN EL MAPA PRINCIPAL ________________________________________________________________________________________________________________________________

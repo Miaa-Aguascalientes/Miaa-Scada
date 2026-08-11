@@ -3463,7 +3463,7 @@ if ver_pozos:
 
         # ==========================================
         # 2. MARCADOR CONDICIONAL (USANDO LAS VARIANTES)
-        # ==========================================
+# ==========================================
         if tiene_incidencia_activa:
             info_incidencia = (
                 dic_incidencias_activas.get(id_p_limpio) or 
@@ -3472,17 +3472,41 @@ if ver_pozos:
             )
             
             if isinstance(info_incidencia, dict):
-                diagnostico_falla = info_incidencia.get('diagnostico', info_incidencia.get('motivo', 'INCIDENCIA REGISTRADA'))
+                diagnostico_falla = info_incidencia.get('diagnostico', info_incidencia.get('motivo', 'FALLA'))
             else:
                 diagnostico_falla = str(info_incidencia)
             
+            # --- NUEVA ESTRUCTURA DE ETIQUETA ---
+            # Este HTML combina el ID del pozo y la falla debajo
+            html_etiqueta_falla = f"""
+            <div style="
+                display: flex; 
+                flex-direction: column; 
+                align-items: flex-start; 
+                font-family: sans-serif;
+                pointer-events: none;">
+                <div style="font-size: 10px; font-weight: bold; color: #ff4d4d; text-shadow: 1px 1px 2px #000;">{id_p}</div>
+                <div style="font-size: 8px; font-weight: bold; color: white; background: #ff4d4d; padding: 1px 4px; border-radius: 3px; white-space: nowrap; border: 1px solid white;">
+                    {diagnostico_falla.upper()}
+                </div>
+            </div>
+            """
+            
+            # Marcador con ícono de herramienta y la etiqueta flotante
             folium.Marker(
                 location=info['coord'],
-                icon=folium.Icon(
-                    color='red',
-                    icon='wrench',
-                    prefix='fa'
+                icon=folium.DivIcon(
+                    icon_size=(200, 50),
+                    icon_anchor=(-15, 15), # Ajustado para que no tape el ícono
+                    html=html_etiqueta_falla
                 ),
+                popup=folium.Popup(html_popup, max_width=450)
+            ).add_to(fg_pozos)
+            
+            # Agregamos también el ícono de la herramienta (wrench) sin texto extra para no duplicar
+            folium.Marker(
+                location=info['coord'],
+                icon=folium.Icon(color='red', icon='wrench', prefix='fa'),
                 popup=folium.Popup(html_popup, max_width=450),
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)

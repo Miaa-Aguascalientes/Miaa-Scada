@@ -3461,8 +3461,8 @@ if ver_pozos:
             )
         ).add_to(fg_pozos)
 
-# ==========================================
-        # 2. MARCADOR CONDICIONAL (ESTILO GLOBO CON LÍNEA DIAGONAL)
+        # ==========================================
+        # 2. MARCADOR CONDICIONAL (GLOBO DESPLAZADO MÁS A LA DERECHA)
         # ==========================================
         if tiene_incidencia_activa:
             info_incidencia = (
@@ -3476,21 +3476,21 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            # Contenedor SVG que dibuja la línea y posiciona la tarjeta a la derecha
+            # Ampliamos el contenedor y movemos la tarjeta más a la derecha (left: 75px)
             html_globo_incidencia = f"""
-            <div style="position: relative; width: 300px; height: 80px; pointer-events: none; font-family: sans-serif;">
-                <!-- Línea SVG conectora: inicia en la base del marcador (izq-abajo) y sube hacia la tarjeta -->
+            <div style="position: relative; width: 350px; height: 80px; pointer-events: none; font-family: sans-serif;">
+                <!-- Línea SVG conectora más larga -->
                 <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;">
-                    <line x1="15" y1="65" x2="45" y2="35" stroke="#ff4d4d" stroke-width="2" />
+                    <line x1="15" y1="65" x2="75" y2="35" stroke="#ff4d4d" stroke-width="2" />
                     <!-- Puntito blanco exacto sobre la coordenada del pozo -->
                     <circle cx="15" cy="65" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="2" />
                 </svg>
                 
-                <!-- Tarjeta de texto desplazada a la derecha -->
+                <!-- Tarjeta de texto desplazada aún más a la derecha -->
                 <div style="
                     position: absolute;
                     top: 0px;
-                    left: 45px;
+                    left: 75px;
                     display: inline-flex;
                     align-items: center;
                     background: #000000;
@@ -3510,8 +3510,8 @@ if ver_pozos:
             folium.Marker(
                 location=info['coord'],
                 icon=folium.DivIcon(
-                    icon_size=(300, 80),
-                    icon_anchor=(15, 65),  # Ancla exacta en el punto de inicio de la línea (el círculo blanco)
+                    icon_size=(350, 80),
+                    icon_anchor=(15, 65),  # Ancla en el punto exacto del pozo
                     html=html_globo_incidencia
                 ),
                 popup=folium.Popup(html_popup, max_width=450),

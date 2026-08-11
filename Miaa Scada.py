@@ -3220,7 +3220,9 @@ if sectores_data:
 # Declaración global de incidencias para que esté disponible para pozos y colonias siempre
 dic_incidencias_activas = obtener_pozos_con_incidencias_hoy() if 'obtener_pozos_con_incidencias_hoy' in globals() else {}            
 
-# 9.6. RENDERIZADO DE POLÍGONOS DE COLONIAS __________________________________________________________________________________________________________________________________
+# ==========================================
+# 9.6. RENDERIZADO DE POLÍGONOS DE COLONIAS
+# ==========================================
 if ver_colonias:
     gdf_colonias = get_todas_las_colonias()
     
@@ -3262,7 +3264,7 @@ if ver_colonias:
                             try:
                                 val_str = str(afectacion_col).replace('%', '').strip()
                                 val_f = float(val_str)
-                                suma_afec += val_f  # ⚠️ Suma acumulativa para el tooltip
+                                suma_afec += val_f 
                             except:
                                 pass
             
@@ -3325,16 +3327,13 @@ if ver_colonias:
         
         fg_colonias.add_to(m)
 
-      
-    
+
 # ==========================================
 # 9.7. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL
 # ==========================================
-
 if ver_pozos:  
     fg_pozos = folium.FeatureGroup(name="Pozos", overlay=True, control=True)
     
-    # 1. Inicializar acumulador de incidencias antes del ciclo
     html_items_acumulados = ""
 
     for id_p, info in mapa_pozos_dict.items():
@@ -3353,7 +3352,6 @@ if ver_pozos:
         v = [d(t) for t in info['voltajes_l']] if not is_st else [(0.0, "N/A")]*3
         a = [d(t) for t in info['amperajes_l']] if not is_st else [(0.0, "N/A")]*3
 
-        # Validación tolerante con/sin guion
         id_p_limpio = str(id_p).strip().upper()
         id_p_con_guion = re.sub(r'^([A-Z]+)(\d+)([A-Z]*)$', r'\1-\2\3', id_p_limpio)
         id_p_sin_guion = id_p_limpio.replace('-', '')
@@ -3451,7 +3449,6 @@ if ver_pozos:
             </div>
             """
 
-        # 1. Etiqueta de texto del pozo
         folium.Marker(
             location=info['coord'],
             icon=folium.DivIcon(
@@ -3461,7 +3458,6 @@ if ver_pozos:
             )
         ).add_to(fg_pozos)
 
-        # 2. Renderizado condicional para Incidencias / Blink / Círculo normal
         if tiene_incidencia_activa:
             info_incidencia = (
                 dic_incidencias_activas.get(id_p_limpio) or 
@@ -3474,7 +3470,6 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            # Línea y punto exacto sobre el pozo
             html_solo_linea = f"""
             <div style="position: relative; width: 40px; height: 60px; pointer-events: none;">
                 <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;">
@@ -3495,7 +3490,6 @@ if ver_pozos:
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"
             ).add_to(fg_pozos)
             
-            # Acumulamos el diseño para el panel inferior derecho
             html_items_acumulados += f"""
             <div style="background: #111; margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; border-left: 3px solid #ff4d4d; display: flex; align-items: center; justify-content: space-between;">
                 <div>
@@ -3523,29 +3517,29 @@ if ver_pozos:
                 popup=folium.Popup(html_popup, max_width=450)
             ).add_to(fg_pozos)
 
-    # 3. Inyectar el panel flotante de incidencias una sola vez al terminar el ciclo (FUERA DEL FOR)
-    html_panel_incidencias = f"""
-    <div id="panel_incidencias" style="
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 320px;
-        max-height: 400px;
-        background: rgba(0, 0, 0, 0.9);
-        border: 2px solid #ff4d4d;
-        border-radius: 8px;
-        padding: 10px;
-        z-index: 99999;
-        overflow-y: auto;
-        font-family: sans-serif;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.7);">
-        <h4 style="color: #ff4d4d; margin: 0 0 10px 0; font-size: 13px; text-align: center; font-weight: bold;">INCIDENCIAS ACTIVAS</h4>
-        <div>{html_items_acumulados}</div>
-    </div>
-    """
-    mapa.get_root().html.add_child(folium.Element(html_panel_incidencias))
+    fg_pozos.add_to(m)
 
-    fg_pozos.add_to(mapa)
+    if html_items_acumulados:
+        panel_html = f"""
+        <div style="
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 320px;
+            max-height: 400px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #ff4d4d;
+            border-radius: 8px;
+            padding: 10px;
+            z-index: 999999;
+            overflow-y: auto;
+            font-family: sans-serif;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.7);">
+            <h4 style="color: #ff4d4d; margin: 0 0 10px 0; font-size: 13px; text-align: center; font-weight: bold;">INCIDENCIAS ACTIVAS</h4>
+            <div>{html_items_acumulados}</div>
+        </div>
+        """
+        st.markdown(panel_html, unsafe_allow_html=True)
           
 
 # 9.8. RENDERIZADO DE TANQUES EN EL MAPA PRINCIPAL ________________________________________________________________________________________________________________________________

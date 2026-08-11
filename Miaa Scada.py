@@ -3461,8 +3461,8 @@ if ver_pozos:
             )
         ).add_to(fg_pozos)
 
-        # ==========================================
-        # 2. MARCADOR CONDICIONAL (DISEÑO HORIZONTAL UNIFICADO)
+# ==========================================
+        # 2. MARCADOR CONDICIONAL (ESTILO GLOBO CON LÍNEA DIAGONAL)
         # ==========================================
         if tiene_incidencia_activa:
             info_incidencia = (
@@ -3476,31 +3476,43 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            # HTML en una sola línea horizontal con fondo completamente negro y borde rojo
-            html_tarjeta_incidencia = f"""
-            <div style="
-                display: inline-flex;
-                align-items: center;
-                background: #000000;
-                border: 2px solid #ff4d4d;
-                border-radius: 6px;
-                padding: 4px 8px;
-                white-space: nowrap;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.6);
-                font-family: sans-serif;
-                pointer-events: auto;">
-                <span style="font-size: 14px; margin-right: 6px;">🛠️</span>
-                <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{id_p}</span>
-                <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 6px; border-radius: 4px;">{diagnostico_falla.upper()}</span>
+            # Contenedor SVG que dibuja la línea y posiciona la tarjeta a la derecha
+            html_globo_incidencia = f"""
+            <div style="position: relative; width: 300px; height: 80px; pointer-events: none; font-family: sans-serif;">
+                <!-- Línea SVG conectora: inicia en la base del marcador (izq-abajo) y sube hacia la tarjeta -->
+                <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible;">
+                    <line x1="15" y1="65" x2="45" y2="35" stroke="#ff4d4d" stroke-width="2" />
+                    <!-- Puntito blanco exacto sobre la coordenada del pozo -->
+                    <circle cx="15" cy="65" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="2" />
+                </svg>
+                
+                <!-- Tarjeta de texto desplazada a la derecha -->
+                <div style="
+                    position: absolute;
+                    top: 0px;
+                    left: 45px;
+                    display: inline-flex;
+                    align-items: center;
+                    background: #000000;
+                    border: 2px solid #ff4d4d;
+                    border-radius: 6px;
+                    padding: 4px 8px;
+                    white-space: nowrap;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+                    pointer-events: auto;">
+                    <span style="font-size: 14px; margin-right: 6px;">🛠️</span>
+                    <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{id_p}</span>
+                    <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 6px; border-radius: 4px;">{diagnostico_falla.upper()}</span>
+                </div>
             </div>
             """
             
             folium.Marker(
                 location=info['coord'],
                 icon=folium.DivIcon(
-                    icon_size=(250, 40),
-                    icon_anchor=(-10, 15),
-                    html=html_tarjeta_incidencia
+                    icon_size=(300, 80),
+                    icon_anchor=(15, 65),  # Ancla exacta en el punto de inicio de la línea (el círculo blanco)
+                    html=html_globo_incidencia
                 ),
                 popup=folium.Popup(html_popup, max_width=450),
                 tooltip=f"⚠️ POZO {id_p} - {diagnostico_falla}"

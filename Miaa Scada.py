@@ -3461,8 +3461,8 @@ if ver_pozos:
             )
         ).add_to(fg_pozos)
 
-# ==========================================
-        # 2. MARCADOR CONDICIONAL (LIMPIO Y UNIFICADO)
+        # ==========================================
+        # 2. MARCADOR CONDICIONAL (DISEÑO HORIZONTAL UNIFICADO)
         # ==========================================
         if tiene_incidencia_activa:
             info_incidencia = (
@@ -3476,31 +3476,29 @@ if ver_pozos:
             else:
                 diagnostico_falla = str(info_incidencia)
             
-            # HTML limpio que une la llave, el ID y la falla en una sola tarjeta sin estorbarse
+            # HTML en una sola línea horizontal con fondo completamente negro y borde rojo
             html_tarjeta_incidencia = f"""
             <div style="
-                display: flex;
+                display: inline-flex;
                 align-items: center;
-                background: rgba(15, 15, 20, 0.9);
+                background: #000000;
                 border: 2px solid #ff4d4d;
                 border-radius: 6px;
-                padding: 3px 6px;
+                padding: 4px 8px;
                 white-space: nowrap;
-                box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.6);
                 font-family: sans-serif;
                 pointer-events: auto;">
-                <span style="font-size: 14px; margin-right: 5px;">🛠️</span>
-                <div style="display: flex; flex-direction: column;">
-                    <span style="font-size: 10px; font-weight: bold; color: #ff4d4d; line-height: 1.1;">{id_p}</span>
-                    <span style="font-size: 9px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 1px 4px; border-radius: 3px; margin-top: 2px;">{diagnostico_falla.upper()}</span>
-                </div>
+                <span style="font-size: 14px; margin-right: 6px;">🛠️</span>
+                <span style="font-size: 11px; font-weight: bold; color: #ffffff; margin-right: 8px;">{id_p}</span>
+                <span style="font-size: 10px; font-weight: bold; color: #ffffff; background: #c0392b; padding: 2px 6px; border-radius: 4px;">{diagnostico_falla.upper()}</span>
             </div>
             """
             
             folium.Marker(
                 location=info['coord'],
                 icon=folium.DivIcon(
-                    icon_size=(220, 40),
+                    icon_size=(250, 40),
                     icon_anchor=(-10, 15),
                     html=html_tarjeta_incidencia
                 ),

@@ -3511,7 +3511,7 @@ if ver_pozos:
                 location=info['coord'],
                 icon=folium.DivIcon(
                     icon_size=(350, 80),
-                    icon_anchor=(15, 65),  # Ancla en el punto exacto del pozo
+                    icon_anchor=(15, 12),  # Ancla en el punto exacto del pozo
                     html=html_globo_incidencia
                 ),
                 popup=folium.Popup(html_popup, max_width=450),

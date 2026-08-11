@@ -3329,7 +3329,7 @@ if ver_colonias:
 
 
 # ==========================================
-# 9.7. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL
+# 9.7. RENDERIZADO DE POZOS EN EL MAPA PRINCIPAL _________________________
 # ==========================================
 if ver_pozos:  
     fg_pozos = folium.FeatureGroup(name="Pozos", overlay=True, control=True)

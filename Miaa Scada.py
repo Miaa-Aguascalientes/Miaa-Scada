@@ -3707,34 +3707,58 @@ if ver_pozos:
     folium.LayerControl(position='topright', collapsed=False).add_to(m)
     folium_static(m, width=None, height=600)
 
-    # --- % DE AFECTACIONES POR COLONIAS ---
+# --- % DE AFECTACIONES POR COLONIAS ---
     st.markdown("##### 🗺️ % de Afectación en Colonias")
     
     col_l1, col_l2, col_l3, col_l4, col_l5 = st.columns(5)
     
+    estilo_tarjeta = """
+        background: linear-gradient(180deg, rgba(11, 26, 41, 0.95) 0%, rgba(0, 0, 0, 1) 100%); 
+        border: 1px solid #1f4068; 
+        padding: 10px 5px; 
+        border-radius: 10px; 
+        text-align: center; 
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5);
+    """
+
     with col_l1:
         st.markdown(
-            '<div style="background-color: #FF0000; padding: 8px; border-radius: 5px; text-align: center; color: white; font-weight: bold; font-size: 14px;">76% - 100%<br><span style="font-size: 11px;">Rojo (Crítico)</span></div>', 
+            f'<div style="{estilo_tarjeta}">'
+            f'<span style="color: #888888; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 4px;">Rojo (Crítico)</span>'
+            f'<span style="color: #FF0000; font-size: 1.1rem; font-weight: bold; text-shadow: 0 0 8px rgba(255, 0, 0, 0.5);">76% - 100%</span>'
+            f'</div>', 
             unsafe_allow_html=True
         )
     with col_l2:
         st.markdown(
-            '<div style="background-color: #FFFF00; padding: 8px; border-radius: 5px; text-align: center; color: black; font-weight: bold; font-size: 14px;">51% - 75%<br><span style="font-size: 11px;">Amarillo (Alto)</span></div>', 
+            f'<div style="{estilo_tarjeta}">'
+            f'<span style="color: #888888; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 4px;">Amarillo (Alto)</span>'
+            f'<span style="color: #FFFF00; font-size: 1.1rem; font-weight: bold; text-shadow: 0 0 8px rgba(255, 255, 0, 0.5);">51% - 75%</span>'
+            f'</div>', 
             unsafe_allow_html=True
         )
     with col_l3:
         st.markdown(
-            '<div style="background-color: #FFA500; padding: 8px; border-radius: 5px; text-align: center; color: black; font-weight: bold; font-size: 14px;">31% - 50%<br><span style="font-size: 11px;">Naranja (Moderado)</span></div>', 
+            f'<div style="{estilo_tarjeta}">'
+            f'<span style="color: #888888; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 4px;">Naranja (Moderado)</span>'
+            f'<span style="color: #FFA500; font-size: 1.1rem; font-weight: bold; text-shadow: 0 0 8px rgba(255, 165, 0, 0.5);">31% - 50%</span>'
+            f'</div>', 
             unsafe_allow_html=True
         )
     with col_l4:
         st.markdown(
-            '<div style="background-color: #69ADDD; padding: 8px; border-radius: 5px; text-align: center; color: black; font-weight: bold; font-size: 14px;">1% - 30%<br><span style="font-size: 11px;">Azul Claro (Leve)</span></div>', 
+            f'<div style="{estilo_tarjeta}">'
+            f'<span style="color: #888888; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 4px;">Azul Claro (Leve)</span>'
+            f'<span style="color: #69ADDD; font-size: 1.1rem; font-weight: bold; text-shadow: 0 0 8px rgba(105, 173, 221, 0.5);">1% - 30%</span>'
+            f'</div>', 
             unsafe_allow_html=True
         )
     with col_l5:
         st.markdown(
-            '<div style="background-color: #3498DB; padding: 8px; border-radius: 5px; text-align: center; color: white; font-weight: bold; font-size: 14px;">0%<br><span style="font-size: 11px;">Normal / Sin Afectación</span></div>', 
+            f'<div style="{estilo_tarjeta}">'
+            f'<span style="color: #888888; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; display: block; margin-bottom: 4px;">Normal / Sin Afectación</span>'
+            f'<span style="color: #3498DB; font-size: 1.1rem; font-weight: bold; text-shadow: 0 0 8px rgba(52, 152, 219, 0.5);">0%</span>'
+            f'</div>', 
             unsafe_allow_html=True
         )
 
